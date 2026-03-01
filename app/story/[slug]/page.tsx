@@ -1,61 +1,93 @@
+"use client";
+
 import Link from "next/link";
-import { headers } from "next/headers";
-import type { Story } from "@/app/lib/types";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { stories as baseStories } from "../../lib/stories";
+import { getLocalStories } from "../../lib/storyStore";
 
-type Lean = "Left" | "Center" | "Right";
+type Story = (typeof baseStories)[number];
 
-function leanBadgeClasses(lean: Lean) {
-  switch (lean) {
-    case "Left":
-      return "border border-blue-500/40 text-blue-300";
-    case "Center":
-      return "border border-neutral-600 text-neutral-300";
-    case "Right":
-      return "border border-red-500/40 text-red-300";
-    default:
-      return "border border-neutral-600 text-neutral-300";
-  }
+function normalize(s: string) {
+  return String(s).trim().toLowerCase();
 }
 
-async function getOrigin() {
-  // Best: explicit full URL you control (set in Vercel env vars)
-  const site = process.env.NEXT_PUBLIC_SITE_URL;
-  if (site && site.startsWith("http")) return site;
-
-  // Vercel provides this automatically (no protocol)
-  const vercel = process.env.VERCEL_URL;
-  if (vercel) return `https://${vercel}`;
-
-  // Fallback: derive from request headers
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  if (host) return `${proto}://${host}`;
-
-  // Local fallback
-  return "http://localhost:3000";
+function leanBadgeClasses(_lean: "Left" | "Center" | "Right") {
+  return "border border-neutral-600 text-neutral-300";
 }
 
-export default async function StoryPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ slug: string }>;
-  searchParams?: Promise<{ from?: string | string[] }>;
-}) {
-  const { slug } = await params;
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const rawFrom = resolvedSearchParams?.from;
-  const from = Array.isArray(rawFrom) ? rawFrom[0] : rawFrom;
+export default function StoryPage() {
+  const params = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
+  const from = searchParams.get("from");
+  const slug = params?.slug ?? "";
 
-  const origin = await getOrigin();
   const backHref = from ? `/?tab=${encodeURIComponent(from)}` : "/";
 
-  const res = await fetch(`${origin}/api/stories/${encodeURIComponent(slug)}`, {
-    cache: "no-store",
-  });
+  const [story, setStory] = useState<Story | null>(null);
+  const [knownIds, setKnownIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (!res.ok) {
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+
+      // 1) Try API first (works for shared/published stories)
+      try {
+        const res = await fetch(`/api/stories/${encodeURIComponent(slug)}`, {
+          cache: "no-store",
+        });
+
+        if (res.ok) {
+          const data = (await res.json()) as Story;
+          if (!cancelled) setStory(data);
+          if (!cancelled) setLoading(false);
+          return;
+        }
+      } catch {
+        // ignore and fall back
+      }
+
+      // 2) Fallback: local stories (editor-created on this device)
+      const local = getLocalStories();
+      const all = [...local, ...baseStories];
+      const ids = all.map((s) => s.id);
+
+      const found =
+        all.find((s) => normalize(s.id) === normalize(slug)) ?? null;
+
+      if (!cancelled) {
+        setKnownIds(ids);
+        setStory(found);
+        setLoading(false);
+      }
+    }
+
+    if (slug) load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-neutral-900 text-neutral-100 px-6 py-12">
+        <div className="max-w-3xl mx-auto">
+          <Link href={backHref} className="text-neutral-300 hover:text-white transition">
+            ← Back
+          </Link>
+          <div className="mt-10 bg-neutral-950/30 border border-neutral-700 rounded-2xl p-8">
+            <p className="text-neutral-400">Loading…</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (!story) {
     return (
       <main className="min-h-screen bg-neutral-900 text-neutral-100 px-6 py-12">
         <div className="max-w-3xl mx-auto">
@@ -66,21 +98,23 @@ export default async function StoryPage({
           <div className="mt-10 bg-neutral-950/30 border border-neutral-700 rounded-2xl p-8">
             <h1 className="text-2xl font-semibold">Story not found</h1>
             <p className="text-neutral-400 mt-2">
-              This story isn’t in the current dataset.
+              This story isn’t available on this device yet.
             </p>
 
             <div className="mt-6 text-xs text-neutral-500">
-              <div>Requested slug: {slug}</div>
-              <div>Tried origin: {origin}</div>
-              <div>Status: {res.status}</div>
+              <div className="mb-2">Requested slug: {slug}</div>
+              {knownIds.length > 0 && (
+                <>
+                  <div className="mb-2">Known ids:</div>
+                  <div className="break-words">{knownIds.join(", ")}</div>
+                </>
+              )}
             </div>
           </div>
         </div>
       </main>
     );
   }
-
-  const story = (await res.json()) as Story;
 
   return (
     <main className="min-h-screen bg-neutral-900 text-neutral-100 px-6 py-12">
@@ -89,7 +123,6 @@ export default async function StoryPage({
           <Link href={backHref} className="text-neutral-300 hover:text-white transition">
             ← Back
           </Link>
-
           <div className="text-sm text-neutral-400">
             {story.views} views • {story.comments} comments
           </div>
@@ -115,13 +148,11 @@ export default async function StoryPage({
         <div className="mt-8">
           <div className="flex items-end justify-between">
             <h2 className="text-lg font-semibold">Coverage</h2>
-            <p className="text-sm text-neutral-400">
-              Multiple sources, one story block.
-            </p>
+            <p className="text-sm text-neutral-400">Multiple sources, one story block.</p>
           </div>
 
           <div className="mt-4 space-y-3">
-            {story.sources.map((src, i) => (
+            {story.sources.map((src: any, i: number) => (
               <a
                 key={i}
                 href={src.url}
@@ -141,13 +172,6 @@ export default async function StoryPage({
               </a>
             ))}
           </div>
-        </div>
-
-        <div className="mt-10 bg-neutral-950/25 border border-neutral-700 rounded-2xl p-8">
-          <h2 className="text-lg font-semibold">Comments</h2>
-          <p className="text-neutral-400 mt-2">
-            Coming next: threaded comments ranked by “Insightful,” “Newest,” and “Most Discussed.”
-          </p>
         </div>
       </div>
     </main>
