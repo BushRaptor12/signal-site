@@ -3,10 +3,10 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/app/lib/supabase.server";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const supabase = supabaseServer();
-    const id = params.id;
+    const id = (await params).id;
 
     const { data, error } = await supabase
       .from("stories")

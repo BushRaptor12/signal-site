@@ -3,10 +3,10 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/app/lib/supabase.server";
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const supabase = supabaseServer();
-    const id = params.id;
+    const id = (await params).id;
 
     // 1) ensure exists
     await supabase
