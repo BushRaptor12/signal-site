@@ -1,24 +1,23 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import type { Story } from "@/app/lib/types";
 
 type Lean = "Left" | "Center" | "Right";
 
-type Story = {
-  id: string;
-  title: string;
-  summary: string[];
-  sources: { name: string; url: string; lean: Lean }[];
-  views: number;
-  comments: number;
-  date: string;
-  tags: string[];
-};
-
-function leanBadgeClasses(_lean: Lean) {
-  return "border border-neutral-600 text-neutral-300";
+function leanBadgeClasses(lean: Lean) {
+  switch (lean) {
+    case "Left":
+      return "border border-blue-500/40 text-blue-300";
+    case "Center":
+      return "border border-neutral-600 text-neutral-300";
+    case "Right":
+      return "border border-red-500/40 text-red-300";
+    default:
+      return "border border-neutral-600 text-neutral-300";
+  }
 }
 
-function getOrigin() {
+async function getOrigin() {
   // Best: explicit full URL you control (set in Vercel env vars)
   const site = process.env.NEXT_PUBLIC_SITE_URL;
   if (site && site.startsWith("http")) return site;
@@ -28,7 +27,7 @@ function getOrigin() {
   if (vercel) return `https://${vercel}`;
 
   // Fallback: derive from request headers
-  const h = headers();
+  const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const proto = h.get("x-forwarded-proto") ?? "https";
   if (host) return `${proto}://${host}`;
@@ -41,13 +40,15 @@ export default async function StoryPage({
   params,
   searchParams,
 }: {
-  params: { slug: string };
-  searchParams?: { from?: string };
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ from?: string | string[] }>;
 }) {
-  const slug = params.slug;
-  const from = searchParams?.from;
+  const { slug } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const rawFrom = resolvedSearchParams?.from;
+  const from = Array.isArray(rawFrom) ? rawFrom[0] : rawFrom;
 
-  const origin = getOrigin();
+  const origin = await getOrigin();
   const backHref = from ? `/?tab=${encodeURIComponent(from)}` : "/";
 
   const res = await fetch(`${origin}/api/stories/${encodeURIComponent(slug)}`, {
