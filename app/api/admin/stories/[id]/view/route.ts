@@ -1,5 +1,6 @@
 export const runtime = "nodejs";
 
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import path from "path";
 import fs from "fs/promises";
@@ -22,8 +23,11 @@ async function writeStories(stories: any[]) {
   await fs.writeFile(dataPath, JSON.stringify(stories, null, 2), "utf8");
 }
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
-  const id = normalize(params.id);
+export async function POST(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const id = normalize((await params).id);
 
   const stories = await readStories();
   const idx = stories.findIndex((s: any) => normalize(s.id) === id);
