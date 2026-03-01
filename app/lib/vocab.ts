@@ -1,4 +1,4 @@
-waexport const TOPICS = [
+export const TOPICS = [
   "Politics",
   "Economy",
   "Technology",
