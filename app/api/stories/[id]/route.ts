@@ -1,16 +1,30 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { formatStoryStoreError, getStoryById } from "@/app/lib/storyStore.server";
+import { supabaseServer } from "@/app/lib/supabase.server";
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+function formatError(prefix: string, e: unknown) {
+  const msg = e instanceof Error ? e.message : String(e);
+  return { error: `${prefix}: ${msg}` };
+}
+
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const { id } = await params;
-    const found = await getStoryById(id);
+    const id = params.id;
 
-    if (!found) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json(found);
+    const supabase = supabaseServer();
+
+    const { data, error } = await supabase
+      .from("stories")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json(data);
   } catch (e: unknown) {
-    return NextResponse.json(formatStoryStoreError("GET /api/stories/[id] failed", e), { status: 500 });
+    return NextResponse.json(formatError("GET /api/stories/[id] failed", e), { status: 500 });
   }
 }

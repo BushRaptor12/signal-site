@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Story } from "../lib/types";
 import { ENTITIES, TOPICS, normalize } from "../lib/vocab";
 
@@ -19,7 +19,56 @@ export default function EditorPage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [summary, setSummary] = useState<string[]>(["", "", ""]);
   const [topics, setTopics] = useState<string[]>([]);
+const [adminToken, setAdminToken] = useState<string | null>(null);
+const [showTokenInput, setShowTokenInput] = useState(false);
+{showTokenInput && (
+  <div className="mb-6 bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
+    <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">
+      Admin Token Required
+    </div>
 
+    <input
+      type="password"
+      placeholder="Enter admin token..."
+      className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg mb-3"
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          saveAdminToken((e.target as HTMLInputElement).value);
+        }
+      }}
+    />
+
+    <button
+      onClick={() => {
+        const input = document.querySelector<HTMLInputElement>(
+          'input[placeholder="Enter admin token..."]'
+        );
+        if (input) saveAdminToken(input.value);
+      }}
+      className="px-4 py-2 bg-neutral-100 text-neutral-900 rounded-lg text-sm"
+    >
+      Save Token
+    </button>
+  </div>
+)}
+useEffect(() => {
+  const saved = localStorage.getItem("signal_admin_token");
+  if (saved) {
+    setAdminToken(saved);
+  } else {
+    setShowTokenInput(true);
+  }
+}, []);
+<button
+  onClick={() => {
+    localStorage.removeItem("signal_admin_token");
+    setAdminToken(null);
+    setShowTokenInput(true);
+  }}
+  className="text-xs text-neutral-400 hover:text-neutral-200"
+>
+  Change Admin Token
+</button>
   // entities stored as canonical entity names (ENTITIES.name)
   const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
   const [primaryEntities, setPrimaryEntities] = useState<string[]>([]);
@@ -45,7 +94,14 @@ export default function EditorPage() {
         : [...prev, t]
     );
   }
+function saveAdminToken(token: string) {
+  const trimmed = token.trim();
+  if (!trimmed) return;
 
+  localStorage.setItem("signal_admin_token", trimmed);
+  setAdminToken(trimmed);
+  setShowTokenInput(false);
+}
   function updateSummary(i: number, val: string) {
     setSummary((prev) => {
       const next = [...prev];
@@ -142,11 +198,20 @@ export default function EditorPage() {
       entities,
       primaryEntities,
     };
-    const res = await fetch("/api/stories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(story),
-    });
+    if (!adminToken) {
+  alert("Admin token required.");
+  setShowTokenInput(true);
+  return;
+}
+
+const res = await fetch("/api/stories", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-admin-token": adminToken,
+  },
+  body: JSON.stringify(story),
+});
 
     if (!res.ok) {
       const err = (await res.json().catch(() => ({}))) as {
