@@ -1,7 +1,20 @@
 import Link from "next/link";
-import type { Story } from "../../lib/types";
+import { headers } from "next/headers";
 
-function leanBadgeClasses(_lean: "Left" | "Center" | "Right") {
+type Lean = "Left" | "Center" | "Right";
+
+type Story = {
+  id: string;
+  title: string;
+  summary: string[];
+  sources: { name: string; url: string; lean: Lean }[];
+  views: number;
+  comments: number;
+  date: string;
+  tags: string[];
+};
+
+function leanBadgeClasses(_lean: Lean) {
   return "border border-neutral-600 text-neutral-300";
 }
 
@@ -9,25 +22,31 @@ export default async function StoryPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ slug: string }>;
-  searchParams?: Promise<{ from?: string }>;
+  params: { slug: string };
+  searchParams?: { from?: string };
 }) {
-  const slug = (await params).slug;
-  const from = (await searchParams)?.from;
+  const slug = params.slug;
+  const from = searchParams?.from;
+
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  const origin = host ? `${proto}://${host}` : "http://localhost:3000";
 
   const backHref = from ? `/?tab=${encodeURIComponent(from)}` : "/";
 
-  // Fetch story from your public API (JSON/db-backed)
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/api/stories/${encodeURIComponent(slug)}`,
-    { cache: "no-store" }
-  );
+  const res = await fetch(`${origin}/api/stories/${encodeURIComponent(slug)}`, {
+    cache: "no-store",
+  });
 
   if (!res.ok) {
     return (
       <main className="min-h-screen bg-neutral-900 text-neutral-100 px-6 py-12">
         <div className="max-w-3xl mx-auto">
-          <Link href={backHref} className="text-neutral-300 hover:text-white transition">
+          <Link
+            href={backHref}
+            className="text-neutral-300 hover:text-white transition"
+          >
             ← Back
           </Link>
 
@@ -50,9 +69,11 @@ export default async function StoryPage({
   return (
     <main className="min-h-screen bg-neutral-900 text-neutral-100 px-6 py-12">
       <div className="max-w-3xl mx-auto">
-        {/* Top bar */}
         <div className="flex items-center justify-between">
-          <Link href={backHref} className="text-neutral-300 hover:text-white transition">
+          <Link
+            href={backHref}
+            className="text-neutral-300 hover:text-white transition"
+          >
             ← Back
           </Link>
 
@@ -61,9 +82,10 @@ export default async function StoryPage({
           </div>
         </div>
 
-        {/* Story header */}
         <div className="mt-8 bg-neutral-950/40 border border-neutral-700 rounded-2xl p-8">
-          <h1 className="text-3xl font-semibold leading-tight">{story.title}</h1>
+          <h1 className="text-3xl font-semibold leading-tight">
+            {story.title}
+          </h1>
 
           <div className="mt-6">
             <h2 className="text-sm font-medium text-neutral-300 uppercase tracking-wide">
@@ -79,11 +101,12 @@ export default async function StoryPage({
           </div>
         </div>
 
-        {/* Sources */}
         <div className="mt-8">
           <div className="flex items-end justify-between">
             <h2 className="text-lg font-semibold">Coverage</h2>
-            <p className="text-sm text-neutral-400">Multiple sources, one story block.</p>
+            <p className="text-sm text-neutral-400">
+              Multiple sources, one story block.
+            </p>
           </div>
 
           <div className="mt-4 space-y-3">
@@ -98,7 +121,11 @@ export default async function StoryPage({
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div className="text-base font-medium">{src.name}</div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${leanBadgeClasses(src.lean)}`}>
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${leanBadgeClasses(
+                        src.lean
+                      )}`}
+                    >
                       {src.lean}
                     </span>
                   </div>
@@ -109,11 +136,11 @@ export default async function StoryPage({
           </div>
         </div>
 
-        {/* Comments placeholder */}
         <div className="mt-10 bg-neutral-950/25 border border-neutral-700 rounded-2xl p-8">
           <h2 className="text-lg font-semibold">Comments</h2>
           <p className="text-neutral-400 mt-2">
-            Coming next: threaded comments ranked by “Insightful,” “Newest,” and “Most Discussed.”
+            Coming next: threaded comments ranked by “Insightful,” “Newest,” and
+            “Most Discussed.”
           </p>
         </div>
       </div>
