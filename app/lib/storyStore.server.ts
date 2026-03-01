@@ -43,9 +43,30 @@ function makeError(message: string, code?: string, hint?: string) {
   return err;
 }
 
+function sanitizeEnvValue(value?: string) {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
+function getEnvFirst(keys: string[]) {
+  for (const key of keys) {
+    const raw = process.env[key];
+    const value = sanitizeEnvValue(raw);
+    if (value) return value;
+  }
+  return "";
+}
+
 function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = getEnvFirst(["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL"]);
+  const serviceKey = getEnvFirst(["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_KEY"]);
 
   const isPlaceholder = (value: string) =>
     value.trim() === "" || value.trim() === "..." || value.includes("your-");
@@ -84,7 +105,7 @@ async function readStoriesFromFile(options?: { tolerant?: boolean }) {
       throw makeError(
         "Local file storage is not writable in this environment.",
         "READ_ONLY_FS",
-        "Use Supabase by setting NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
+        "Use Supabase by setting NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY)."
       );
     }
     throw e;
@@ -104,7 +125,7 @@ async function writeStoriesToFile(stories: Story[]) {
       throw makeError(
         "Local file storage is not writable in this environment.",
         "READ_ONLY_FS",
-        "Use Supabase by setting NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
+        "Use Supabase by setting NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY)."
       );
     }
     throw e;
@@ -147,12 +168,12 @@ function isMissingDataColumnError(e: unknown) {
 async function listStoriesFromSupabase() {
   const supabase = getSupabaseAdmin();
   if (!supabase) {
-    throw makeError(
-      "Supabase is not configured.",
-      "SUPABASE_NOT_CONFIGURED",
-      "Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
-    );
-  }
+      throw makeError(
+        "Supabase is not configured.",
+        "SUPABASE_NOT_CONFIGURED",
+        "Set NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY)."
+      );
+    }
 
   const jsonResult = await supabase.from(storiesTable).select("id,data");
   if (!jsonResult.error) {
@@ -181,12 +202,12 @@ async function listStoriesFromSupabase() {
 async function getStoryByIdFromSupabase(id: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) {
-    throw makeError(
-      "Supabase is not configured.",
-      "SUPABASE_NOT_CONFIGURED",
-      "Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
-    );
-  }
+      throw makeError(
+        "Supabase is not configured.",
+        "SUPABASE_NOT_CONFIGURED",
+        "Set NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY)."
+      );
+    }
 
   const jsonResult = await supabase
     .from(storiesTable)
@@ -214,12 +235,12 @@ async function getStoryByIdFromSupabase(id: string) {
 async function upsertStoryToSupabase(story: Story) {
   const supabase = getSupabaseAdmin();
   if (!supabase) {
-    throw makeError(
-      "Supabase is not configured.",
-      "SUPABASE_NOT_CONFIGURED",
-      "Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
-    );
-  }
+      throw makeError(
+        "Supabase is not configured.",
+        "SUPABASE_NOT_CONFIGURED",
+        "Set NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY)."
+      );
+    }
 
   const payload: SupabaseRow = { id: story.id, data: story };
   const jsonResult = await supabase.from(storiesTable).upsert(payload, { onConflict: "id" });
@@ -236,12 +257,12 @@ async function upsertStoryToSupabase(story: Story) {
 async function deleteStoryFromSupabase(id: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) {
-    throw makeError(
-      "Supabase is not configured.",
-      "SUPABASE_NOT_CONFIGURED",
-      "Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
-    );
-  }
+      throw makeError(
+        "Supabase is not configured.",
+        "SUPABASE_NOT_CONFIGURED",
+        "Set NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY)."
+      );
+    }
 
   const { error } = await supabase.from(storiesTable).delete().eq("id", id);
   if (error) throw normalizeSupabaseError(error);

@@ -4,6 +4,13 @@ import { NextResponse } from "next/server";
 import type { Story } from "@/app/lib/types";
 import { supabaseServer } from "@/app/lib/supabase.server";
 
+type RawStoryRow = Partial<Story> & {
+  primary_entities?: unknown;
+};
+
+type StorySource = Story["sources"][number];
+type StoryEntity = NonNullable<Story["entities"]>[number];
+
 function formatError(prefix: string, e: unknown) {
   const msg = e instanceof Error ? e.message : String(e);
   return { error: `${prefix}: ${msg}` };
@@ -18,8 +25,7 @@ function requireAdmin(req: Request) {
   return true;
 }
 
-// If you still have views like "12.4k" somewhere, normalize to a number
-function parseViews(v: any): number {
+function parseViews(v: unknown): number {
   if (typeof v === "number") return v;
   if (typeof v !== "string") return 0;
 
@@ -27,6 +33,66 @@ function parseViews(v: any): number {
   const mult = s.endsWith("k") ? 1_000 : s.endsWith("m") ? 1_000_000 : 1;
   const num = parseFloat(s.replace(/[^\d.]/g, ""));
   return Number.isFinite(num) ? Math.round(num * mult) : 0;
+}
+
+function parseComments(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((v) => String(v)).filter(Boolean);
+}
+
+function toSources(value: unknown): StorySource[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (typeof item !== "object" || item === null) return null;
+      const source = item as Partial<StorySource>;
+      const name = typeof source.name === "string" ? source.name : "";
+      const url = typeof source.url === "string" ? source.url : "";
+      const lean = source.lean === "Left" || source.lean === "Center" || source.lean === "Right" ? source.lean : "Center";
+      if (!name || !url) return null;
+      return { name, url, lean };
+    })
+    .filter((item): item is StorySource => Boolean(item));
+}
+
+function toEntities(value: unknown): StoryEntity[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const entities = value
+    .map((item) => {
+      if (typeof item !== "object" || item === null) return null;
+      const entity = item as Partial<StoryEntity>;
+      const name = typeof entity.name === "string" ? entity.name : "";
+      if (!name) return null;
+      const aliases = toStringArray(entity.aliases);
+      return { name, aliases };
+    })
+    .filter((item): item is StoryEntity => Boolean(item));
+  return entities.length ? entities : [];
+}
+
+function normalizeStory(row: RawStoryRow): Story | null {
+  const id = typeof row.id === "string" ? row.id : "";
+  const title = typeof row.title === "string" ? row.title : "";
+  if (!id || !title) return null;
+
+  return {
+    id,
+    title,
+    summary: toStringArray(row.summary),
+    sources: toSources(row.sources),
+    views: parseViews(row.views),
+    comments: parseComments(row.comments),
+    date: typeof row.date === "string" ? row.date : new Date().toISOString().slice(0, 10),
+    tags: toStringArray(row.tags),
+    topics: toStringArray(row.topics),
+    entities: toEntities(row.entities),
+    primaryEntities: toStringArray(row.primaryEntities ?? row.primary_entities),
+  };
 }
 
 export async function GET() {
@@ -40,12 +106,9 @@ export async function GET() {
 
     if (error) throw error;
 
-    // Ensure shape matches your Story type expectations
-    const stories = (data ?? []).map((row: any) => ({
-      ...row,
-      views: typeof row.views === "number" ? row.views : parseViews(row.views),
-      comments: typeof row.comments === "number" ? row.comments : Number(row.comments ?? 0),
-    })) as Story[];
+    const stories = (data ?? [])
+      .map((row) => normalizeStory(row as RawStoryRow))
+      .filter((story): story is Story => Boolean(story));
 
     return NextResponse.json(stories);
   } catch (e: unknown) {
@@ -71,17 +134,15 @@ export async function POST(req: Request) {
 
     const supabase = supabaseServer();
 
-    // Upsert (insert or update)
-    const payload = {
-      ...incoming,
-      views: parseViews((incoming as any).views),
-      comments: Number((incoming as any).comments ?? 0),
-      // match your DB column names if different:
-      primary_entities: (incoming as any).primaryEntities ?? incoming.primaryEntities ?? (incoming as any).primary_entities ?? [],
-    };
+    const normalizedIncoming = normalizeStory(incoming);
+    if (!normalizedIncoming) {
+      return NextResponse.json({ error: "Incoming story has invalid shape." }, { status: 400 });
+    }
 
-    // If your Story type uses camelCase like primaryEntities,
-    // you may want to explicitly map fields instead of spreading.
+    const payload = {
+      ...normalizedIncoming,
+      primary_entities: normalizedIncoming.primaryEntities ?? [],
+    };
 
     const { error } = await supabase
       .from("stories")
