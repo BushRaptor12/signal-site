@@ -149,8 +149,15 @@ export default function EditorPage() {
     });
 
     if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { error?: string };
-      alert(`Save failed: ${err.error ?? res.statusText}`);
+      const err = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        details?: string;
+        hint?: string;
+      };
+      const message = [err.error ?? res.statusText, err.details, err.hint]
+        .filter(Boolean)
+        .join("\n");
+      alert(`Save failed:\n${message}`);
       return;
     }
 
