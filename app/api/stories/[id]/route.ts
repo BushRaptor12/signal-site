@@ -4,14 +4,14 @@ function requireAdmin(req: Request) {
   return Boolean(expected && got && got === expected);
 }
 export const runtime = "nodejs";
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     if (!requireAdmin(req)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const supabase = supabaseServer();
-    const id = params.id;
+    const id = (await params).id;
 
     // delete views first (safe)
     await supabase.from("story_views").delete().eq("story_id", id);

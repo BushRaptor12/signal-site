@@ -9,7 +9,7 @@ type TabKey = "popular" | "recent" | string;
 
 const PINNED_KEY = "signal:pinnedTags:v1";
 const ACTIVE_KEY = "signal:activeTab:v1";
-const [ghostTab, setGhostTab] = useState<string | null>(null);
+
 function storyMatchesTab(story: StoryWithViews, tab: string) {
   const t = normalize(tab);
   if (!t) return false;
@@ -38,6 +38,7 @@ export default function Home() {
   const [pinned, setPinned] = useState<string[]>([]);
   const [showManager, setShowManager] = useState(false);
   const [newTag, setNewTag] = useState("");
+  const [ghostTab, setGhostTab] = useState<string | null>(null);
 
   // load pins + active tab
   useEffect(() => {
