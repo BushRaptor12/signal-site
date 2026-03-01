@@ -1,34 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import type { Story } from "../../lib/types";
-import { ENTITIES, TOPICS, normalize } from "../../lib/vocab";
+import { useEffect, useMemo, useState } from "react";
+import type { Story } from "@/app/lib/types";
+import { ENTITIES, TOPICS, normalize, slugify, toTitleCase } from "@/app/lib/vocab";
 
 type Lean = "Left" | "Center" | "Right";
+const TOKEN_KEY = "signal_admin_token";
 
-const ADMIN_TOKEN_KEY = "signal:adminToken:v1";
+export default function EditorPage() {
+  const [adminToken, setAdminToken] = useState<string | null>(null);
+  const [showTokenInput, setShowTokenInput] = useState(false);
+  const [tokenDraft, setTokenDraft] = useState("");
 
-function slugify(s: string) {
-  return normalize(s)
-    .replace(/["']/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)+/g, "");
-}
+  useEffect(() => {
+    const saved = localStorage.getItem(TOKEN_KEY);
+    if (saved) setAdminToken(saved);
+    else setShowTokenInput(true);
+  }, []);
 
-function AdminEditorPageInner() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const idParam = searchParams.get("id"); // existing story id to edit
+  function saveToken() {
+    const t = tokenDraft.trim();
+    if (!t) return;
+    localStorage.setItem(TOKEN_KEY, t);
+    setAdminToken(t);
+    setShowTokenInput(false);
+    setTokenDraft("");
+  }
 
-  const [adminToken, setAdminToken] = useState(() => {
-    try {
-      return localStorage.getItem(ADMIN_TOKEN_KEY) ?? "";
-    } catch {
-      return "";
-    }
-  });
+  function clearToken() {
+    localStorage.removeItem(TOKEN_KEY);
+    setAdminToken(null);
+    setShowTokenInput(true);
+  }
 
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -42,44 +46,7 @@ function AdminEditorPageInner() {
     { name: "", url: "", lean: "Center" },
   ]);
 
-  // For NEW stories: derive an id from title. For editing: keep idParam.
-  const generatedId = useMemo(() => {
-    if (idParam) return idParam;
-    const base = title ? slugify(title) : "new-story";
-    return base.length ? base : "new-story";
-  }, [title, idParam]);
-
-  // Load story into editor when editing
-  useEffect(() => {
-    if (!idParam) return;
-
-    (async () => {
-      const res = await fetch(`/api/stories/${encodeURIComponent(idParam)}`, { cache: "no-store" });
-      if (!res.ok) return;
-
-      const story = (await res.json()) as Story;
-
-      setTitle(story.title ?? "");
-      setDate(story.date ?? new Date().toISOString().slice(0, 10));
-      setSummary(Array.isArray(story.summary) && story.summary.length ? [...story.summary] : ["", "", ""]);
-      setTopics(Array.isArray(story.topics) ? story.topics : []);
-
-      setSelectedEntities(
-        Array.isArray(story.entities)
-          ? story.entities
-              .map((entity) => entity.name)
-              .filter((name): name is string => Boolean(name))
-          : []
-      );
-      setPrimaryEntities(Array.isArray(story.primaryEntities) ? story.primaryEntities : []);
-
-      setSources(
-        Array.isArray(story.sources) && story.sources.length
-          ? story.sources
-          : [{ name: "", url: "", lean: "Center" }]
-      );
-    })();
-  }, [idParam]);
+  const generatedId = useMemo(() => (title ? slugify(title) : "new-story"), [title]);
 
   function toggleTopic(t: string) {
     const key = normalize(t);
@@ -117,28 +84,19 @@ function AdminEditorPageInner() {
     });
   }
 
-  function togglePrimaryEntity(name: string) {
+  function togglePrimary(name: string) {
     if (!selectedEntities.includes(name)) {
       setSelectedEntities((prev) => (prev.includes(name) ? prev : [...prev, name]));
     }
     setPrimaryEntities((prev) => (prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]));
   }
 
-  function ensureAdminToken() {
-    const t = adminToken.trim();
-    if (!t) {
-      alert("Enter your admin token first.");
-      return null;
-    }
-    try {
-      localStorage.setItem(ADMIN_TOKEN_KEY, t);
-    } catch {}
-    return t;
-  }
-
   async function onSave() {
-    const token = ensureAdminToken();
-    if (!token) return;
+    if (!adminToken) {
+      alert("Admin token required.");
+      setShowTokenInput(true);
+      return;
+    }
 
     const cleanedSummary = summary.map((s) => s.trim()).filter(Boolean);
     const cleanedSources = sources
@@ -151,126 +109,86 @@ function AdminEditorPageInner() {
 
     const entities = selectedEntities
       .map((name) => ENTITIES.find((e) => e.name === name))
-      .filter((entity): entity is (typeof ENTITIES)[number] => Boolean(entity))
-      .map((entity) => ({ name: entity.name, aliases: entity.aliases }));
+      .filter(Boolean)
+      .map((e) => ({ name: e!.name, aliases: e!.aliases }));
 
     const story: Story = {
       id: generatedId,
       title: title.trim(),
       summary: cleanedSummary,
       sources: cleanedSources,
-      views: 0,
-      comments: 0,
       date,
-      tags: [...topics.map(normalize), ...selectedEntities.map((n) => normalize(n))],
-      topics,
+      topics: topics.map(normalize),
       entities,
-      primaryEntities,
+      primary_entities: primaryEntities,
+      tags: [...topics.map(normalize), ...selectedEntities.map(normalize)],
+      comments: 0,
     };
 
-    const isEditing = Boolean(idParam);
-
-    const url = isEditing
-      ? `/api/admin/stories/${encodeURIComponent(generatedId)}`
-      : "/api/admin/stories";
-
-    const method = isEditing ? "PUT" : "POST";
-
-    const res = await fetch(url, {
-      method,
+    const res = await fetch("/api/stories", {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-admin-token": token,
+        "x-admin-token": adminToken,
       },
       body: JSON.stringify(story),
     });
 
     if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        details?: string;
-        hint?: string;
-      };
-      const message = [err.error ?? res.statusText, err.details, err.hint]
-        .filter(Boolean)
-        .join("\n");
-      alert(`Save failed:\n${message}`);
+      const err = await res.json().catch(() => ({}));
+      alert(`Save failed: ${err?.error ?? res.statusText}`);
       return;
     }
 
-    alert(isEditing ? "Updated!" : "Created!");
-    router.push(`/story/${encodeURIComponent(story.id)}`);
-    router.refresh();
-  }
-
-  async function onDelete() {
-    const token = ensureAdminToken();
-    if (!token) return;
-    if (!idParam) return;
-
-    if (!confirm(`Delete story "${idParam}"?`)) return;
-
-    const res = await fetch(`/api/admin/stories/${encodeURIComponent(idParam)}`, {
-      method: "DELETE",
-      headers: { "x-admin-token": token },
-    });
-
-    if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        details?: string;
-        hint?: string;
-      };
-      const message = [err.error ?? res.statusText, err.details, err.hint]
-        .filter(Boolean)
-        .join("\n");
-      alert(`Delete failed:\n${message}`);
-      return;
-    }
-
-    alert("Deleted.");
-    router.push("/");
-    router.refresh();
+    alert(`Saved! id: ${story.id}`);
   }
 
   return (
     <main className="min-h-screen bg-neutral-900 text-neutral-100 p-8">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">{idParam ? "Edit Story" : "New Story"}</h1>
-          <Link href="/" className="text-neutral-300 hover:text-white">
-            ← Back
-          </Link>
+          <h1 className="text-3xl font-bold">Story Editor</h1>
+          <div className="flex items-center gap-4">
+            <button onClick={clearToken} className="text-xs text-neutral-400 hover:text-neutral-200">
+              Change token
+            </button>
+            <Link href="/" className="text-neutral-300 hover:text-white">
+              ← Back
+            </Link>
+          </div>
         </div>
 
-        <div className="mt-6 bg-neutral-900 border border-neutral-700 rounded-2xl p-5">
-          <label className="block text-sm text-neutral-300 mb-2">Admin token</label>
-          <input
-            value={adminToken}
-            onChange={(e) => setAdminToken(e.target.value)}
-            className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg"
-            placeholder="Enter admin token"
-          />
-          <p className="mt-2 text-xs text-neutral-500">
-            Stored locally in your browser for this device.
-          </p>
-        </div>
+        {showTokenInput && (
+          <div className="mt-6 bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
+            <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Admin Token Required</div>
+            <input
+              type="password"
+              value={tokenDraft}
+              onChange={(e) => setTokenDraft(e.target.value)}
+              placeholder="Enter admin token…"
+              className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg mb-3"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveToken();
+              }}
+            />
+            <button onClick={saveToken} className="px-4 py-2 bg-neutral-100 text-neutral-900 rounded-lg text-sm">
+              Save Token
+            </button>
+          </div>
+        )}
 
-        <div className="mt-6 space-y-6">
-          {/* Title + Date */}
+        <div className="mt-8 space-y-6">
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <label className="block text-sm text-neutral-300 mb-2">Title</label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg"
-              placeholder="Headline..."
+              placeholder="Headline…"
             />
-
             <div className="mt-3 text-sm text-neutral-500">
-              ID: <span className="text-neutral-300">{generatedId}</span>
+              ID preview: <span className="text-neutral-300">{generatedId}</span>
             </div>
-
             <div className="mt-4">
               <label className="block text-sm text-neutral-300 mb-2">Date</label>
               <input
@@ -282,7 +200,6 @@ function AdminEditorPageInner() {
             </div>
           </div>
 
-          {/* Topics */}
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Topics</div>
             <div className="flex flex-wrap gap-2">
@@ -305,7 +222,6 @@ function AdminEditorPageInner() {
             </div>
           </div>
 
-          {/* Entities */}
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Entities</div>
             <div className="flex flex-wrap gap-2">
@@ -326,9 +242,8 @@ function AdminEditorPageInner() {
                       {selected ? "✓ " : "+ "}
                       {e.name}
                     </button>
-
                     <button
-                      onClick={() => togglePrimaryEntity(e.name)}
+                      onClick={() => togglePrimary(e.name)}
                       className={`text-[11px] px-2 py-0.5 rounded-full border transition ${
                         primary
                           ? "bg-neutral-100 text-neutral-900 border-neutral-100"
@@ -343,7 +258,6 @@ function AdminEditorPageInner() {
             </div>
           </div>
 
-          {/* Summary */}
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Summary</div>
             <div className="space-y-3">
@@ -359,7 +273,6 @@ function AdminEditorPageInner() {
             </div>
           </div>
 
-          {/* Sources */}
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-neutral-300 uppercase">Sources</div>
@@ -378,7 +291,7 @@ function AdminEditorPageInner() {
                     value={s.name}
                     onChange={(e) => updateSource(i, { name: e.target.value })}
                     className="md:col-span-2 px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg"
-                    placeholder="Outlet"
+                    placeholder="Outlet (e.g. Reuters)"
                   />
                   <input
                     value={s.url}
@@ -401,33 +314,14 @@ function AdminEditorPageInner() {
           </div>
 
           <button onClick={onSave} className="w-full py-3 rounded-xl bg-neutral-100 text-neutral-900 font-semibold">
-            {idParam ? "Update story" : "Create story"}
+            Save story
           </button>
 
-          {idParam && (
-            <button
-              onClick={onDelete}
-              className="w-full py-3 rounded-xl border border-red-500/40 text-red-300 hover:bg-red-500/10 transition"
-            >
-              Delete story
-            </button>
-          )}
+          <div className="text-xs text-neutral-500">
+            Editor writes to Supabase via API. Token is stored locally in your browser.
+          </div>
         </div>
       </div>
     </main>
-  );
-}
-
-export default function AdminEditorPage() {
-  return (
-    <Suspense
-      fallback={
-        <main className="min-h-screen bg-neutral-900 text-neutral-100 p-8">
-          <div className="max-w-3xl mx-auto text-neutral-300">Loading editor...</div>
-        </main>
-      }
-    >
-      <AdminEditorPageInner />
-    </Suspense>
   );
 }
