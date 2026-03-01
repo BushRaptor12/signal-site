@@ -9,7 +9,7 @@ type TabKey = "popular" | "recent" | string;
 
 const PINNED_KEY = "signal:pinnedTags:v1";
 const ACTIVE_KEY = "signal:activeTab:v1";
-
+const [ghostTab, setGhostTab] = useState<string | null>(null);
 function storyMatchesTab(story: StoryWithViews, tab: string) {
   const t = normalize(tab);
   if (!t) return false;
@@ -74,12 +74,20 @@ export default function Home() {
   }, []);
 
   const tabs = useMemo(() => {
-    return [
-      { key: "popular" as TabKey, label: "Popular" },
-      { key: "recent" as TabKey, label: "Recent" },
-      ...pinned.map((t) => ({ key: t as TabKey, label: toTitleCase(t) })),
-    ];
-  }, [pinned]);
+  const base = [
+    { key: "popular" as TabKey, label: "Popular" },
+    { key: "recent" as TabKey, label: "Recent" },
+  ];
+
+  const pinnedTabs = pinned.map((t) => ({ key: t as TabKey, label: toTitleCase(t) }));
+
+  const ghost =
+    ghostTab && !pinned.includes(ghostTab)
+      ? [{ key: ghostTab as TabKey, label: toTitleCase(ghostTab) }]
+      : [];
+
+  return [...base, ...pinnedTabs, ...ghost];
+}, [pinned, ghostTab]);
 
   const visible = useMemo(() => {
     const sortedRecent = [...stories].sort(
@@ -116,9 +124,6 @@ export default function Home() {
           <p className="text-neutral-400">Multi-source news. Clear perspective.</p>
         </div>
 
-        <Link href="/admin/editor" className="text-sm text-neutral-300 hover:text-white">
-          Editor →
-        </Link>
       </div>
 
       <div className="max-w-4xl mx-auto mb-4 flex items-center justify-between">
@@ -126,7 +131,18 @@ export default function Home() {
           {tabs.map((t) => (
             <button
               key={String(t.key)}
-              onClick={() => setActiveTab(t.key)}
+              onClick={() => {
+  setActiveTab(t.key);
+
+  // If switching to base tabs or a pinned tab, ghost should disappear
+  const key = String(t.key);
+  if (key === "popular" || key === "recent" || pinned.includes(normalize(key))) {
+    setGhostTab(null);
+  } else {
+    // otherwise keep showing this as the ghost
+    setGhostTab(normalize(key));
+  }
+}}
               className={`px-5 py-2 rounded-full border text-sm transition whitespace-nowrap ${
                 activeTab === t.key
                   ? "bg-neutral-100 text-neutral-900 border-neutral-100"
@@ -214,9 +230,13 @@ export default function Home() {
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        setActiveTab(key);
-                        if (!pinned.includes(key)) setPinned((prev) => [...prev, key]);
-                      }}
+                        const key = normalize(t);
+  setActiveTab(key);
+
+  // show temporary tab in the nav row if it isn't pinned
+  if (!pinned.includes(key)) setGhostTab(key);
+  else setGhostTab(null);
+}}
                       className="text-xs px-2 py-1 rounded-full border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition"
                     >
                       {toTitleCase(key)}

@@ -33,7 +33,37 @@ export default function EditorPage() {
     setAdminToken(null);
     setShowTokenInput(true);
   }
+async function onDelete() {
+  if (!adminToken) {
+    alert("Admin token required.");
+    setShowTokenInput(true);
+    return;
+  }
 
+  const id = generatedId;
+  if (!id || id === "new-story") {
+    alert("Enter a title first (so an ID exists), or paste the story ID you want to delete.");
+    return;
+  }
+
+  const ok = confirm(`Delete story "${id}"? This cannot be undone.`);
+  if (!ok) return;
+
+  const res = await fetch(`/api/stories/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: {
+      "x-admin-token": adminToken,
+    },
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert(`Delete failed: ${err?.error ?? res.statusText}`);
+    return;
+  }
+
+  alert(`Deleted: ${id}`);
+}
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [summary, setSummary] = useState<string[]>(["", "", ""]);
@@ -316,7 +346,12 @@ export default function EditorPage() {
           <button onClick={onSave} className="w-full py-3 rounded-xl bg-neutral-100 text-neutral-900 font-semibold">
             Save story
           </button>
-
+<button
+  onClick={onDelete}
+  className="w-full py-3 rounded-xl border border-red-400 text-red-300 hover:bg-red-950/30 font-semibold"
+>
+  Delete story
+</button>
           <div className="text-xs text-neutral-500">
             Editor writes to Supabase via API. Token is stored locally in your browser.
           </div>

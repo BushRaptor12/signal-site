@@ -1,5 +1,30 @@
+function requireAdmin(req: Request) {
+  const expected = process.env.ADMIN_TOKEN;
+  const got = req.headers.get("x-admin-token");
+  return Boolean(expected && got && got === expected);
+}
 export const runtime = "nodejs";
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  try {
+    if (!requireAdmin(req)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
+    const supabase = supabaseServer();
+    const id = params.id;
+
+    // delete views first (safe)
+    await supabase.from("story_views").delete().eq("story_id", id);
+
+    // delete story
+    const { error } = await supabase.from("stories").delete().eq("id", id);
+    if (error) throw error;
+
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? String(e) }, { status: 500 });
+  }
+}
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/app/lib/supabase.server";
 
