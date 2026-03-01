@@ -2,6 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 
 type Lean = "Left" | "Center" | "Right";
+
 type Story = {
   id: string;
   title: string;
@@ -17,6 +18,25 @@ function leanBadgeClasses(_lean: Lean) {
   return "border border-neutral-600 text-neutral-300";
 }
 
+function getOrigin() {
+  // Best: explicit full URL you control (set in Vercel env vars)
+  const site = process.env.NEXT_PUBLIC_SITE_URL;
+  if (site && site.startsWith("http")) return site;
+
+  // Vercel provides this automatically (no protocol)
+  const vercel = process.env.VERCEL_URL;
+  if (vercel) return `https://${vercel}`;
+
+  // Fallback: derive from request headers
+  const h = headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  if (host) return `${proto}://${host}`;
+
+  // Local fallback
+  return "http://localhost:3000";
+}
+
 export default async function StoryPage({
   params,
   searchParams,
@@ -27,11 +47,7 @@ export default async function StoryPage({
   const slug = params.slug;
   const from = searchParams?.from;
 
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? "http";
-  const origin = host ? `${proto}://${host}` : "http://localhost:3000";
-
+  const origin = getOrigin();
   const backHref = from ? `/?tab=${encodeURIComponent(from)}` : "/";
 
   const res = await fetch(`${origin}/api/stories/${encodeURIComponent(slug)}`, {
@@ -48,8 +64,15 @@ export default async function StoryPage({
 
           <div className="mt-10 bg-neutral-950/30 border border-neutral-700 rounded-2xl p-8">
             <h1 className="text-2xl font-semibold">Story not found</h1>
-            <p className="text-neutral-400 mt-2">This story isn’t in the current dataset.</p>
-            <div className="mt-6 text-xs text-neutral-500">Requested slug: {slug}</div>
+            <p className="text-neutral-400 mt-2">
+              This story isn’t in the current dataset.
+            </p>
+
+            <div className="mt-6 text-xs text-neutral-500">
+              <div>Requested slug: {slug}</div>
+              <div>Tried origin: {origin}</div>
+              <div>Status: {res.status}</div>
+            </div>
           </div>
         </div>
       </main>
@@ -91,7 +114,9 @@ export default async function StoryPage({
         <div className="mt-8">
           <div className="flex items-end justify-between">
             <h2 className="text-lg font-semibold">Coverage</h2>
-            <p className="text-sm text-neutral-400">Multiple sources, one story block.</p>
+            <p className="text-sm text-neutral-400">
+              Multiple sources, one story block.
+            </p>
           </div>
 
           <div className="mt-4 space-y-3">
