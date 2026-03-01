@@ -2,7 +2,6 @@ import Link from "next/link";
 import { headers } from "next/headers";
 
 type Lean = "Left" | "Center" | "Right";
-
 type Story = {
   id: string;
   title: string;
@@ -30,7 +29,7 @@ export default async function StoryPage({
 
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? "https";
+  const proto = h.get("x-forwarded-proto") ?? "http";
   const origin = host ? `${proto}://${host}` : "http://localhost:3000";
 
   const backHref = from ? `/?tab=${encodeURIComponent(from)}` : "/";
@@ -43,21 +42,14 @@ export default async function StoryPage({
     return (
       <main className="min-h-screen bg-neutral-900 text-neutral-100 px-6 py-12">
         <div className="max-w-3xl mx-auto">
-          <Link
-            href={backHref}
-            className="text-neutral-300 hover:text-white transition"
-          >
+          <Link href={backHref} className="text-neutral-300 hover:text-white transition">
             ← Back
           </Link>
 
           <div className="mt-10 bg-neutral-950/30 border border-neutral-700 rounded-2xl p-8">
             <h1 className="text-2xl font-semibold">Story not found</h1>
-            <p className="text-neutral-400 mt-2">
-              This story isn’t in the current dataset.
-            </p>
-            <div className="mt-6 text-xs text-neutral-500">
-              Requested slug: {slug}
-            </div>
+            <p className="text-neutral-400 mt-2">This story isn’t in the current dataset.</p>
+            <div className="mt-6 text-xs text-neutral-500">Requested slug: {slug}</div>
           </div>
         </div>
       </main>
@@ -70,10 +62,7 @@ export default async function StoryPage({
     <main className="min-h-screen bg-neutral-900 text-neutral-100 px-6 py-12">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between">
-          <Link
-            href={backHref}
-            className="text-neutral-300 hover:text-white transition"
-          >
+          <Link href={backHref} className="text-neutral-300 hover:text-white transition">
             ← Back
           </Link>
 
@@ -83,9 +72,7 @@ export default async function StoryPage({
         </div>
 
         <div className="mt-8 bg-neutral-950/40 border border-neutral-700 rounded-2xl p-8">
-          <h1 className="text-3xl font-semibold leading-tight">
-            {story.title}
-          </h1>
+          <h1 className="text-3xl font-semibold leading-tight">{story.title}</h1>
 
           <div className="mt-6">
             <h2 className="text-sm font-medium text-neutral-300 uppercase tracking-wide">
@@ -104,9 +91,7 @@ export default async function StoryPage({
         <div className="mt-8">
           <div className="flex items-end justify-between">
             <h2 className="text-lg font-semibold">Coverage</h2>
-            <p className="text-sm text-neutral-400">
-              Multiple sources, one story block.
-            </p>
+            <p className="text-sm text-neutral-400">Multiple sources, one story block.</p>
           </div>
 
           <div className="mt-4 space-y-3">
@@ -121,11 +106,7 @@ export default async function StoryPage({
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div className="text-base font-medium">{src.name}</div>
-                    <span
-                      className={`text-xs px-2 py-1 rounded-full ${leanBadgeClasses(
-                        src.lean
-                      )}`}
-                    >
+                    <span className={`text-xs px-2 py-1 rounded-full ${leanBadgeClasses(src.lean)}`}>
                       {src.lean}
                     </span>
                   </div>
@@ -139,8 +120,7 @@ export default async function StoryPage({
         <div className="mt-10 bg-neutral-950/25 border border-neutral-700 rounded-2xl p-8">
           <h2 className="text-lg font-semibold">Comments</h2>
           <p className="text-neutral-400 mt-2">
-            Coming next: threaded comments ranked by “Insightful,” “Newest,” and
-            “Most Discussed.”
+            Coming next: threaded comments ranked by “Insightful,” “Newest,” and “Most Discussed.”
           </p>
         </div>
       </div>
