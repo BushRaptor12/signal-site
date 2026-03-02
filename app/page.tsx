@@ -15,7 +15,7 @@ function getInitialPinned(): string[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(PINNED_KEY) || "[]") as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.map((v) => normalize(String(v))).filter(Boolean);
+    return parsed.map((value) => normalize(String(value))).filter(Boolean);
   } catch {
     return [];
   }
@@ -31,6 +31,21 @@ function getInitialActiveTab(): TabKey {
   }
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function textMatchesKeyword(haystack: string, keyword: string) {
+  const h = normalize(haystack);
+  const k = normalize(keyword);
+  if (!k) return false;
+
+  if (k.includes(" ")) return h.includes(k);
+
+  const re = new RegExp(`\\b${escapeRegExp(k)}\\b`, "i");
+  return re.test(h);
+}
+
 function storyMatchesTab(story: StoryWithViews, tab: string) {
   const t = normalize(tab);
   if (!t) return false;
@@ -44,7 +59,9 @@ function storyMatchesTab(story: StoryWithViews, tab: string) {
   }
 
   if ((story.tags ?? []).map(normalize).includes(t)) return true;
-  return false;
+
+  const haystack = [story.title, ...(story.summary ?? [])].join(" ");
+  return textMatchesKeyword(haystack, t);
 }
 
 export default function Home() {
@@ -53,13 +70,12 @@ export default function Home() {
   const [pinned, setPinned] = useState<string[]>(getInitialPinned);
   const [showManager, setShowManager] = useState(false);
   const [newTag, setNewTag] = useState("");
-  const [ghostTab, setGhostTab] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       localStorage.setItem(PINNED_KEY, JSON.stringify(pinned));
     } catch {
-      // ignore localStorage failure
+      // ignore localStorage failures
     }
   }, [pinned]);
 
@@ -67,7 +83,7 @@ export default function Home() {
     try {
       localStorage.setItem(ACTIVE_KEY, String(activeTab));
     } catch {
-      // ignore localStorage failure
+      // ignore localStorage failures
     }
   }, [activeTab]);
 
@@ -79,7 +95,9 @@ export default function Home() {
       if (!cancelled && Array.isArray(data)) {
         setStories(data as StoryWithViews[]);
       }
-    })();
+    })().catch(() => {
+      if (!cancelled) setStories([]);
+    });
     return () => {
       cancelled = true;
     };
@@ -87,23 +105,25 @@ export default function Home() {
 
   const suggestedTopics = useMemo(() => TOPICS.map((topic) => normalize(topic)), []);
 
+  const ghostTab = useMemo(() => {
+    const key = normalize(String(activeTab));
+    if (key === "popular" || key === "recent") return null;
+    if (pinned.includes(key)) return null;
+    return key || null;
+  }, [activeTab, pinned]);
+
   const tabs = useMemo(() => {
     const baseTabs = [
       { key: "popular" as TabKey, label: "Popular" },
       { key: "recent" as TabKey, label: "Recent" },
     ];
-
     const pinnedTabs = pinned.map((tag) => ({ key: tag as TabKey, label: toTitleCase(tag) }));
-
-    const ghostTabs =
-      ghostTab && !pinned.includes(ghostTab) ? [{ key: ghostTab as TabKey, label: toTitleCase(ghostTab) }] : [];
-
+    const ghostTabs = ghostTab ? [{ key: ghostTab as TabKey, label: toTitleCase(ghostTab) }] : [];
     return [...baseTabs, ...pinnedTabs, ...ghostTabs];
   }, [pinned, ghostTab]);
 
   const visible = useMemo(() => {
     const recent = [...stories].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
     if (activeTab === "recent") return recent;
     if (activeTab === "popular") return [...stories].sort((a, b) => (b.views ?? 0) - (a.views ?? 0));
     return recent.filter((story) => storyMatchesTab(story, String(activeTab)));
@@ -122,7 +142,6 @@ export default function Home() {
     setPinned((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
     setNewTag("");
     setActiveTab(normalized);
-    setGhostTab(null);
   }
 
   return (
@@ -142,12 +161,7 @@ export default function Home() {
           {tabs.map((tab) => (
             <button
               key={String(tab.key)}
-              onClick={() => {
-                const key = normalize(String(tab.key));
-                setActiveTab(tab.key);
-                if (key === "popular" || key === "recent" || pinned.includes(key)) setGhostTab(null);
-                else setGhostTab(key);
-              }}
+              onClick={() => setActiveTab(tab.key)}
               className={`px-5 py-2 rounded-full border text-sm transition whitespace-nowrap ${
                 activeTab === tab.key
                   ? "bg-neutral-100 text-neutral-900 border-neutral-100"
@@ -266,8 +280,6 @@ export default function Home() {
                         e.preventDefault();
                         e.stopPropagation();
                         setActiveTab(key);
-                        if (!pinned.includes(key)) setGhostTab(key);
-                        else setGhostTab(null);
                       }}
                       className="text-xs px-2 py-1 rounded-full border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition"
                     >
