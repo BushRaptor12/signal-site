@@ -17,7 +17,7 @@ export type Story = {
   summary: string[];
   sources: Source[];
   date: string; // YYYY-MM-DD
-
+urgent: boolean;
   // keyword system
   topics: string[];          // high-level sections
   entities: Entity[];        // canonical + aliases
@@ -31,4 +31,7 @@ export type Story = {
 
 export type StoryWithViews = Story & {
   views: number;
+
+
 };
+

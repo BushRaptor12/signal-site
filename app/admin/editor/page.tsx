@@ -12,7 +12,7 @@ export default function EditorPage() {
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [showTokenInput, setShowTokenInput] = useState(false);
   const [tokenDraft, setTokenDraft] = useState("");
-
+const [urgent, setUrgent] = useState(false);
   useEffect(() => {
     const saved = localStorage.getItem(TOKEN_KEY);
     if (saved) setAdminToken(saved);
@@ -148,6 +148,7 @@ async function onDelete() {
       summary: cleanedSummary,
       sources: cleanedSources,
       date,
+      urgent,
       topics: topics.map(normalize),
       entities,
       primary_entities: primaryEntities,
@@ -229,7 +230,18 @@ async function onDelete() {
               />
             </div>
           </div>
-
+<div className="mt-4 flex items-center gap-3">
+  <input
+    id="urgent"
+    type="checkbox"
+    checked={urgent}
+    onChange={(e) => setUrgent(e.target.checked)}
+    className="h-4 w-4"
+  />
+  <label htmlFor="urgent" className="text-sm text-neutral-300">
+    Urgent (Drudge-style emphasis)
+  </label>
+</div>
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Topics</div>
             <div className="flex flex-wrap gap-2">

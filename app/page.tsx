@@ -210,8 +210,22 @@ export default function Home() {
             className="block"
           >
             <div className="bg-neutral-900 p-8 rounded-2xl border border-neutral-700 hover:border-neutral-500 transition">
-              <h2 className="text-2xl font-semibold text-center">{story.title}</h2>
-
+              <h2
+  className={`text-center font-semibold ${
+    story.urgent
+      ? "text-3xl md:text-4xl text-red-400 tracking-wide"
+      : "text-2xl"
+  }`}
+>
+  {story.title}
+</h2>
+<div
+  className={`bg-neutral-900 p-8 rounded-2xl border transition ${
+    story.urgent
+      ? "border-red-500/70 hover:border-red-400 shadow-[0_0_0_1px_rgba(239,68,68,0.25)]"
+      : "border-neutral-700 hover:border-neutral-500"
+  }`}
+></div>
               <div className="mt-4 space-y-2 text-neutral-400 text-center max-w-2xl mx-auto">
                 {story.summary.map((p, i) => (
                   <p key={i}>{p}</p>
@@ -222,29 +236,29 @@ export default function Home() {
                 {story.views} views • {story.comments} comments
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2 justify-center">
-                {(story.topics ?? []).map((t) => {
-                  const key = normalize(t);
-                  return (
-                    <button
-                      key={key}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const key = normalize(t);
-  setActiveTab(key);
+              <div className="mt-5 flex flex-wrap gap-2 justify-center">
+  {(story.topics ?? []).map((topic) => {
+    const key = normalize(topic);
+    return (
+      <button
+        key={key}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
 
-  // show temporary tab in the nav row if it isn't pinned
-  if (!pinned.includes(key)) setGhostTab(key);
-  else setGhostTab(null);
-}}
-                      className="text-xs px-2 py-1 rounded-full border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition"
-                    >
-                      {toTitleCase(key)}
-                    </button>
-                  );
-                })}
-              </div>
+          setActiveTab(key);
+
+          // Ghost tab behavior: make it temporarily appear in navbar if not pinned
+          if (!pinned.includes(key)) setGhostTab(key);
+          else setGhostTab(null);
+        }}
+        className="text-xs px-2 py-1 rounded-full border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition"
+      >
+        {toTitleCase(key)}
+      </button>
+    );
+  })}
+</div>
             </div>
           </Link>
         ))}

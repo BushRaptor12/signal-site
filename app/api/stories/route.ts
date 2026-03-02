@@ -78,6 +78,7 @@ export async function POST(req: Request) {
       primary_entities: Array.isArray(incoming.primary_entities) ? incoming.primary_entities : [],
       comments: Number(incoming.comments ?? 0),
       updated_at: new Date().toISOString(),
+      urgent: Boolean(incoming.urgent ?? false),
     };
 
     const supabase = supabaseServer();
