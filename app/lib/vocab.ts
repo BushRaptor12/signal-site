@@ -13,7 +13,7 @@ export const ENTITIES: { name: string; aliases: string[] }[] = [
   { name: "Donald Trump", aliases: ["Trump", "President Trump"] },
   { name: "Supreme Court", aliases: ["SCOTUS", "U.S. Supreme Court"] },
   { name: "Federal Reserve", aliases: ["Fed", "The Fed"] },
-  { name: "Middle East", aliases: ["middle east", "israel", "iran"] },
+  { name: "Middle East", aliases: ["middle east", "israel", "iran", "kuwait] },
 ];
 
 export function normalize(s: string) {
