@@ -209,7 +209,13 @@ export default function Home() {
             href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
             className="block"
           >
-            <div className="bg-neutral-900 p-8 rounded-2xl border border-neutral-700 hover:border-neutral-500 transition">
+            <div
+  className={`bg-neutral-900 p-8 rounded-2xl border transition ${
+    story.urgent
+      ? "border-red-500/70 hover:border-red-400 shadow-[0_0_0_1px_rgba(239,68,68,0.25)]"
+      : "border-neutral-700 hover:border-neutral-500"
+  }`}
+>
               <h2
   className={`text-center font-semibold ${
     story.urgent
@@ -219,13 +225,7 @@ export default function Home() {
 >
   {story.title}
 </h2>
-<div
-  className={`bg-neutral-900 p-8 rounded-2xl border transition ${
-    story.urgent
-      ? "border-red-500/70 hover:border-red-400 shadow-[0_0_0_1px_rgba(239,68,68,0.25)]"
-      : "border-neutral-700 hover:border-neutral-500"
-  }`}
-></div>
+
               <div className="mt-4 space-y-2 text-neutral-400 text-center max-w-2xl mx-auto">
                 {story.summary.map((p, i) => (
                   <p key={i}>{p}</p>
