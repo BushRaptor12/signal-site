@@ -132,9 +132,6 @@ export default function Home() {
           <h1 className="text-4xl font-bold">Signal</h1>
           <p className="text-neutral-400">Multi-source news. Clear perspective.</p>
         </div>
-        <Link href="/admin/editor" className="text-sm text-neutral-300 hover:text-white">
-          {"Editor ->"}
-        </Link>
       </div>
 
       <div className="max-w-4xl mx-auto mb-4 flex items-center justify-between">
