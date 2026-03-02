@@ -219,7 +219,7 @@ export default function Home() {
               </div>
 
               <div className="mt-5 text-sm text-neutral-500 text-center">
-                {story.views} views • {story.comments} comments • {story.date}
+                {story.views} views • {story.comments} comments
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2 justify-center">
