@@ -14,6 +14,7 @@ export const ENTITIES: { name: string; aliases: string[] }[] = [
   { name: "Supreme Court", aliases: ["SCOTUS", "U.S. Supreme Court"] },
   { name: "Federal Reserve", aliases: ["Fed", "The Fed"] },
   { name: "Middle East", aliases: ["middle east", "israel", "iran", "kuwait"] },
+  { name: "Stock Market", aliases: ["stocks", "markets", "stock market", "nasdaq", "dow", "dow jones", "s&p", "s&p500"] },
 ];
 
 export function normalize(s: string) {
