@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { normalize, toTitleCase } from "./lib/vocab";
 import type { StoryWithViews } from "./lib/types";
-
+import { TOPICS } from "./lib/vocab";
 type TabKey = "popular" | "recent" | string;
 
 const PINNED_KEY = "signal:pinnedTags:v1";
@@ -74,21 +74,22 @@ export default function Home() {
     })();
   }, []);
 
-  const tabs = useMemo(() => {
-  const base = [
-    { key: "popular" as TabKey, label: "Popular" },
-    { key: "recent" as TabKey, label: "Recent" },
-  ];
+  const suggestedTopics = useMemo(() => TOPICS.map((t) => normalize(t)), []);
 
-  const pinnedTabs = pinned.map((t) => ({ key: t as TabKey, label: toTitleCase(t) }));
+  const tabs = useMemo(() => {
+    const base = [
+      { key: "popular" as TabKey, label: "Popular" },
+      { key: "recent" as TabKey, label: "Recent" },
+    ];
+    const pinnedTabs = pinned.map((t) => ({ key: t as TabKey, label: toTitleCase(t) }));
 
   const ghost =
     ghostTab && !pinned.includes(ghostTab)
       ? [{ key: ghostTab as TabKey, label: toTitleCase(ghostTab) }]
       : [];
 
-  return [...base, ...pinnedTabs, ...ghost];
-}, [pinned, ghostTab]);
+    return [...base, ...pinnedTabs, ...ghost];
+  }, [pinned, ghostTab]);
 
   const visible = useMemo(() => {
     const sortedRecent = [...stories].sort(
@@ -184,7 +185,37 @@ export default function Home() {
               Add
             </button>
           </div>
+{/* Suggested Topics */}
+<div className="mb-6">
+  <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-2">
+    Suggested topics
+  </h3>
 
+  <div className="flex flex-wrap gap-2">
+    {suggestedTopics.map((tag) => {
+      const isPinned = pinned.includes(tag);
+      return (
+        <button
+          key={tag}
+          onClick={() => togglePin(tag)}
+          className={`text-xs px-3 py-1.5 rounded-full border transition ${
+            isPinned
+              ? "bg-neutral-100 text-neutral-900 border-neutral-100"
+              : "bg-neutral-900 text-neutral-300 border-neutral-700 hover:bg-neutral-800"
+          }`}
+          title={isPinned ? "Remove tab" : "Add tab"}
+        >
+          {isPinned ? "✓ " : "+ "}
+          {toTitleCase(tag)}
+        </button>
+      );
+    })}
+  </div>
+
+  <p className="mt-2 text-xs text-neutral-500">
+    These are your main sections (NYT-style). Pin the ones you want to show in the top row.
+  </p>
+</div>
           <div className="text-xs text-neutral-500 mb-2">Pinned keywords (click to remove):</div>
           <div className="flex flex-wrap gap-2">
             {pinned.map((t) => (
@@ -236,9 +267,10 @@ export default function Home() {
                 {story.views} views • {story.comments} comments
               </div>
 
-              <div className="mt-5 flex flex-wrap gap-2 justify-center">
+              {/* Topic pills (ONLY topics, no entities) */}
+<div className="mt-5 flex flex-wrap gap-2 justify-center">
   {(story.topics ?? []).map((topic) => {
-    const key = normalize(topic);
+    const key = normalize(topic); // or normalize(topic) depending on your file
     return (
       <button
         key={key}
@@ -248,9 +280,10 @@ export default function Home() {
 
           setActiveTab(key);
 
-          // Ghost tab behavior: make it temporarily appear in navbar if not pinned
+          // if you have ghost tabs enabled:
           if (!pinned.includes(key)) setGhostTab(key);
-          else setGhostTab(null);
+else setGhostTab(null);
+
         }}
         className="text-xs px-2 py-1 rounded-full border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition"
       >
