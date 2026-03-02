@@ -3,6 +3,11 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/app/lib/supabase.server";
 
+function messageFromError(e: unknown) {
+  if (e instanceof Error) return e.message;
+  return String(e);
+}
+
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const supabase = supabaseServer();
@@ -32,7 +37,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (uErr) throw uErr;
 
     return NextResponse.json({ ok: true, views: next });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? String(e) }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: messageFromError(e) }, { status: 500 });
   }
 }

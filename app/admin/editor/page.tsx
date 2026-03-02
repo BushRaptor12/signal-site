@@ -1,71 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import type { Story } from "@/app/lib/types";
-import { ENTITIES, TOPICS, normalize, slugify, toTitleCase } from "@/app/lib/vocab";
+import { ENTITIES, TOPICS, normalize, slugify } from "@/app/lib/vocab";
 
 type Lean = "Left" | "Center" | "Right";
+
 const TOKEN_KEY = "signal_admin_token";
 
-export default function EditorPage() {
-  const [adminToken, setAdminToken] = useState<string | null>(null);
-  const [showTokenInput, setShowTokenInput] = useState(false);
-  const [tokenDraft, setTokenDraft] = useState("");
-const [urgent, setUrgent] = useState(false);
-  useEffect(() => {
-    const saved = localStorage.getItem(TOKEN_KEY);
-    if (saved) setAdminToken(saved);
-    else setShowTokenInput(true);
-  }, []);
-
-  function saveToken() {
-    const t = tokenDraft.trim();
-    if (!t) return;
-    localStorage.setItem(TOKEN_KEY, t);
-    setAdminToken(t);
-    setShowTokenInput(false);
-    setTokenDraft("");
+function getInitialToken() {
+  if (typeof window === "undefined") return "";
+  try {
+    return (localStorage.getItem(TOKEN_KEY) ?? "").trim();
+  } catch {
+    return "";
   }
-
-  function clearToken() {
-    localStorage.removeItem(TOKEN_KEY);
-    setAdminToken(null);
-    setShowTokenInput(true);
-  }
-async function onDelete() {
-  if (!adminToken) {
-    alert("Admin token required.");
-    setShowTokenInput(true);
-    return;
-  }
-
-  const id = generatedId;
-  if (!id || id === "new-story") {
-    alert("Enter a title first (so an ID exists), or paste the story ID you want to delete.");
-    return;
-  }
-
-  const ok = confirm(`Delete story "${id}"? This cannot be undone.`);
-  if (!ok) return;
-
-  const res = await fetch(`/api/stories/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-    headers: {
-      "x-admin-token": adminToken,
-    },
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    alert(`Delete failed: ${err?.error ?? res.statusText}`);
-    return;
-  }
-
-  alert(`Deleted: ${id}`);
 }
+
+export default function EditorPage() {
+  const initialToken = getInitialToken();
+
+  const [adminToken, setAdminToken] = useState(initialToken);
+  const [showTokenInput, setShowTokenInput] = useState(!initialToken);
+  const [tokenDraft, setTokenDraft] = useState(initialToken);
+
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [urgent, setUrgent] = useState(false);
   const [summary, setSummary] = useState<string[]>(["", "", ""]);
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
@@ -76,27 +38,53 @@ async function onDelete() {
     { name: "", url: "", lean: "Center" },
   ]);
 
-  const generatedId = useMemo(() => (title ? slugify(title) : "new-story"), [title]);
+  const generatedId = title ? slugify(title) : "new-story";
 
-  function toggleTopic(t: string) {
-    const key = normalize(t);
+  function saveToken() {
+    const token = tokenDraft.trim();
+    if (!token) return;
+
+    try {
+      localStorage.setItem(TOKEN_KEY, token);
+    } catch {
+      // ignore localStorage write failure
+    }
+
+    setAdminToken(token);
+    setShowTokenInput(false);
+    setTokenDraft(token);
+  }
+
+  function clearToken() {
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+    } catch {
+      // ignore localStorage remove failure
+    }
+    setAdminToken("");
+    setTokenDraft("");
+    setShowTokenInput(true);
+  }
+
+  function toggleTopic(topic: string) {
+    const key = normalize(topic);
     setTopics((prev) =>
-      prev.map(normalize).includes(key) ? prev.filter((x) => normalize(x) !== key) : [...prev, t]
+      prev.map(normalize).includes(key) ? prev.filter((x) => normalize(x) !== key) : [...prev, topic]
     );
   }
 
-  function updateSummary(i: number, val: string) {
+  function updateSummary(index: number, value: string) {
     setSummary((prev) => {
       const next = [...prev];
-      next[i] = val;
+      next[index] = value;
       return next;
     });
   }
 
-  function updateSource(i: number, patch: Partial<(typeof sources)[number]>) {
+  function updateSource(index: number, patch: Partial<(typeof sources)[number]>) {
     setSources((prev) => {
       const next = [...prev];
-      next[i] = { ...next[i], ...patch };
+      next[index] = { ...next[index], ...patch };
       return next;
     });
   }
@@ -109,7 +97,7 @@ async function onDelete() {
     setSelectedEntities((prev) => {
       const has = prev.includes(name);
       const next = has ? prev.filter((x) => x !== name) : [...prev, name];
-      if (has) setPrimaryEntities((p) => p.filter((x) => x !== name));
+      if (has) setPrimaryEntities((existing) => existing.filter((x) => x !== name));
       return next;
     });
   }
@@ -128,19 +116,19 @@ async function onDelete() {
       return;
     }
 
-    const cleanedSummary = summary.map((s) => s.trim()).filter(Boolean);
+    const cleanedSummary = summary.map((line) => line.trim()).filter(Boolean);
     const cleanedSources = sources
-      .map((s) => ({ name: s.name.trim(), url: s.url.trim(), lean: s.lean }))
-      .filter((s) => s.name && s.url);
+      .map((source) => ({ name: source.name.trim(), url: source.url.trim(), lean: source.lean }))
+      .filter((source) => source.name && source.url);
 
     if (!title.trim()) return alert("Title is required.");
     if (cleanedSummary.length === 0) return alert("Add at least 1 summary line.");
     if (cleanedSources.length === 0) return alert("Add at least 1 source.");
 
     const entities = selectedEntities
-      .map((name) => ENTITIES.find((e) => e.name === name))
-      .filter(Boolean)
-      .map((e) => ({ name: e!.name, aliases: e!.aliases }));
+      .map((name) => ENTITIES.find((entity) => entity.name === name))
+      .filter((entity): entity is (typeof ENTITIES)[number] => Boolean(entity))
+      .map((entity) => ({ name: entity.name, aliases: entity.aliases }));
 
     const story: Story = {
       id: generatedId,
@@ -166,12 +154,41 @@ async function onDelete() {
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(`Save failed: ${err?.error ?? res.statusText}`);
+      const err = (await res.json().catch(() => ({}))) as { error?: string };
+      alert(`Save failed: ${err.error ?? res.statusText}`);
       return;
     }
 
     alert(`Saved! id: ${story.id}`);
+  }
+
+  async function onDelete() {
+    if (!adminToken) {
+      alert("Admin token required.");
+      setShowTokenInput(true);
+      return;
+    }
+
+    const id = generatedId;
+    if (!id || id === "new-story") {
+      alert("Enter a title first so the story ID exists.");
+      return;
+    }
+
+    if (!confirm(`Delete story "${id}"? This cannot be undone.`)) return;
+
+    const res = await fetch(`/api/stories/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: { "x-admin-token": adminToken },
+    });
+
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { error?: string };
+      alert(`Delete failed: ${err.error ?? res.statusText}`);
+      return;
+    }
+
+    alert(`Deleted: ${id}`);
   }
 
   return (
@@ -184,7 +201,7 @@ async function onDelete() {
               Change token
             </button>
             <Link href="/" className="text-neutral-300 hover:text-white">
-              ← Back
+              {"<- Back"}
             </Link>
           </div>
         </div>
@@ -196,7 +213,7 @@ async function onDelete() {
               type="password"
               value={tokenDraft}
               onChange={(e) => setTokenDraft(e.target.value)}
-              placeholder="Enter admin token…"
+              placeholder="Enter admin token..."
               className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg mb-3"
               onKeyDown={(e) => {
                 if (e.key === "Enter") saveToken();
@@ -215,7 +232,7 @@ async function onDelete() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg"
-              placeholder="Headline…"
+              placeholder="Headline..."
             />
             <div className="mt-3 text-sm text-neutral-500">
               ID preview: <span className="text-neutral-300">{generatedId}</span>
@@ -230,34 +247,30 @@ async function onDelete() {
               />
             </div>
           </div>
-<div className="mt-4 flex items-center gap-3">
-  <input
-    id="urgent"
-    type="checkbox"
-    checked={urgent}
-    onChange={(e) => setUrgent(e.target.checked)}
-    className="h-4 w-4"
-  />
-  <label htmlFor="urgent" className="text-sm text-neutral-300">
-    Urgent (Drudge-style emphasis)
-  </label>
-</div>
+
+          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
+            <label className="inline-flex items-center gap-3 text-sm text-neutral-300">
+              <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} className="h-4 w-4" />
+              Urgent (Drudge-style emphasis)
+            </label>
+          </div>
+
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Topics</div>
             <div className="flex flex-wrap gap-2">
-              {TOPICS.map((t) => {
-                const selected = topics.map(normalize).includes(normalize(t));
+              {TOPICS.map((topic) => {
+                const selected = topics.map(normalize).includes(normalize(topic));
                 return (
                   <button
-                    key={t}
-                    onClick={() => toggleTopic(t)}
+                    key={topic}
+                    onClick={() => toggleTopic(topic)}
                     className={`text-xs px-3 py-1.5 rounded-full border transition ${
                       selected
                         ? "bg-neutral-100 text-neutral-900 border-neutral-100"
                         : "bg-neutral-900 text-neutral-300 border-neutral-700 hover:bg-neutral-800"
                     }`}
                   >
-                    {t}
+                    {topic}
                   </button>
                 );
               })}
@@ -267,25 +280,25 @@ async function onDelete() {
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Entities</div>
             <div className="flex flex-wrap gap-2">
-              {ENTITIES.map((e) => {
-                const selected = selectedEntities.includes(e.name);
-                const primary = primaryEntities.includes(e.name);
+              {ENTITIES.map((entity) => {
+                const selected = selectedEntities.includes(entity.name);
+                const primary = primaryEntities.includes(entity.name);
                 return (
                   <div
-                    key={e.name}
+                    key={entity.name}
                     className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${
                       selected ? "border-neutral-500 bg-neutral-950/30" : "border-neutral-700 bg-neutral-900"
                     }`}
                   >
                     <button
-                      onClick={() => toggleEntity(e.name)}
+                      onClick={() => toggleEntity(entity.name)}
                       className={`text-xs ${selected ? "text-neutral-100" : "text-neutral-300"}`}
                     >
-                      {selected ? "✓ " : "+ "}
-                      {e.name}
+                      {selected ? "OK " : "+ "}
+                      {entity.name}
                     </button>
                     <button
-                      onClick={() => togglePrimary(e.name)}
+                      onClick={() => togglePrimary(entity.name)}
                       className={`text-[11px] px-2 py-0.5 rounded-full border transition ${
                         primary
                           ? "bg-neutral-100 text-neutral-900 border-neutral-100"
@@ -303,13 +316,13 @@ async function onDelete() {
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Summary</div>
             <div className="space-y-3">
-              {summary.map((line, i) => (
+              {summary.map((line, index) => (
                 <input
-                  key={i}
+                  key={index}
                   value={line}
-                  onChange={(e) => updateSummary(i, e.target.value)}
+                  onChange={(e) => updateSummary(index, e.target.value)}
                   className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg"
-                  placeholder={`Summary line ${i + 1}`}
+                  placeholder={`Summary line ${index + 1}`}
                 />
               ))}
             </div>
@@ -325,25 +338,24 @@ async function onDelete() {
                 + Add source
               </button>
             </div>
-
             <div className="mt-4 space-y-4">
-              {sources.map((s, i) => (
-                <div key={i} className="grid grid-cols-1 md:grid-cols-6 gap-2">
+              {sources.map((source, index) => (
+                <div key={index} className="grid grid-cols-1 md:grid-cols-6 gap-2">
                   <input
-                    value={s.name}
-                    onChange={(e) => updateSource(i, { name: e.target.value })}
+                    value={source.name}
+                    onChange={(e) => updateSource(index, { name: e.target.value })}
                     className="md:col-span-2 px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg"
                     placeholder="Outlet (e.g. Reuters)"
                   />
                   <input
-                    value={s.url}
-                    onChange={(e) => updateSource(i, { url: e.target.value })}
+                    value={source.url}
+                    onChange={(e) => updateSource(index, { url: e.target.value })}
                     className="md:col-span-3 px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg"
                     placeholder="https://..."
                   />
                   <select
-                    value={s.lean}
-                    onChange={(e) => updateSource(i, { lean: e.target.value as Lean })}
+                    value={source.lean}
+                    onChange={(e) => updateSource(index, { lean: e.target.value as Lean })}
                     className="md:col-span-1 px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg"
                   >
                     <option value="Left">Left</option>
@@ -358,15 +370,13 @@ async function onDelete() {
           <button onClick={onSave} className="w-full py-3 rounded-xl bg-neutral-100 text-neutral-900 font-semibold">
             Save story
           </button>
-<button
-  onClick={onDelete}
-  className="w-full py-3 rounded-xl border border-red-400 text-red-300 hover:bg-red-950/30 font-semibold"
->
-  Delete story
-</button>
-          <div className="text-xs text-neutral-500">
-            Editor writes to Supabase via API. Token is stored locally in your browser.
-          </div>
+
+          <button
+            onClick={onDelete}
+            className="w-full py-3 rounded-xl border border-red-400 text-red-300 hover:bg-red-950/30 font-semibold"
+          >
+            Delete story
+          </button>
         </div>
       </div>
     </main>
