@@ -8,11 +8,6 @@ import { ENTITIES, TOPICS, normalize, slugify } from "@/app/lib/vocab";
 type Lean = "Left" | "Center" | "Right";
 type Entity = { name: string; aliases: string[] };
 
-const [entities, setEntities] = useState<Entity[]>([]);
-const [entitySearch, setEntitySearch] = useState("");
-const [newEntityName, setNewEntityName] = useState("");
-const [aliasDraft, setAliasDraft] = useState<Record<string, string>>({});
-
 const TOKEN_KEY = "signal_admin_token";
 
 function getInitialToken() {
@@ -30,7 +25,10 @@ export default function EditorPage() {
   const [adminToken, setAdminToken] = useState(initialToken);
   const [showTokenInput, setShowTokenInput] = useState(!initialToken);
   const [tokenDraft, setTokenDraft] = useState(initialToken);
-
+const [entities, setEntities] = useState<Entity[]>([]);
+const [entitySearch, setEntitySearch] = useState("");
+const [newEntityName, setNewEntityName] = useState("");
+const [aliasDraft, setAliasDraft] = useState<Record<string, string>>({});
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [urgent, setUrgent] = useState(false);
