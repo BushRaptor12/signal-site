@@ -396,7 +396,7 @@ async function saveAliases(entityName: string, aliases: string[]) {
             </button>
 
             <button
-              onClick={() => togglePrimaryEntity(e.name)}
+              onClick={() => togglePrimary(e.name)}
               className={`text-[11px] px-2 py-0.5 rounded-full border transition ${
                 primary
                   ? "bg-neutral-100 text-neutral-900 border-neutral-100"
