@@ -25,8 +25,6 @@ function supabaseAdmin() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-~~~~~
-
 export async function GET() {
   try {
     const supabase = supabaseAdmin();
