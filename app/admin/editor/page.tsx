@@ -137,10 +137,10 @@ useEffect(() => {
     if (cleanedSummary.length === 0) return alert("Add at least 1 summary line.");
     if (cleanedSources.length === 0) return alert("Add at least 1 source.");
 
-    const entities = selectedEntities
-      .map((name) => ENTITIES.find((entity) => entity.name === name))
-      .filter((entity): entity is (typeof ENTITIES)[number] => Boolean(entity))
-      .map((entity) => ({ name: entity.name, aliases: entity.aliases }));
+    const storyEntities = selectedEntities
+  .map((name) => entities.find((e) => e.name === name))
+  .filter(Boolean)
+  .map((e) => ({ name: e!.name, aliases: e!.aliases }));
 
     const story: Story = {
       id: generatedId,
@@ -150,7 +150,7 @@ useEffect(() => {
       date,
       urgent,
       topics: topics.map(normalize),
-      entities,
+      entities: storyEntities,
       primary_entities: primaryEntities,
       tags: [...topics.map(normalize), ...selectedEntities.map(normalize)],
       comments: 0,
