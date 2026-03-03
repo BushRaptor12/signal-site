@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { Story } from "@/app/lib/types";
 import { ENTITIES, TOPICS, normalize, slugify } from "@/app/lib/vocab";
-import { useMemo, useState } from "react";
 
 type Lean = "Left" | "Center" | "Right";
 type Entity = { name: string; aliases: string[] };
