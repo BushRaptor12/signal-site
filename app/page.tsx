@@ -297,7 +297,7 @@ export default function Home() {
             <div
               className={`bg-neutral-900 p-8 rounded-2xl border transition ${
                 story.urgent
-                  ? "border-red-500/70 hover:border-red-400 shadow-[0_0_0_1px_rgba(239,68,68,0.25)]"
+                  ? "border-red-500/70 hover:border-red-400"
                   : "border-neutral-700 hover:border-neutral-500"
               }`}
             >
