@@ -132,7 +132,7 @@ export default function Home() {
   // Visible stories based on active tab
   const visible = useMemo(() => {
     const recent = [...stories].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
     );
 
     if (activeTab === "recent") return recent;
