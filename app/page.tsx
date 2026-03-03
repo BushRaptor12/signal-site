@@ -135,7 +135,7 @@ export default function Home() {
       (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
     );
 
-    if (activeTab === "recent") return recent;
+    if (activeTab === "recent") return stories;
 
     if (activeTab === "popular") {
       return [...stories].sort((a, b) => (b.views ?? 0) - (a.views ?? 0));
