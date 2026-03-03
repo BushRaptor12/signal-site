@@ -96,18 +96,27 @@ export default function Home() {
   const topicSet = useMemo(() => new Set(suggestedTopics), [suggestedTopics]);
 
   function storyMatchesTab(story: StoryWithViews, tab: string) {
-    const t = normalize(tab);
-    if (!t) return false;
+  const t = normalize(tab);
+  if (!t) return false;
 
-    // If it's an official topic: STRICT filter by story.topics
-    if (topicSet.has(t)) {
-      return (story.topics ?? []).map(normalize).includes(t);
-    }
-
-    // Otherwise it's a custom keyword tab: match title + summary text
-    const haystack = [story.title, ...(story.summary ?? [])].join(" ");
-    return textMatchesKeyword(haystack, t);
+  // 1) Official topic tabs are STRICT (NYT-style sections)
+  if (topicSet.has(t)) {
+    return (story.topics ?? []).map(normalize).includes(t);
   }
+
+  // 2) Custom keyword tabs:
+  // 2a) Match entities + aliases
+  for (const entity of (story.entities ?? []) as any[]) {
+    if (normalize(entity?.name ?? "") === t) return true;
+
+    const aliases = Array.isArray(entity?.aliases) ? entity.aliases : [];
+    if (aliases.map((a: string) => normalize(a)).includes(t)) return true;
+  }
+
+  // 2b) Fallback: match title + summary text
+  const haystack = [story.title, ...(story.summary ?? [])].join(" ");
+  return textMatchesKeyword(haystack, t);
+}
 
   // Top-row tabs: Popular + Recent + pinned + ghost (if needed)
   const tabs = useMemo(() => {
