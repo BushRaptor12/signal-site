@@ -202,7 +202,45 @@ useEffect(() => {
 
     alert(`Deleted: ${id}`);
   }
+async function createEntity(name: string) {
+  const res = await fetch("/api/entities", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, aliases: [] }),
+  });
 
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    alert(`Create entity failed: ${json?.error ?? res.statusText}`);
+    return null;
+  }
+
+  const created = json.entity as Entity;
+  setEntities((prev) => {
+    const next = [...prev, created];
+    next.sort((a, b) => a.name.localeCompare(b.name));
+    return next;
+  });
+
+  return created;
+}
+
+async function saveAliases(entityName: string, aliases: string[]) {
+  const res = await fetch(`/api/entities/${encodeURIComponent(entityName)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ aliases }),
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    alert(`Update aliases failed: ${json?.error ?? res.statusText}`);
+    return;
+  }
+
+  const updated = json.entity as Entity;
+  setEntities((prev) => prev.map((e) => (e.name === updated.name ? updated : e)));
+}
   return (
     <main className="min-h-screen bg-neutral-900 text-neutral-100 p-8">
       <div className="max-w-3xl mx-auto">
@@ -289,41 +327,160 @@ useEffect(() => {
             </div>
           </div>
 
-          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
-            <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Entities</div>
-            <div className="flex flex-wrap gap-2">
-              {ENTITIES.map((entity) => {
-                const selected = selectedEntities.includes(entity.name);
-                const primary = primaryEntities.includes(entity.name);
-                return (
-                  <div
-                    key={entity.name}
-                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${
-                      selected ? "border-neutral-500 bg-neutral-950/30" : "border-neutral-700 bg-neutral-900"
-                    }`}
-                  >
-                    <button
-                      onClick={() => toggleEntity(entity.name)}
-                      className={`text-xs ${selected ? "text-neutral-100" : "text-neutral-300"}`}
-                    >
-                      {selected ? "OK " : "+ "}
-                      {entity.name}
-                    </button>
-                    <button
-                      onClick={() => togglePrimary(entity.name)}
-                      className={`text-[11px] px-2 py-0.5 rounded-full border transition ${
-                        primary
-                          ? "bg-neutral-100 text-neutral-900 border-neutral-100"
-                          : "border-neutral-700 text-neutral-300 hover:bg-neutral-800"
-                      }`}
-                    >
-                      Primary
-                    </button>
-                  </div>
-                );
-              })}
+          {/* Entities */}
+<div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
+  <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">
+    Entities
+  </div>
+
+  {/* Search + create */}
+  <div className="flex gap-2 mb-4">
+    <input
+      value={entitySearch}
+      onChange={(e) => setEntitySearch(e.target.value)}
+      placeholder='Search entities (e.g. "Middle East")'
+      className="flex-1 px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg text-sm"
+    />
+    <button
+      onClick={async () => {
+        const name = entitySearch.trim();
+        if (!name) return;
+
+        // If it exists, just select it
+        const existing = entities.find((e) => e.name.toLowerCase() === name.toLowerCase());
+        const entity = existing ?? (await createEntity(name));
+        if (!entity) return;
+
+        // select it
+        setSelectedEntities((prev) => (prev.includes(entity.name) ? prev : [...prev, entity.name]));
+        setEntitySearch("");
+      }}
+      className="px-4 py-2 bg-neutral-100 text-neutral-900 rounded-lg text-sm"
+      title="Create if missing, otherwise select"
+    >
+      Add
+    </button>
+  </div>
+
+  <div className="text-xs text-neutral-500 mb-3">
+    Tip: Type a new entity name and hit <span className="text-neutral-300">Add</span> to create it instantly.
+  </div>
+
+  {/* List entities (filtered) */}
+  <div className="flex flex-wrap gap-2">
+    {entities
+      .filter((e) =>
+        !entitySearch.trim()
+          ? true
+          : e.name.toLowerCase().includes(entitySearch.trim().toLowerCase())
+      )
+      .slice(0, 50)
+      .map((e) => {
+        const selected = selectedEntities.includes(e.name);
+        const primary = primaryEntities.includes(e.name);
+
+        return (
+          <div
+            key={e.name}
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${
+              selected ? "border-neutral-500 bg-neutral-950/30" : "border-neutral-700 bg-neutral-900"
+            }`}
+          >
+            <button
+              onClick={() => toggleEntity(e.name)}
+              className={`text-xs transition ${selected ? "text-neutral-100" : "text-neutral-300"}`}
+              title={selected ? "Remove entity" : "Add entity"}
+            >
+              {selected ? "✓ " : "+ "}
+              {e.name}
+            </button>
+
+            <button
+              onClick={() => togglePrimaryEntity(e.name)}
+              className={`text-[11px] px-2 py-0.5 rounded-full border transition ${
+                primary
+                  ? "bg-neutral-100 text-neutral-900 border-neutral-100"
+                  : "border-neutral-700 text-neutral-300 hover:bg-neutral-800"
+              }`}
+              title="Toggle primary"
+            >
+              Primary
+            </button>
+          </div>
+        );
+      })}
+  </div>
+
+  {/* Alias editor for selected entities */}
+  {selectedEntities.length > 0 && (
+    <div className="mt-6 space-y-4">
+      <div className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">
+        Aliases (for selected entities)
+      </div>
+
+      {selectedEntities.map((name) => {
+        const entity = entities.find((e) => e.name === name);
+        const aliases = entity?.aliases ?? [];
+        const draft = aliasDraft[name] ?? "";
+
+        return (
+          <div key={name} className="border border-neutral-700 rounded-xl p-4 bg-neutral-950/20">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-neutral-200 font-medium">{name}</div>
+              <div className="text-xs text-neutral-500">{aliases.length} aliases</div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {aliases.map((a) => (
+                <button
+                  key={a}
+                  onClick={async () => {
+                    const next = aliases.filter((x) => x !== a);
+                    await saveAliases(name, next);
+                  }}
+                  className="text-xs px-2 py-1 rounded-full border border-neutral-700 text-neutral-300 hover:bg-neutral-800"
+                  title="Remove alias"
+                >
+                  ✕ {a}
+                </button>
+              ))}
+              {aliases.length === 0 && (
+                <span className="text-xs text-neutral-500">No aliases yet.</span>
+              )}
+            </div>
+
+            <div className="mt-3 flex gap-2">
+              <input
+                value={draft}
+                onChange={(e) => setAliasDraft((prev) => ({ ...prev, [name]: e.target.value }))}
+                placeholder='Add alias (e.g. "Dubai")'
+                className="flex-1 px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg text-sm"
+                onKeyDown={async (e) => {
+                  if (e.key !== "Enter") return;
+                  const alias = draft.trim();
+                  if (!alias) return;
+                  await saveAliases(name, [...aliases, alias]);
+                  setAliasDraft((prev) => ({ ...prev, [name]: "" }));
+                }}
+              />
+              <button
+                onClick={async () => {
+                  const alias = draft.trim();
+                  if (!alias) return;
+                  await saveAliases(name, [...aliases, alias]);
+                  setAliasDraft((prev) => ({ ...prev, [name]: "" }));
+                }}
+                className="px-3 py-2 rounded-lg bg-neutral-100 text-neutral-900 text-sm"
+              >
+                Add alias
+              </button>
             </div>
           </div>
+        );
+      })}
+    </div>
+  )}
+</div>
 
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Summary</div>
