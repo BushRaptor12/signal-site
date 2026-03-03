@@ -43,7 +43,13 @@ export default function EditorPage() {
     { name: "", url: "", lean: "Center" },
     { name: "", url: "", lean: "Center" },
   ]);
-
+useEffect(() => {
+  (async () => {
+    const res = await fetch("/api/entities", { cache: "no-store" });
+    const data = await res.json();
+    if (Array.isArray(data)) setEntities(data);
+  })();
+}, []);
   const generatedId = title ? slugify(title) : "new-story";
 
   function saveToken() {
