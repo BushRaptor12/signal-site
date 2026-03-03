@@ -43,6 +43,8 @@ export default function EditorPage() {
     { name: "", url: "", lean: "Center" },
     { name: "", url: "", lean: "Center" },
   ]);
+
+  const generatedId = title ? slugify(title) : "new-story";
 useEffect(() => {
   (async () => {
     const res = await fetch("/api/entities", { cache: "no-store" });
@@ -50,8 +52,6 @@ useEffect(() => {
     if (Array.isArray(data)) setEntities(data);
   })();
 }, []);
-  const generatedId = title ? slugify(title) : "new-story";
-
   function saveToken() {
     const token = tokenDraft.trim();
     if (!token) return;
