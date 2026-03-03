@@ -85,7 +85,7 @@ export async function GET() {
   try {
     const supabase = supabaseServer();
 
-    const { data: stories, error: storiesError } = await supabase.from("stories").select("*").order("date", {
+    const { data: stories, error: storiesError } = await supabase.from("stories").select("*").order("created_at", {
       ascending: false,
     });
     if (storiesError) throw storiesError;
