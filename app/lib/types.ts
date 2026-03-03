@@ -18,6 +18,7 @@ export type Story = {
   sources: Source[];
   date: string; // YYYY-MM-DD
 urgent: boolean;
+  created_at?: string;
   // keyword system
   topics: string[];          // high-level sections
   entities: Entity[];        // canonical + aliases
