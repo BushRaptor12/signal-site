@@ -6,6 +6,12 @@ import type { Story } from "@/app/lib/types";
 import { ENTITIES, TOPICS, normalize, slugify } from "@/app/lib/vocab";
 
 type Lean = "Left" | "Center" | "Right";
+type Entity = { name: string; aliases: string[] };
+
+const [entities, setEntities] = useState<Entity[]>([]);
+const [entitySearch, setEntitySearch] = useState("");
+const [newEntityName, setNewEntityName] = useState("");
+const [aliasDraft, setAliasDraft] = useState<Record<string, string>>({});
 
 const TOKEN_KEY = "signal_admin_token";
 
