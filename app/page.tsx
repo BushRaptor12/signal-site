@@ -350,7 +350,7 @@ export default function Home() {
               </div>
 
               <div className="mt-5 text-sm text-neutral-500 text-center">
-                {story.views} views | {story.comments} comments
+                {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
               </div>
 
               {/* Topic pills ONLY */}

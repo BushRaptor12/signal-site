@@ -69,7 +69,7 @@ export default async function StoryPage({
             {"<- Back"}
           </Link>
           <div className="text-sm text-neutral-400">
-            {story.views} views | {story.comments} comments
+            {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
           </div>
         </div>
 
