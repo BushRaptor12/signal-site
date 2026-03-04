@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import type { StoryWithViews } from "@/app/lib/types";
+import ViewTracker from "./view-tracker";
 
 function leanBadgeClasses(lean: "Left" | "Center" | "Right") {
   switch (lean) {
@@ -34,11 +35,6 @@ export default async function StoryPage({
 
   const backHref = from ? `/?tab=${encodeURIComponent(from)}` : "/";
 
-  await fetch(`${origin}/api/views/${encodeURIComponent(slug)}`, {
-    method: "POST",
-    cache: "no-store",
-  }).catch(() => {});
-
   const res = await fetch(`${origin}/api/stories/${encodeURIComponent(slug)}`, { cache: "no-store" });
 
   if (!res.ok) {
@@ -66,6 +62,7 @@ export default async function StoryPage({
 
   return (
     <main className="min-h-screen bg-neutral-900 text-neutral-100 px-6 py-12">
+      <ViewTracker slug={slug} />
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between">
           <Link href={backHref} className="text-neutral-300 hover:text-white transition">

@@ -8,7 +8,8 @@ import type { StoryWithViews } from "./lib/types";
 type TabKey = "popular" | "recent" | string;
 
 const PINNED_KEY = "signal:pinnedTags:v1";
-const ACTIVE_KEY = "signal:activeTab:v1";
+const ACTIVE_KEY = "signal:activeTab:v2";
+const INITIAL_NOW_MS = Date.now();
 
 function getInitialPinned(): string[] {
   if (typeof window === "undefined") return [];
@@ -22,13 +23,28 @@ function getInitialPinned(): string[] {
 }
 
 function getInitialActiveTab(): TabKey {
-  if (typeof window === "undefined") return "recent";
+  if (typeof window === "undefined") return "popular";
   try {
     const raw = localStorage.getItem(ACTIVE_KEY);
-    return raw ? (raw as TabKey) : "recent";
+    return raw ? (raw as TabKey) : "popular";
   } catch {
-    return "recent";
+    return "popular";
   }
+}
+
+function publishedAtMs(story: StoryWithViews): number {
+  const created = new Date(story.created_at ?? "").getTime();
+  if (Number.isFinite(created) && created > 0) return created;
+
+  const dateOnly = new Date(story.date ?? "").getTime();
+  if (Number.isFinite(dateOnly) && dateOnly > 0) return dateOnly;
+
+  return 0;
+}
+
+function popularScore(story: StoryWithViews, nowMs: number): number {
+  const hoursSincePublish = Math.max(0, (nowMs - publishedAtMs(story)) / 3_600_000);
+  return Number(story.views ?? 0) / (hoursSincePublish + 2);
 }
 
 function escapeRegExp(s: string) {
@@ -106,11 +122,9 @@ export default function Home() {
 
   // 2) Custom keyword tabs:
   // 2a) Match entities + aliases
-  for (const entity of (story.entities ?? []) as any[]) {
-    if (normalize(entity?.name ?? "") === t) return true;
-
-    const aliases = Array.isArray(entity?.aliases) ? entity.aliases : [];
-    if (aliases.map((a: string) => normalize(a)).includes(t)) return true;
+  for (const entity of story.entities ?? []) {
+    if (normalize(entity.name) === t) return true;
+    if ((entity.aliases ?? []).map(normalize).includes(t)) return true;
   }
 
   // 2b) Fallback: match title + summary text
@@ -140,14 +154,23 @@ export default function Home() {
 
   // Visible stories based on active tab
   const visible = useMemo(() => {
+    const nowMs = INITIAL_NOW_MS;
     const recent = [...stories].sort(
-      (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
+      (a, b) => publishedAtMs(b) - publishedAtMs(a)
     );
 
-    if (activeTab === "recent") return stories;
+    if (activeTab === "recent") return recent;
 
     if (activeTab === "popular") {
-      return [...stories].sort((a, b) => (b.views ?? 0) - (a.views ?? 0));
+      return [...stories].sort((a, b) => {
+        const byScore = popularScore(b, nowMs) - popularScore(a, nowMs);
+        if (byScore !== 0) return byScore;
+
+        const byViews = Number(b.views ?? 0) - Number(a.views ?? 0);
+        if (byViews !== 0) return byViews;
+
+        return publishedAtMs(b) - publishedAtMs(a);
+      });
     }
 
     return recent.filter((story) => storyMatchesTab(story, String(activeTab)));

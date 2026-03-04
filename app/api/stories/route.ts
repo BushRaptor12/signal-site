@@ -4,23 +4,20 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { StoryWithViews, Source, Entity } from "@/app/lib/types";
 
-type StoryViewRow = {
-  story_id: string;
-  views: number | null;
-};
-
 type StoryDbRow = {
   id: string;
   title: string;
   summary: unknown;
   sources: unknown;
   date: string;
+  views?: number | null;
   urgent?: boolean;
   topics?: unknown;
   tags?: unknown;
   entities?: unknown;
   primary_entities?: unknown;
   comments?: number | null;
+  created_at?: string | null;
 };
 
 function messageFromError(e: unknown) {
@@ -64,20 +61,21 @@ function toEntities(value: unknown): Entity[] {
     .filter((item): item is Entity => Boolean(item));
 }
 
-function coerceStory(row: StoryDbRow, views: number): StoryWithViews {
+function coerceStory(row: StoryDbRow): StoryWithViews {
   return {
     id: row.id,
     title: row.title,
     summary: toStringArray(row.summary),
     sources: toSources(row.sources),
     date: row.date,
+    created_at: row.created_at ?? undefined,
     urgent: Boolean(row.urgent),
     topics: toStringArray(row.topics),
     tags: toStringArray(row.tags),
     entities: toEntities(row.entities),
     primary_entities: toStringArray(row.primary_entities),
     comments: Number(row.comments ?? 0),
-    views,
+    views: Number(row.views ?? 0),
   };
 }
 
@@ -90,15 +88,7 @@ export async function GET() {
     });
     if (storiesError) throw storiesError;
 
-    const { data: viewsRows, error: viewsError } = await supabase.from("story_views").select("story_id, views");
-    if (viewsError) throw viewsError;
-
-    const viewMap = new Map<string, number>();
-    for (const row of (viewsRows ?? []) as StoryViewRow[]) {
-      viewMap.set(row.story_id, Number(row.views ?? 0));
-    }
-
-    const merged = ((stories ?? []) as StoryDbRow[]).map((story) => coerceStory(story, viewMap.get(story.id) ?? 0));
+    const merged = ((stories ?? []) as StoryDbRow[]).map((story) => coerceStory(story));
     return NextResponse.json(merged);
   } catch (e: unknown) {
     return NextResponse.json({ error: messageFromError(e) }, { status: 500 });
@@ -134,11 +124,6 @@ export async function POST(req: Request) {
     const supabase = supabaseServer();
     const { error } = await supabase.from("stories").upsert(story, { onConflict: "id" });
     if (error) throw error;
-
-    await supabase.from("story_views").upsert(
-      { story_id: story.id, views: 0, updated_at: new Date().toISOString() },
-      { onConflict: "story_id" }
-    );
 
     return NextResponse.json({ ok: true, story });
   } catch (e: unknown) {

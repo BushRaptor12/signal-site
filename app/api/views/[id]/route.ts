@@ -13,30 +13,18 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const supabase = supabaseServer();
     const id = (await params).id;
 
-    // 1) ensure exists
-    await supabase
-      .from("story_views")
-      .upsert({ story_id: id, views: 0, updated_at: new Date().toISOString() }, { onConflict: "story_id" });
+    const { error: incrementError } = await supabase.rpc("increment_story_views", { story_id: id });
+    if (incrementError) throw incrementError;
 
-    // 2) increment (two-step; fine for MVP)
-    const { data, error } = await supabase
-      .from("story_views")
+    const { data: row, error: readError } = await supabase
+      .from("stories")
       .select("views")
-      .eq("story_id", id)
+      .eq("id", id)
       .maybeSingle();
+    if (readError) throw readError;
+    if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    if (error) throw error;
-
-    const next = Number(data?.views ?? 0) + 1;
-
-    const { error: uErr } = await supabase
-      .from("story_views")
-      .update({ views: next, updated_at: new Date().toISOString() })
-      .eq("story_id", id);
-
-    if (uErr) throw uErr;
-
-    return NextResponse.json({ ok: true, views: next });
+    return NextResponse.json({ ok: true, views: Number(row.views ?? 0) });
   } catch (e: unknown) {
     return NextResponse.json({ error: messageFromError(e) }, { status: 500 });
   }

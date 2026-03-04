@@ -10,12 +10,14 @@ type StoryRow = {
   summary: unknown;
   sources: unknown;
   date: string;
+  views?: number | null;
   urgent?: boolean;
   topics?: unknown;
   tags?: unknown;
   entities?: unknown;
   primary_entities?: unknown;
   comments?: number | null;
+  created_at?: string | null;
 };
 
 function messageFromError(e: unknown) {
@@ -59,20 +61,21 @@ function toEntities(value: unknown): Entity[] {
     .filter((item): item is Entity => Boolean(item));
 }
 
-function coerceStory(row: StoryRow, views: number): StoryWithViews {
+function coerceStory(row: StoryRow): StoryWithViews {
   return {
     id: row.id,
     title: row.title,
     summary: toStringArray(row.summary),
     sources: toSources(row.sources),
     date: row.date,
+    created_at: row.created_at ?? undefined,
     urgent: Boolean(row.urgent),
     topics: toStringArray(row.topics),
     tags: toStringArray(row.tags),
     entities: toEntities(row.entities),
     primary_entities: toStringArray(row.primary_entities),
     comments: Number(row.comments ?? 0),
-    views,
+    views: Number(row.views ?? 0),
   };
 }
 
@@ -85,14 +88,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     if (error) throw error;
     if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const { data: viewRow, error: viewError } = await supabase
-      .from("story_views")
-      .select("views")
-      .eq("story_id", id)
-      .maybeSingle();
-    if (viewError) throw viewError;
-
-    const story = coerceStory(data as StoryRow, Number(viewRow?.views ?? 0));
+    const story = coerceStory(data as StoryRow);
     return NextResponse.json(story);
   } catch (e: unknown) {
     return NextResponse.json({ error: messageFromError(e) }, { status: 500 });
@@ -107,8 +103,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     const supabase = supabaseServer();
     const id = (await params).id;
-
-    await supabase.from("story_views").delete().eq("story_id", id);
 
     const { error } = await supabase.from("stories").delete().eq("id", id);
     if (error) throw error;
