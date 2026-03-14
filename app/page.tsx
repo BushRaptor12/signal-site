@@ -193,7 +193,7 @@ export default function Home() {
   }
 
   return (
-      <main className="min-h-screen bg-neutral-900 text-neutral-100 p-8">
+      <main className="min-h-screen bg-transparent text-neutral-100 p-8">
         <div className="max-w-4xl mx-auto mb-8 flex items-start justify-between gap-4">
           <div>
             <Image
