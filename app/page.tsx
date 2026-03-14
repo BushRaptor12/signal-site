@@ -197,12 +197,12 @@ export default function Home() {
         <div className="max-w-4xl mx-auto mb-8 flex items-start justify-between gap-4">
           <div>
             <Image
-              src="/thebeacon.png"
+              src="/newthebeacon.png"
               alt="The Beacon"
-              width={760}
-              height={399}
+              width={1408}
+              height={736}
               priority
-              className="h-auto w-full max-w-[320px] md:max-w-[380px]"
+              className="h-auto w-full max-w-[420px] md:max-w-[520px]"
             />
             <p className="mt-3 text-neutral-400">Multi-source news. Clear perspective.</p>
           </div>
@@ -248,7 +248,7 @@ export default function Home() {
 
       {/* Tab manager */}
       {showManager && (
-        <div className="max-w-4xl mx-auto mb-8 bg-neutral-900 border border-neutral-700 rounded-xl p-6">
+        <div className="max-w-4xl mx-auto mb-8 rounded-xl border border-neutral-700 bg-[var(--surface)] p-6">
           <div className="text-sm font-semibold text-neutral-300 mb-4 uppercase">
             Manage Tabs
           </div>
@@ -335,11 +335,11 @@ export default function Home() {
             className="block"
           >
             <div
-              className={`bg-neutral-900 p-8 rounded-2xl border transition ${
-                story.urgent
-                  ? "border-red-500/70 hover:border-red-400"
-                  : "border-neutral-700 hover:border-neutral-500"
-              }`}
+               className={`rounded-2xl border bg-[var(--surface)] p-8 transition ${
+                 story.urgent
+                   ? "border-red-500/70 hover:border-red-400"
+                   : "border-neutral-700 hover:border-neutral-500"
+               }`}
             >
               <h2
                 className={`text-center font-semibold ${
