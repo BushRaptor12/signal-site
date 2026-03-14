@@ -40,12 +40,12 @@ export default async function StoryPage({
   if (!res.ok) {
     const notFound = res.status === 404;
     return (
-      <main className="min-h-screen bg-neutral-900 text-neutral-100 px-6 py-12">
+      <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
         <div className="max-w-3xl mx-auto">
           <Link href={backHref} className="text-neutral-300 hover:text-white transition">
             {"<- Back"}
           </Link>
-          <div className="mt-10 bg-neutral-950/30 border border-neutral-700 rounded-2xl p-8">
+          <div className="mt-10 rounded-2xl border border-[#0d2438] bg-[#020b14] p-8">
             <h1 className="text-2xl font-semibold">{notFound ? "Story not found" : "Could not load story"}</h1>
             <p className="text-neutral-400 mt-2">
               {notFound
@@ -61,7 +61,7 @@ export default async function StoryPage({
   const story = (await res.json()) as StoryWithViews;
 
   return (
-    <main className="min-h-screen bg-neutral-900 text-neutral-100 px-6 py-12">
+    <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
       <ViewTracker slug={slug} />
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between">
@@ -73,7 +73,7 @@ export default async function StoryPage({
           </div>
         </div>
 
-        <div className="mt-8 bg-neutral-950/40 border border-neutral-700 rounded-2xl p-8">
+        <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[#020b14] p-8">
           <h1 className="text-3xl font-semibold leading-tight">{story.title}</h1>
 
           <div className="mt-6">
@@ -101,7 +101,7 @@ export default async function StoryPage({
                 href={src.url}
                 target="_blank"
                 rel="noreferrer"
-                className="block bg-neutral-950/30 border border-neutral-700 rounded-2xl p-5 hover:border-neutral-500 hover:bg-neutral-950/40 transition"
+                className="block rounded-2xl border border-[#0d2438] bg-[#020b14] p-5 transition hover:border-[#163754] hover:bg-[#03101b]"
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -117,7 +117,7 @@ export default async function StoryPage({
           </div>
         </div>
 
-        <div className="mt-10 bg-neutral-950/25 border border-neutral-700 rounded-2xl p-8">
+        <div className="mt-10 rounded-2xl border border-[#0d2438] bg-[#020b14] p-8">
           <h2 className="text-lg font-semibold">Comments</h2>
           <p className="text-neutral-400 mt-2">Coming next.</p>
         </div>
