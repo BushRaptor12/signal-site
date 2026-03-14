@@ -3,8 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { TOPICS, normalize, toTitleCase } from "./lib/vocab";
 import type { StoryWithViews } from "./lib/types";
+import { TOPICS, normalize, toTitleCase } from "./lib/vocab";
 
 type TabKey = "popular" | "recent" | string;
 
@@ -57,10 +57,8 @@ function textMatchesKeyword(haystack: string, keyword: string) {
   const k = normalize(keyword);
   if (!k) return false;
 
-  // phrase match if it contains spaces
   if (k.includes(" ")) return h.includes(k);
 
-  // whole-word match for single tokens (avoids "us" matching "virus")
   const re = new RegExp(`\\b${escapeRegExp(k)}\\b`, "i");
   return re.test(h);
 }
@@ -73,7 +71,6 @@ export default function Home() {
   const [newTag, setNewTag] = useState("");
   const [ghostTab, setGhostTab] = useState<string | null>(null);
 
-  // Persist pinned tabs
   useEffect(() => {
     try {
       localStorage.setItem(PINNED_KEY, JSON.stringify(pinned));
@@ -82,7 +79,6 @@ export default function Home() {
     }
   }, [pinned]);
 
-  // Persist active tab
   useEffect(() => {
     try {
       localStorage.setItem(ACTIVE_KEY, String(activeTab));
@@ -91,7 +87,6 @@ export default function Home() {
     }
   }, [activeTab]);
 
-  // Fetch stories
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -106,34 +101,26 @@ export default function Home() {
     };
   }, []);
 
-  // Suggested topics list (normalized)
   const suggestedTopics = useMemo(() => TOPICS.map((t) => normalize(t)), []);
-
-  // Set of official topics for strict filtering
   const topicSet = useMemo(() => new Set(suggestedTopics), [suggestedTopics]);
 
   function storyMatchesTab(story: StoryWithViews, tab: string) {
-  const t = normalize(tab);
-  if (!t) return false;
+    const t = normalize(tab);
+    if (!t) return false;
 
-  // 1) Official topic tabs are STRICT (NYT-style sections)
-  if (topicSet.has(t)) {
-    return (story.topics ?? []).map(normalize).includes(t);
+    if (topicSet.has(t)) {
+      return (story.topics ?? []).map(normalize).includes(t);
+    }
+
+    for (const entity of story.entities ?? []) {
+      if (normalize(entity.name) === t) return true;
+      if ((entity.aliases ?? []).map(normalize).includes(t)) return true;
+    }
+
+    const haystack = [story.title, ...(story.summary ?? [])].join(" ");
+    return textMatchesKeyword(haystack, t);
   }
 
-  // 2) Custom keyword tabs:
-  // 2a) Match entities + aliases
-  for (const entity of story.entities ?? []) {
-    if (normalize(entity.name) === t) return true;
-    if ((entity.aliases ?? []).map(normalize).includes(t)) return true;
-  }
-
-  // 2b) Fallback: match title + summary text
-  const haystack = [story.title, ...(story.summary ?? [])].join(" ");
-  return textMatchesKeyword(haystack, t);
-}
-
-  // Top-row tabs: Popular + Recent + pinned + ghost (if needed)
   const tabs = useMemo(() => {
     const baseTabs = [
       { key: "popular" as TabKey, label: "Popular" },
@@ -153,12 +140,9 @@ export default function Home() {
     return [...baseTabs, ...pinnedTabs, ...ghostTabs];
   }, [pinned, ghostTab]);
 
-  // Visible stories based on active tab
   const visible = useMemo(() => {
     const nowMs = INITIAL_NOW_MS;
-    const recent = [...stories].sort(
-      (a, b) => publishedAtMs(b) - publishedAtMs(a)
-    );
+    const recent = [...stories].sort((a, b) => publishedAtMs(b) - publishedAtMs(a));
 
     if (activeTab === "recent") return recent;
 
@@ -193,49 +177,54 @@ export default function Home() {
   }
 
   return (
-      <main className="min-h-screen bg-transparent text-neutral-100 p-8">
-        <div className="max-w-4xl mx-auto mb-8 flex items-start justify-between gap-4">
-          <div>
-            <Image
-              src="/newthebeacon.png"
-              alt="The Beacon"
-              width={1408}
-              height={736}
-              priority
-              className="h-auto w-full max-w-[420px] md:max-w-[520px]"
-            />
-            <p className="mt-3 text-neutral-400">Multi-source news. Clear perspective.</p>
-          </div>
+    <main className="min-h-screen bg-transparent p-8 text-neutral-100">
+      <div className="max-w-4xl mx-auto mb-8 flex justify-center">
+        <div className="flex flex-col items-center text-center">
+          <Image
+            src="/newthebeacon.png"
+            alt="The Beacon"
+            width={1408}
+            height={736}
+            priority
+            className="h-auto w-full max-w-[420px] md:max-w-[520px]"
+          />
+          <p className="mt-3 text-neutral-400">Multi-source news. Clear perspective.</p>
         </div>
+      </div>
 
-      {/* Tabs row */}
-      <div className="max-w-4xl mx-auto mb-4 flex items-center justify-between">
+      <div className="max-w-4xl mx-auto mb-4 flex items-center justify-between gap-4">
         <div className="flex space-x-3 overflow-x-auto pb-2">
-          {tabs.map((tab) => (
-            <button
-              key={String(tab.key)}
-              onClick={() => {
-                const key = normalize(String(tab.key));
-                setActiveTab(tab.key);
+          {tabs.map((tab) => {
+            const key = normalize(String(tab.key));
+            const isBuiltinTab = key === "popular" || key === "recent";
+            const isGhostTab = ghostTab === key && !pinned.includes(key);
 
-                // Ghost handling
-                if (key === "popular" || key === "recent" || pinned.includes(key)) {
-                  setGhostTab(null);
-                } else {
-                  setGhostTab(key);
-                }
-              }}
-              className={`px-5 py-2 rounded-full border text-sm transition whitespace-nowrap ${
-                activeTab === tab.key
-                  ? "bg-neutral-100 text-neutral-900 border-neutral-100"
-                  : "bg-neutral-900 text-neutral-300 border-neutral-700 hover:bg-neutral-800"
-              }`}
-              title={ghostTab === normalize(String(tab.key)) && !pinned.includes(normalize(String(tab.key))) ? "Temporary (not pinned)" : undefined}
-            >
-              {tab.label}
-              {ghostTab === normalize(String(tab.key)) && !pinned.includes(normalize(String(tab.key))) ? " •" : ""}
-            </button>
-          ))}
+            return (
+              <button
+                key={String(tab.key)}
+                onClick={() => {
+                  setActiveTab(tab.key);
+
+                  if (isBuiltinTab || pinned.includes(key)) {
+                    setGhostTab(null);
+                  } else {
+                    setGhostTab(key);
+                  }
+                }}
+                className={`whitespace-nowrap rounded-full border px-5 py-2 text-sm transition ${
+                  activeTab === tab.key
+                    ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                    : isBuiltinTab
+                      ? "border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800"
+                      : "border-[#12314c] bg-[#071a2c] text-[#d7e2ef] hover:bg-[#0b2238]"
+                }`}
+                title={isGhostTab ? "Temporary (not pinned)" : undefined}
+              >
+                {tab.label}
+                {isGhostTab ? " *" : ""}
+              </button>
+            );
+          })}
         </div>
 
         <button
@@ -246,35 +235,32 @@ export default function Home() {
         </button>
       </div>
 
-      {/* Tab manager */}
       {showManager && (
         <div className="max-w-4xl mx-auto mb-8 rounded-xl border border-neutral-700 bg-[var(--surface)] p-6">
-          <div className="text-sm font-semibold text-neutral-300 mb-4 uppercase">
+          <div className="mb-4 text-sm font-semibold uppercase text-neutral-300">
             Manage Tabs
           </div>
 
-          {/* Add custom keyword */}
-          <div className="flex gap-2 mb-4">
+          <div className="mb-4 flex gap-2">
             <input
               value={newTag}
               onChange={(e) => setNewTag(e.target.value)}
               placeholder="Add keyword (e.g. Cuba)"
-              className="flex-1 px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg text-sm"
+              className="flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
               onKeyDown={(e) => {
                 if (e.key === "Enter") addCustomTab();
               }}
             />
             <button
               onClick={addCustomTab}
-              className="px-4 py-2 bg-neutral-100 text-neutral-900 rounded-lg text-sm"
+              className="rounded-lg bg-neutral-100 px-4 py-2 text-sm text-neutral-900"
             >
               Add
             </button>
           </div>
 
-          {/* Suggested topics */}
           <div className="mb-6">
-            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-2">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
               Suggested topics
             </h3>
 
@@ -285,14 +271,14 @@ export default function Home() {
                   <button
                     key={tag}
                     onClick={() => togglePin(tag)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition ${
+                    className={`rounded-full border px-3 py-1.5 text-xs transition ${
                       isPinned
-                        ? "bg-neutral-100 text-neutral-900 border-neutral-100"
-                        : "bg-neutral-900 text-neutral-300 border-neutral-700 hover:bg-neutral-800"
+                        ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                        : "border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800"
                     }`}
                     title={isPinned ? "Remove tab" : "Add tab"}
                   >
-                    {isPinned ? "✓ " : "+ "}
+                    {isPinned ? "x " : "+ "}
                     {toTitleCase(tag)}
                   </button>
                 );
@@ -304,8 +290,7 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Pinned list */}
-          <div className="text-xs text-neutral-500 mb-2">
+          <div className="mb-2 text-xs text-neutral-500">
             Pinned keywords (click to remove):
           </div>
           <div className="flex flex-wrap gap-2">
@@ -313,20 +298,17 @@ export default function Home() {
               <button
                 key={tag}
                 onClick={() => togglePin(tag)}
-                className="text-xs px-3 py-1.5 rounded-full border border-neutral-700 text-neutral-200 hover:bg-neutral-800"
+                className="rounded-full border border-neutral-700 px-3 py-1.5 text-xs text-neutral-200 hover:bg-neutral-800"
                 title="Remove"
               >
-                ✕ {toTitleCase(tag)}
+                x {toTitleCase(tag)}
               </button>
             ))}
-            {pinned.length === 0 && (
-              <span className="text-xs text-neutral-600">None yet</span>
-            )}
+            {pinned.length === 0 && <span className="text-xs text-neutral-600">None yet</span>}
           </div>
         </div>
       )}
 
-      {/* Stories */}
       <div className="max-w-4xl mx-auto space-y-8">
         {visible.map((story) => (
           <Link
@@ -335,34 +317,31 @@ export default function Home() {
             className="block"
           >
             <div
-               className={`rounded-2xl border bg-[var(--surface)] p-8 transition ${
-                 story.urgent
-                   ? "border-red-500/70 hover:border-red-400"
-                   : "border-neutral-700 hover:border-neutral-500"
-               }`}
+              className={`rounded-2xl border bg-[var(--surface)] p-8 transition ${
+                story.urgent
+                  ? "border-red-500/70 hover:border-red-400"
+                  : "border-neutral-700 hover:border-neutral-500"
+              }`}
             >
               <h2
                 className={`text-center font-semibold ${
-                  story.urgent
-                    ? "text-3xl md:text-4xl text-red-400 tracking-wide"
-                    : "text-2xl"
+                  story.urgent ? "text-3xl tracking-wide text-red-400 md:text-4xl" : "text-2xl"
                 }`}
               >
                 {story.title}
               </h2>
 
-              <div className="mt-4 space-y-2 text-neutral-400 text-center max-w-2xl mx-auto">
+              <div className="mx-auto mt-4 max-w-2xl space-y-2 text-center text-neutral-400">
                 {(story.summary ?? []).map((line, index) => (
                   <p key={index}>{line}</p>
                 ))}
               </div>
 
-              <div className="mt-5 text-sm text-neutral-500 text-center">
+              <div className="mt-5 text-center text-sm text-neutral-500">
                 {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
               </div>
 
-              {/* Topic pills ONLY */}
-              <div className="mt-5 flex flex-wrap gap-2 justify-center">
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
                 {(story.topics ?? []).map((topic) => {
                   const key = normalize(topic);
                   return (
@@ -374,11 +353,10 @@ export default function Home() {
 
                         setActiveTab(key);
 
-                        // ghost tab pop-in if not pinned
                         if (!pinned.includes(key)) setGhostTab(key);
                         else setGhostTab(null);
                       }}
-                      className="text-xs px-2 py-1 rounded-full border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition"
+                      className="rounded-full border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:bg-neutral-800"
                     >
                       {toTitleCase(key)}
                     </button>
