@@ -214,9 +214,7 @@ export default function Home() {
                 className={`whitespace-nowrap rounded-full border px-5 py-2 text-sm transition ${
                   activeTab === tab.key
                     ? "border-neutral-100 bg-neutral-100 text-neutral-900"
-                    : isBuiltinTab
-                      ? "border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800"
-                      : "border-[#12314c] bg-[#071a2c] text-[#d7e2ef] hover:bg-[#0b2238]"
+                    : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
                 }`}
                 title={isGhostTab ? "Temporary (not pinned)" : undefined}
               >
