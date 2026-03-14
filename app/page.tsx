@@ -318,7 +318,7 @@ export default function Home() {
               className={`rounded-2xl border bg-[var(--surface)] p-8 transition ${
                 story.urgent
                   ? "border-red-500/70 hover:border-red-400"
-                  : "border-neutral-700 hover:border-neutral-500"
+                  : "border-[#0d2438] hover:border-[#163754]"
               }`}
             >
               <h2
