@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { TOPICS, normalize, toTitleCase } from "./lib/vocab";
@@ -192,13 +193,20 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-neutral-900 text-neutral-100 p-8">
-      <div className="max-w-4xl mx-auto mb-8 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-bold">Signal</h1>
-          <p className="text-neutral-400">Multi-source news. Clear perspective.</p>
+      <main className="min-h-screen bg-neutral-900 text-neutral-100 p-8">
+        <div className="max-w-4xl mx-auto mb-8 flex items-start justify-between gap-4">
+          <div>
+            <Image
+              src="/thebeacon.png"
+              alt="The Beacon"
+              width={760}
+              height={399}
+              priority
+              className="h-auto w-full max-w-[320px] md:max-w-[380px]"
+            />
+            <p className="mt-3 text-neutral-400">Multi-source news. Clear perspective.</p>
+          </div>
         </div>
-      </div>
 
       {/* Tabs row */}
       <div className="max-w-4xl mx-auto mb-4 flex items-center justify-between">
