@@ -315,7 +315,7 @@ export default function Home() {
             className="block"
           >
             <div
-              className={`rounded-2xl border bg-[var(--surface)] p-8 transition ${
+              className={`rounded-2xl border bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
                 story.urgent
                   ? "border-red-500/70 hover:border-red-400"
                   : "border-[#0d2438] hover:border-[#163754]"
