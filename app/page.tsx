@@ -181,10 +181,10 @@ export default function Home() {
       <div className="max-w-4xl mx-auto mb-8 flex justify-center">
         <div className="flex flex-col items-center text-center">
           <Image
-            src="/newthebeacon.png"
+            src="/psbeacon.png"
             alt="The Beacon"
-            width={1408}
-            height={736}
+            width={1920}
+            height={1080}
             priority
             className="h-auto w-full max-w-[420px] md:max-w-[520px]"
           />
