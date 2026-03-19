@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useMemo, useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { Story } from "@/app/lib/types";
-import { ENTITIES, TOPICS, normalize, slugify } from "@/app/lib/vocab";
+import { TOPICS, normalize, slugify } from "@/app/lib/vocab";
 
 type Lean = "Left" | "Center" | "Right";
 type Entity = { name: string; aliases: string[] };
@@ -27,11 +27,13 @@ export default function EditorPage() {
   const [tokenDraft, setTokenDraft] = useState(initialToken);
 const [entities, setEntities] = useState<Entity[]>([]);
 const [entitySearch, setEntitySearch] = useState("");
-const [newEntityName, setNewEntityName] = useState("");
 const [aliasDraft, setAliasDraft] = useState<Record<string, string>>({});
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [urgent, setUrgent] = useState(false);
+  const [beaconInclude, setBeaconInclude] = useState(false);
+  const [beaconRank, setBeaconRank] = useState("");
+  const [beaconHeadline, setBeaconHeadline] = useState("");
   const [summary, setSummary] = useState<string[]>(["", "", ""]);
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
@@ -130,10 +132,18 @@ useEffect(() => {
     const cleanedSources = sources
       .map((source) => ({ name: source.name.trim(), url: source.url.trim(), lean: source.lean }))
       .filter((source) => source.name && source.url);
+    const trimmedBeaconHeadline = beaconHeadline.trim();
+    const parsedBeaconRank = beaconRank.trim() === "" ? null : Number(beaconRank);
 
     if (!title.trim()) return alert("Title is required.");
     if (cleanedSummary.length === 0) return alert("Add at least 1 summary line.");
     if (cleanedSources.length === 0) return alert("Add at least 1 source.");
+    if (beaconInclude && beaconRank.trim() === "") {
+      return alert("Beacon rank is required when the story is included on The Beacon.");
+    }
+    if (parsedBeaconRank !== null && (!Number.isInteger(parsedBeaconRank) || parsedBeaconRank < 1)) {
+      return alert("Beacon rank must be a whole number greater than 0.");
+    }
 
     const storyEntities = selectedEntities
   .map((name) => entities.find((e) => e.name === name))
@@ -147,6 +157,9 @@ useEffect(() => {
       sources: cleanedSources,
       date,
       urgent,
+      beacon_include: beaconInclude,
+      beacon_rank: parsedBeaconRank,
+      beacon_headline: trimmedBeaconHeadline || null,
       topics: topics.map(normalize),
       entities: storyEntities,
       primary_entities: primaryEntities,
@@ -301,6 +314,50 @@ async function saveAliases(entityName: string, aliases: string[]) {
               <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} className="h-4 w-4" />
               Urgent (Drudge-style emphasis)
             </label>
+          </div>
+
+          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
+            <div className="text-sm font-semibold text-neutral-300 mb-4 uppercase">The Beacon</div>
+            <label className="inline-flex items-center gap-3 text-sm text-neutral-300">
+              <input
+                type="checkbox"
+                checked={beaconInclude}
+                onChange={(e) => setBeaconInclude(e.target.checked)}
+                className="h-4 w-4"
+              />
+              Show this story on The Beacon
+            </label>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="block text-sm text-neutral-300 mb-2">Beacon Rank</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={beaconRank}
+                  onChange={(e) => setBeaconRank(e.target.value)}
+                  disabled={!beaconInclude}
+                  className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg disabled:opacity-50"
+                  placeholder="1"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-neutral-300 mb-2">Beacon Headline</label>
+                <input
+                  value={beaconHeadline}
+                  onChange={(e) => setBeaconHeadline(e.target.value)}
+                  disabled={!beaconInclude}
+                  className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg disabled:opacity-50"
+                  placeholder="Optional alternate headline"
+                />
+              </div>
+            </div>
+
+            <p className="mt-3 text-xs text-neutral-500">
+              Rank 1 becomes the lead headline. Leave the headline blank to reuse the main story title.
+            </p>
           </div>
 
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">

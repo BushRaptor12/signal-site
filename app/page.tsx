@@ -189,6 +189,12 @@ export default function Home() {
             className="h-auto w-full max-w-[420px] md:max-w-[520px]"
           />
           <p className="mt-3 text-neutral-400">Multi-source news. Clear perspective.</p>
+          <Link
+            href="/beacon"
+            className="mt-4 rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
+          >
+            Open The Beacon
+          </Link>
         </div>
       </div>
 

@@ -17,7 +17,10 @@ export type Story = {
   summary: string[];
   sources: Source[];
   date: string; // YYYY-MM-DD
-urgent: boolean;
+  urgent: boolean;
+  beacon_include: boolean;
+  beacon_rank?: number | null;
+  beacon_headline?: string | null;
   created_at?: string;
   // keyword system
   topics: string[];          // high-level sections
@@ -32,7 +35,5 @@ urgent: boolean;
 
 export type StoryWithViews = Story & {
   views: number;
-
-
 };
 
