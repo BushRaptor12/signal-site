@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
@@ -21,17 +22,20 @@ function BeaconList({ stories }: { stories: StoryWithViews[] }) {
   return (
     <div className="space-y-6">
       {stories.map((story) => (
-        <article key={story.id} className="border-b border-[#c8b897] pb-5 last:border-b-0 last:pb-0">
-          <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#7c6745]">
+        <article
+          key={story.id}
+          className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#163754]"
+        >
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
             Rank {story.beacon_rank ?? "-"} | {story.date}
           </div>
           <Link
             href={`/story/${story.id}?from=beacon`}
-            className="block text-2xl font-black uppercase leading-[1.02] tracking-tight text-[#19130b] transition hover:text-[#9c140f]"
+            className="block text-2xl font-semibold leading-tight text-neutral-100 transition hover:text-red-400"
           >
             {displayHeadline(story)}
           </Link>
-          {story.summary[0] && <p className="mt-2 text-sm leading-6 text-[#4d4030]">{story.summary[0]}</p>}
+          {story.summary[0] && <p className="mt-3 text-sm leading-6 text-neutral-400">{story.summary[0]}</p>}
         </article>
       ))}
     </div>
@@ -55,53 +59,73 @@ export default async function BeaconPage() {
     const [leftColumn, rightColumn] = splitColumns(rest);
 
     return (
-      <main className="min-h-screen bg-[#efe2c4] px-5 py-8 text-[#19130b] [font-family:Georgia,'Times_New_Roman',serif] md:px-8">
+      <main className="min-h-screen bg-transparent p-8 text-neutral-100">
         <div className="mx-auto max-w-6xl">
-          <div className="border-y-4 border-[#19130b] py-4 text-center">
-            <div className="text-[13px] font-bold uppercase tracking-[0.45em] text-[#7c6745]">Signal Site</div>
-            <h1 className="mt-2 text-5xl font-black uppercase tracking-[0.08em] md:text-7xl">The Beacon</h1>
-            <p className="mt-3 text-sm font-semibold uppercase tracking-[0.22em] text-[#7c6745]">
+          <div className="mb-8 flex justify-center">
+            <div className="flex flex-col items-center text-center">
+              <Image
+                src="/psbeacon.png"
+                alt="The Beacon"
+                width={1920}
+                height={1080}
+                priority
+                className="h-auto w-full max-w-[420px] md:max-w-[520px]"
+              />
+              <p className="mt-3 text-neutral-400">Hand-picked headlines that matter most.</p>
+            </div>
+          </div>
+
+          <div className="mb-8 flex items-center justify-between gap-4">
+            <Link
+              href="/"
+              className="rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
+            >
+              Back to Signal
+            </Link>
+            <div className="text-sm uppercase tracking-[0.18em] text-neutral-500">
+              {stories.length} {stories.length === 1 ? "story" : "stories"}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+            <div className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">
+              Beacon Edition
+            </div>
+            <p className="mt-3 text-sm text-neutral-400">
               Hand-picked headlines that matter most
             </p>
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-4 text-sm font-bold uppercase tracking-[0.18em] text-[#7c6745]">
-            <Link href="/" className="transition hover:text-[#19130b]">
-              Back to Signal
-            </Link>
-            <span>{stories.length} stories</span>
-          </div>
-
           {!lead ? (
-            <div className="mt-12 border border-[#c8b897] bg-[#f5ead1] px-6 py-10 text-center">
-              <h2 className="text-3xl font-black uppercase">Nothing queued yet</h2>
-              <p className="mt-3 text-base text-[#4d4030]">
+            <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-6 py-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+              <h2 className="text-3xl font-semibold text-neutral-100">Nothing queued yet</h2>
+              <p className="mt-3 text-base text-neutral-400">
                 Mark stories in the editor with `Show this story on The Beacon` to publish them here.
               </p>
             </div>
           ) : (
             <>
-              <section className="mt-8 border-b-2 border-[#19130b] pb-8">
-                <div className="mb-3 text-[11px] font-bold uppercase tracking-[0.22em] text-[#7c6745]">
+              <section className="mt-8 rounded-2xl border border-red-500/70 bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+                <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                   Lead Story | Rank {lead.beacon_rank ?? "-"} | {lead.date}
                 </div>
                 <Link
                   href={`/story/${lead.id}?from=beacon`}
-                  className="block text-5xl font-black uppercase leading-[0.95] tracking-tight text-[#9c140f] transition hover:text-[#b71812] md:text-7xl"
+                  className="block text-4xl font-semibold leading-[0.95] text-red-400 transition hover:text-red-300 md:text-6xl"
                 >
                   {displayHeadline(lead)}
                 </Link>
 
                 {lead.summary.length > 0 && (
-                  <div className="mt-5 max-w-4xl space-y-2 text-lg leading-8 text-[#31271b]">
+                  <div className="mt-5 max-w-4xl space-y-2 text-lg leading-8 text-neutral-300">
                     {lead.summary.slice(0, 2).map((line, index) => (
                       <p key={index}>{line}</p>
                     ))}
                   </div>
                 )}
 
-                <div className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-[#7c6745]">
-                  <Link href={`/story/${lead.id}?from=beacon`} className="transition hover:text-[#19130b]">
+                <div className="mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">
+                  <Link href={`/story/${lead.id}?from=beacon`} className="transition hover:text-neutral-100">
                     Open story block
                   </Link>
                 </div>
@@ -122,14 +146,14 @@ export default async function BeaconPage() {
     const message = error instanceof Error ? error.message : String(error);
 
     return (
-      <main className="min-h-screen bg-[#efe2c4] px-5 py-8 text-[#19130b] [font-family:Georgia,'Times_New_Roman',serif] md:px-8">
-        <div className="mx-auto max-w-4xl border border-[#c8b897] bg-[#f5ead1] p-8">
-          <div className="text-sm font-bold uppercase tracking-[0.2em] text-[#7c6745]">The Beacon</div>
-          <h1 className="mt-3 text-3xl font-black uppercase">Could not load stories</h1>
-          <p className="mt-3 text-[#4d4030]">{message}</p>
+      <main className="min-h-screen bg-transparent p-8 text-neutral-100">
+        <div className="mx-auto max-w-4xl rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+          <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">The Beacon</div>
+          <h1 className="mt-3 text-3xl font-semibold text-neutral-100">Could not load stories</h1>
+          <p className="mt-3 text-neutral-400">{message}</p>
           <Link
             href="/"
-            className="mt-6 inline-block text-sm font-bold uppercase tracking-[0.18em] text-[#7c6745] hover:text-[#19130b]"
+            className="mt-6 inline-block rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
           >
             Back to Signal
           </Link>
