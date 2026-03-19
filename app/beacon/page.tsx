@@ -4,6 +4,9 @@ import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function displayHeadline(story: StoryWithViews) {
   return story.beacon_headline?.trim() || story.title;
 }
