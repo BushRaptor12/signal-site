@@ -12,6 +12,12 @@ const PINNED_KEY = "signal:pinnedTags:v1";
 const ACTIVE_KEY = "signal:activeTab:v2";
 const INITIAL_NOW_MS = Date.now();
 
+function formatStoryDate(value: string) {
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return value;
+  return `${month}/${day}/${year}`;
+}
+
 function getInitialPinned(): string[] {
   if (typeof window === "undefined") return [];
   try {
@@ -354,6 +360,10 @@ export default function Home() {
 
                 <div className="mt-5 text-center text-sm text-neutral-500">
                   {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
+                </div>
+
+                <div className="mt-2 text-center text-sm text-neutral-500">
+                  {formatStoryDate(story.date)}
                 </div>
 
                 <div className="mt-5 flex flex-wrap justify-center gap-2">

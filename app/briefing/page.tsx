@@ -1,11 +1,21 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const metadata: Metadata = {
+  title: "The Briefing",
+};
+
+function formatStoryDate(value: string) {
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return value;
+  return `${month}/${day}/${year}`;
+}
 
 function displayHeadline(story: StoryWithViews) {
   return story.beacon_headline?.trim() || story.title;
@@ -31,7 +41,7 @@ function BriefingList({ stories }: { stories: StoryWithViews[] }) {
           className="block rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#163754]"
         >
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-            {story.date}
+            {formatStoryDate(story.date)}
           </div>
           <div className="text-2xl font-semibold leading-tight text-neutral-100 transition hover:text-red-400">
             {displayHeadline(story)}
@@ -98,7 +108,7 @@ export default async function BriefingPage() {
                 className="mt-8 block rounded-2xl border border-red-500/70 bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-red-400"
               >
                 <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
-                  {lead.date}
+                  {formatStoryDate(lead.date)}
                 </div>
                 <div className="text-4xl font-semibold leading-[0.95] text-red-400 transition hover:text-red-300 md:text-6xl">
                   {displayHeadline(lead)}

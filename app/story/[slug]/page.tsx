@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { headers } from "next/headers";
+import type { Metadata } from "next";
+import { supabaseServer } from "@/app/lib/supabase.server";
+import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
 import ViewTracker from "./view-tracker";
 
@@ -16,6 +18,39 @@ function leanBadgeClasses(lean: "Left" | "Center" | "Right") {
   }
 }
 
+async function loadStory(slug: string) {
+  const supabase = supabaseServer();
+  const { data, error } = await supabase.from("stories").select("*").eq("id", slug).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return coerceStory(data as StoryDbRow);
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+
+  try {
+    const story = await loadStory(slug);
+    if (!story) {
+      return {
+        title: "Story",
+      };
+    }
+
+    return {
+      title: story.title,
+    };
+  } catch {
+    return {
+      title: "Story",
+    };
+  }
+}
+
 export default async function StoryPage({
   params,
   searchParams,
@@ -28,18 +63,18 @@ export default async function StoryPage({
   const rawFrom = resolvedSearchParams?.from;
   const from = Array.isArray(rawFrom) ? rawFrom[0] : rawFrom;
 
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  const origin = host ? `${proto}://${host}` : "http://localhost:3000";
-
   const backHref =
     from === "briefing" || from === "beacon" ? "/briefing" : from ? `/?tab=${encodeURIComponent(from)}` : "/";
 
-  const res = await fetch(`${origin}/api/stories/${encodeURIComponent(slug)}`, { cache: "no-store" });
+  let story: StoryWithViews | null = null;
 
-  if (!res.ok) {
-    const notFound = res.status === 404;
+  try {
+    story = await loadStory(slug);
+  } catch {
+    story = null;
+  }
+
+  if (!story) {
     return (
       <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
         <div className="max-w-3xl mx-auto">
@@ -47,19 +82,15 @@ export default async function StoryPage({
             {"<- Back"}
           </Link>
           <div className="mt-10 rounded-2xl border border-[#0d2438] bg-[#020b14] p-8">
-            <h1 className="text-2xl font-semibold">{notFound ? "Story not found" : "Could not load story"}</h1>
+            <h1 className="text-2xl font-semibold">Story not found</h1>
             <p className="text-neutral-400 mt-2">
-              {notFound
-                ? `This story is not available: ${slug}`
-                : `The server returned status ${res.status} for story: ${slug}`}
+              {`This story is not available: ${slug}`}
             </p>
           </div>
         </div>
       </main>
     );
   }
-
-  const story = (await res.json()) as StoryWithViews;
 
   return (
     <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
