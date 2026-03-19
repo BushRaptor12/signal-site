@@ -103,6 +103,7 @@ export default function Home() {
 
   const suggestedTopics = useMemo(() => TOPICS.map((t) => normalize(t)), []);
   const topicSet = useMemo(() => new Set(suggestedTopics), [suggestedTopics]);
+  const customPinned = useMemo(() => pinned.filter((tag) => !topicSet.has(tag)), [pinned, topicSet]);
 
   function storyMatchesTab(story: StoryWithViews, tab: string) {
     const t = normalize(tab);
@@ -249,7 +250,7 @@ export default function Home() {
             <input
               value={newTag}
               onChange={(e) => setNewTag(e.target.value)}
-              placeholder="Add keyword (e.g. Cuba)"
+              placeholder="Add keyword (e.g. Middle East)"
               className="flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
               onKeyDown={(e) => {
                 if (e.key === "Enter") addCustomTab();
@@ -295,10 +296,10 @@ export default function Home() {
           </div>
 
           <div className="mb-2 text-xs text-neutral-500">
-            Pinned keywords (click to remove):
+            Custom keywords (click to remove):
           </div>
           <div className="flex flex-wrap gap-2">
-            {pinned.map((tag) => (
+            {customPinned.map((tag) => (
               <button
                 key={tag}
                 onClick={() => togglePin(tag)}
@@ -308,68 +309,79 @@ export default function Home() {
                 x {toTitleCase(tag)}
               </button>
             ))}
-            {pinned.length === 0 && <span className="text-xs text-neutral-600">None yet</span>}
+            {customPinned.length === 0 && <span className="text-xs text-neutral-600">No custom keywords yet</span>}
           </div>
         </div>
       )}
 
       <div className="max-w-4xl mx-auto space-y-8">
-        {visible.map((story) => (
-          <Link
-            key={story.id}
-            href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
-            className="block"
-          >
-            <div
-              className={`rounded-2xl border bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
-                story.urgent
-                  ? "border-red-500/70 hover:border-red-400"
-                  : "border-[#0d2438] hover:border-[#163754]"
-              }`}
+        {visible.length === 0 ? (
+          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+            <h2 className="text-2xl font-semibold text-neutral-100">No stories yet</h2>
+            <p className="mt-3 text-neutral-400">
+              {activeTab === "popular" || activeTab === "recent"
+                ? "Add stories in the editor and they will show up here."
+                : `There are no stories in ${toTitleCase(String(activeTab))} yet.`}
+            </p>
+          </div>
+        ) : (
+          visible.map((story) => (
+            <Link
+              key={story.id}
+              href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
+              className="block"
             >
-              <h2
-                className={`text-center font-semibold ${
-                  story.urgent ? "text-3xl tracking-wide text-red-400 md:text-4xl" : "text-2xl"
+              <div
+                className={`rounded-2xl border bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
+                  story.urgent
+                    ? "border-red-500/70 hover:border-red-400"
+                    : "border-[#0d2438] hover:border-[#163754]"
                 }`}
               >
-                {story.title}
-              </h2>
+                <h2
+                  className={`text-center font-semibold ${
+                    story.urgent ? "text-3xl tracking-wide text-red-400 md:text-4xl" : "text-2xl"
+                  }`}
+                >
+                  {story.title}
+                </h2>
 
-              <div className="mx-auto mt-4 max-w-2xl space-y-2 text-center text-neutral-400">
-                {(story.summary ?? []).map((line, index) => (
-                  <p key={index}>{line}</p>
-                ))}
+                <div className="mx-auto mt-4 max-w-2xl space-y-2 text-center text-neutral-400">
+                  {(story.summary ?? []).map((line, index) => (
+                    <p key={index}>{line}</p>
+                  ))}
+                </div>
+
+                <div className="mt-5 text-center text-sm text-neutral-500">
+                  {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
+                </div>
+
+                <div className="mt-5 flex flex-wrap justify-center gap-2">
+                  {(story.topics ?? []).map((topic) => {
+                    const key = normalize(topic);
+                    return (
+                      <button
+                        key={key}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+
+                          setActiveTab(key);
+
+                          if (!pinned.includes(key)) setGhostTab(key);
+                          else setGhostTab(null);
+                        }}
+                        className="rounded-full border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:bg-neutral-800"
+                      >
+                        {toTitleCase(key)}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-
-              <div className="mt-5 text-center text-sm text-neutral-500">
-                {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
-              </div>
-
-              <div className="mt-5 flex flex-wrap justify-center gap-2">
-                {(story.topics ?? []).map((topic) => {
-                  const key = normalize(topic);
-                  return (
-                    <button
-                      key={key}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-
-                        setActiveTab(key);
-
-                        if (!pinned.includes(key)) setGhostTab(key);
-                        else setGhostTab(null);
-                      }}
-                      className="rounded-full border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:bg-neutral-800"
-                    >
-                      {toTitleCase(key)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          ))
+        )}
       </div>
     </main>
   );
