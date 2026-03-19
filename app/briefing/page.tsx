@@ -25,21 +25,19 @@ function BriefingList({ stories }: { stories: StoryWithViews[] }) {
   return (
     <div className="space-y-6">
       {stories.map((story) => (
-        <article
+        <Link
           key={story.id}
-          className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#163754]"
+          href={`/story/${story.id}?from=briefing`}
+          className="block rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#163754]"
         >
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-            Rank {story.beacon_rank ?? "-"} | {story.date}
+            {story.date}
           </div>
-          <Link
-            href={`/story/${story.id}?from=briefing`}
-            className="block text-2xl font-semibold leading-tight text-neutral-100 transition hover:text-red-400"
-          >
+          <div className="text-2xl font-semibold leading-tight text-neutral-100 transition hover:text-red-400">
             {displayHeadline(story)}
-          </Link>
+          </div>
           {story.summary[0] && <p className="mt-3 text-sm leading-6 text-neutral-400">{story.summary[0]}</p>}
-        </article>
+        </Link>
       ))}
     </div>
   );
@@ -82,7 +80,7 @@ export default async function BriefingPage() {
               href="/"
               className="rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
             >
-              Back to Signal
+              Back to Home
             </Link>
           </div>
 
@@ -95,16 +93,16 @@ export default async function BriefingPage() {
             </div>
           ) : (
             <>
-              <section className="mt-8 rounded-2xl border border-red-500/70 bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+              <Link
+                href={`/story/${lead.id}?from=briefing`}
+                className="mt-8 block rounded-2xl border border-red-500/70 bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-red-400"
+              >
                 <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
-                  Lead Story | Rank {lead.beacon_rank ?? "-"} | {lead.date}
+                  {lead.date}
                 </div>
-                <Link
-                  href={`/story/${lead.id}?from=briefing`}
-                  className="block text-4xl font-semibold leading-[0.95] text-red-400 transition hover:text-red-300 md:text-6xl"
-                >
+                <div className="text-4xl font-semibold leading-[0.95] text-red-400 transition hover:text-red-300 md:text-6xl">
                   {displayHeadline(lead)}
-                </Link>
+                </div>
 
                 {lead.summary.length > 0 && (
                   <div className="mt-5 max-w-4xl space-y-2 text-lg leading-8 text-neutral-300">
@@ -113,13 +111,7 @@ export default async function BriefingPage() {
                     ))}
                   </div>
                 )}
-
-                <div className="mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">
-                  <Link href={`/story/${lead.id}?from=briefing`} className="transition hover:text-neutral-100">
-                    Open story block
-                  </Link>
-                </div>
-              </section>
+              </Link>
 
               {rest.length > 0 && (
                 <section className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-10">
