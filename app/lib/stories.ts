@@ -17,6 +17,7 @@ export type StoryDbRow = {
   primary_entities?: unknown;
   comments?: number | null;
   created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export function toStringArray(value: unknown): string[] {
@@ -85,6 +86,7 @@ export function coerceStory(row: StoryDbRow): StoryWithViews {
     sources: toSources(row.sources),
     date: row.date,
     created_at: row.created_at ?? undefined,
+    updated_at: row.updated_at ?? undefined,
     urgent: Boolean(row.urgent),
     beacon_include: Boolean(row.beacon_include),
     beacon_rank: toNullableNumber(row.beacon_rank),

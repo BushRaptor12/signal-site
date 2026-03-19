@@ -17,6 +17,21 @@ function formatStoryDate(value: string) {
   return `${month}/${day}/${year}`;
 }
 
+function formatUpdatedAt(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "America/New_York",
+  }).format(date);
+}
+
 function displayHeadline(story: StoryWithViews) {
   return story.beacon_headline?.trim() || story.title;
 }
@@ -66,6 +81,12 @@ export default async function BriefingPage() {
     if (error) throw error;
 
     const stories = ((data ?? []) as StoryDbRow[]).map(coerceStory);
+    const latestUpdatedAt = stories.reduce<string | null>((latest, story) => {
+      const candidate = story.updated_at ?? story.created_at ?? null;
+      if (!candidate) return latest;
+      if (!latest) return candidate;
+      return new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest;
+    }, null);
     const [lead, ...rest] = stories;
     const [leftColumn, rightColumn] = splitColumns(rest);
 
@@ -86,12 +107,17 @@ export default async function BriefingPage() {
           </div>
 
           <div className="mb-8">
-            <Link
-              href="/"
-              className="rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
-            >
-              Back to Home
-            </Link>
+            <div className="flex items-center justify-between gap-4">
+              <Link
+                href="/"
+                className="rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
+              >
+                Back to Home
+              </Link>
+              <div className="text-sm text-neutral-400">
+                Updated: {latestUpdatedAt ? formatUpdatedAt(latestUpdatedAt) : "--"}
+              </div>
+            </div>
           </div>
 
           {!lead ? (
