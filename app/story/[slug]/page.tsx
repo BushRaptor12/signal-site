@@ -33,7 +33,8 @@ export default async function StoryPage({
   const proto = h.get("x-forwarded-proto") ?? "https";
   const origin = host ? `${proto}://${host}` : "http://localhost:3000";
 
-  const backHref = from === "beacon" ? "/beacon" : from ? `/?tab=${encodeURIComponent(from)}` : "/";
+  const backHref =
+    from === "briefing" || from === "beacon" ? "/briefing" : from ? `/?tab=${encodeURIComponent(from)}` : "/";
 
   const res = await fetch(`${origin}/api/stories/${encodeURIComponent(slug)}`, { cache: "no-store" });
 

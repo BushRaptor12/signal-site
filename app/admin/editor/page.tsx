@@ -139,10 +139,10 @@ useEffect(() => {
     if (cleanedSummary.length === 0) return alert("Add at least 1 summary line.");
     if (cleanedSources.length === 0) return alert("Add at least 1 source.");
     if (beaconInclude && beaconRank.trim() === "") {
-      return alert("Beacon rank is required when the story is included on The Beacon.");
+      return alert("Briefing rank is required when the story is included in The Briefing.");
     }
     if (parsedBeaconRank !== null && (!Number.isInteger(parsedBeaconRank) || parsedBeaconRank < 1)) {
-      return alert("Beacon rank must be a whole number greater than 0.");
+      return alert("Briefing rank must be a whole number greater than 0.");
     }
 
     const storyEntities = selectedEntities
@@ -317,7 +317,7 @@ async function saveAliases(entityName: string, aliases: string[]) {
           </div>
 
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
-            <div className="text-sm font-semibold text-neutral-300 mb-4 uppercase">The Beacon</div>
+            <div className="text-sm font-semibold text-neutral-300 mb-4 uppercase">The Briefing</div>
             <label className="inline-flex items-center gap-3 text-sm text-neutral-300">
               <input
                 type="checkbox"
@@ -325,12 +325,12 @@ async function saveAliases(entityName: string, aliases: string[]) {
                 onChange={(e) => setBeaconInclude(e.target.checked)}
                 className="h-4 w-4"
               />
-              Show this story on The Beacon
+              Show this story in The Briefing
             </label>
 
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label className="block text-sm text-neutral-300 mb-2">Beacon Rank</label>
+                <label className="block text-sm text-neutral-300 mb-2">Briefing Rank</label>
                 <input
                   type="number"
                   min="1"
@@ -344,7 +344,7 @@ async function saveAliases(entityName: string, aliases: string[]) {
               </div>
 
               <div>
-                <label className="block text-sm text-neutral-300 mb-2">Beacon Headline</label>
+                <label className="block text-sm text-neutral-300 mb-2">Briefing Headline</label>
                 <input
                   value={beaconHeadline}
                   onChange={(e) => setBeaconHeadline(e.target.value)}

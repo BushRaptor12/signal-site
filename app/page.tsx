@@ -180,21 +180,21 @@ export default function Home() {
     <main className="min-h-screen bg-transparent p-8 text-neutral-100">
       <div className="max-w-4xl mx-auto mb-8 flex justify-center">
         <div className="flex flex-col items-center text-center">
-          <Image
-            src="/psbeacon.png"
-            alt="The Beacon"
-            width={1920}
-            height={1080}
-            priority
+            <Image
+              src="/psbeacon.png"
+              alt="The Briefing"
+              width={1920}
+              height={1080}
+              priority
             className="h-auto w-full max-w-[420px] md:max-w-[520px]"
           />
           <p className="mt-3 text-neutral-400">Multi-source news. Clear perspective.</p>
-          <Link
-            href="/beacon"
-            className="mt-4 rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
-          >
-            Open The Beacon
-          </Link>
+            <Link
+              href="/briefing"
+              className="mt-4 rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
+            >
+              Read The Briefing
+            </Link>
         </div>
       </div>
 
