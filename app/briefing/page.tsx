@@ -36,6 +36,10 @@ function displayHeadline(story: StoryWithViews) {
   return story.beacon_headline?.trim() || story.title;
 }
 
+type BriefingMetaRow = {
+  updated_at: string | null;
+};
+
 function splitColumns(stories: StoryWithViews[]) {
   return stories.reduce<[StoryWithViews[], StoryWithViews[]]>(
     (columns, story, index) => {
@@ -71,22 +75,23 @@ function BriefingList({ stories }: { stories: StoryWithViews[] }) {
 export default async function BriefingPage() {
   try {
     const supabase = supabaseServer();
-    const { data, error } = await supabase
-      .from("stories")
-      .select("*")
-      .eq("beacon_include", true)
-      .order("beacon_rank", { ascending: true, nullsFirst: false })
-      .order("created_at", { ascending: false });
+    const [{ data, error }, { data: metaData, error: metaError }] = await Promise.all([
+      supabase
+        .from("stories")
+        .select("*")
+        .eq("beacon_include", true)
+        .order("beacon_rank", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false }),
+      supabase.from("briefing_meta").select("updated_at").eq("id", 1).maybeSingle(),
+    ]);
 
     if (error) throw error;
 
     const stories = ((data ?? []) as StoryDbRow[]).map(coerceStory);
-    const latestUpdatedAt = stories.reduce<string | null>((latest, story) => {
-      const candidate = story.updated_at ?? story.created_at ?? null;
-      if (!candidate) return latest;
-      if (!latest) return candidate;
-      return new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest;
-    }, null);
+    const latestUpdatedAt =
+      metaError && /briefing_meta/i.test(metaError.message)
+        ? null
+        : ((metaData as BriefingMetaRow | null)?.updated_at ?? null);
     const [lead, ...rest] = stories;
     const [leftColumn, rightColumn] = splitColumns(rest);
 
