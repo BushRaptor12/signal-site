@@ -63,7 +63,7 @@ export default function ShareButton({ title, path, className = "" }: ShareButton
   }
 
   return (
-    <div className={`flex flex-col items-end gap-1 ${className}`.trim()}>
+    <div className={`relative inline-flex ${className}`.trim()}>
       <button
         type="button"
         onClick={onShare}
@@ -71,7 +71,11 @@ export default function ShareButton({ title, path, className = "" }: ShareButton
       >
         Share
       </button>
-      <span className="min-h-4 text-[11px] text-neutral-500" aria-live="polite">
+
+      <span
+        className="pointer-events-none absolute right-0 top-full mt-1 whitespace-nowrap text-[11px] text-neutral-500"
+        aria-live="polite"
+      >
         {status === "copied" ? "Copied" : status === "error" ? "Could not share" : ""}
       </span>
     </div>

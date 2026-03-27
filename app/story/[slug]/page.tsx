@@ -107,7 +107,7 @@ export default async function StoryPage({
           </div>
         </div>
 
-        <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[#020b14] p-8">
+        <div className="relative mt-8 rounded-2xl border border-[#0d2438] bg-[#020b14] p-8">
           <h1 className="text-3xl font-semibold leading-tight">{story.title}</h1>
 
           <div className="mt-6">
@@ -121,9 +121,7 @@ export default async function StoryPage({
             </div>
           </div>
 
-          <div className="mt-6 flex justify-end">
-            <ShareButton title={story.title} path={`/story/${story.id}`} />
-          </div>
+          <ShareButton title={story.title} path={`/story/${story.id}`} className="absolute bottom-8 right-8" />
         </div>
 
         <div className="mt-8">

@@ -355,7 +355,7 @@ export default function Home() {
                   story.urgent
                     ? "border-red-500/70 hover:border-red-400"
                     : "border-[#0d2438] hover:border-[#163754]"
-                }`}
+                } relative`}
               >
                 <h2
                   className={`text-center font-semibold ${
@@ -402,9 +402,7 @@ export default function Home() {
                   })}
                 </div>
 
-                <div className="mt-5 flex justify-end">
-                  <ShareButton title={story.title} path={`/story/${story.id}`} />
-                </div>
+                <ShareButton title={story.title} path={`/story/${story.id}`} className="absolute bottom-8 right-8" />
               </div>
             </Link>
           ))
