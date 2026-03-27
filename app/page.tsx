@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { StoryWithViews } from "./lib/types";
 import { TOPICS, normalize, toTitleCase } from "./lib/vocab";
-import ShareButton from "./share-button";
 
 type TabKey = "popular" | "recent" | string;
 
@@ -357,16 +356,13 @@ export default function Home() {
                     : "border-[#0d2438] hover:border-[#163754]"
                 } relative`}
               >
-                <div className="flex items-start justify-center gap-2">
-                  <h2
-                    className={`text-center font-semibold ${
-                      story.urgent ? "text-3xl tracking-wide text-red-400 md:text-4xl" : "text-2xl"
-                    }`}
-                  >
-                    {story.title}
-                  </h2>
-                  <ShareButton title={story.title} path={`/story/${story.id}`} className="mt-1 shrink-0" />
-                </div>
+                <h2
+                  className={`text-center font-semibold ${
+                    story.urgent ? "text-3xl tracking-wide text-red-400 md:text-4xl" : "text-2xl"
+                  }`}
+                >
+                  {story.title}
+                </h2>
 
                 <div className="mx-auto mt-4 max-w-2xl space-y-2 text-center text-neutral-400">
                   {(story.summary ?? []).map((line, index) => (
