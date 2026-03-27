@@ -67,36 +67,37 @@ export default function ReactionBar({ slug }: { slug: string }) {
 
   return (
     <div>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="grid grid-cols-6 gap-2">
         {STORY_REACTIONS.map((reaction) => {
           const selected = summary.selectedReaction === reaction.key;
           const count = summary.counts[reaction.key] ?? 0;
 
           return (
-            <button
-              key={reaction.key}
-              type="button"
-              onClick={() => onReact(reaction.key)}
-              disabled={isPending}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs transition ${
-                selected
-                  ? "border-neutral-100 bg-neutral-100 text-neutral-900"
-                  : "border-[#0d2438] bg-[#020b14] text-neutral-200 hover:border-[#163754] hover:bg-[#03101b]"
-              } disabled:cursor-wait disabled:opacity-70`}
-              aria-pressed={selected}
-            >
-              <span className="text-sm leading-none" aria-hidden="true">
-                {reaction.emoji}
-              </span>
-              <span>{reaction.label}</span>
-              <span
-                className={`min-w-4 rounded-full px-1 py-0.5 text-center text-[10px] ${
-                  selected ? "bg-neutral-900/10 text-neutral-900" : "bg-neutral-900 text-neutral-300"
-                }`}
+            <div key={reaction.key} className="min-w-0 text-center">
+              <button
+                type="button"
+                onClick={() => onReact(reaction.key)}
+                disabled={isPending}
+                className={`mx-auto flex h-10 w-10 items-center justify-center rounded-full border text-lg leading-none transition ${
+                  selected
+                    ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                    : "border-[#0d2438] bg-[#020b14] text-neutral-200 hover:border-[#163754] hover:bg-[#03101b]"
+                } disabled:cursor-wait disabled:opacity-70`}
+                aria-pressed={selected}
+                aria-label={reaction.label}
+                title={reaction.label}
               >
+                <span aria-hidden="true">{reaction.emoji}</span>
+              </button>
+
+              <div className="mt-1 text-[10px] leading-tight text-neutral-400">
+                {reaction.label}
+              </div>
+
+              <div className="mt-1 text-[10px] leading-none text-neutral-500">
                 {count}
-              </span>
-            </button>
+              </div>
+            </div>
           );
         })}
       </div>
