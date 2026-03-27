@@ -4,6 +4,7 @@ import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
 import ViewTracker from "./view-tracker";
+import ReactionBar from "./reaction-bar";
 
 function leanBadgeClasses(lean: "Left" | "Center" | "Right") {
   switch (lean) {
@@ -146,6 +147,19 @@ export default async function StoryPage({
                 </div>
               </a>
             ))}
+          </div>
+        </div>
+
+        <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[#020b14] p-6">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">Quick reactions</h2>
+              <p className="mt-1 text-sm text-neutral-400">A fast way to respond without writing a full comment.</p>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <ReactionBar slug={slug} />
           </div>
         </div>
 
