@@ -121,7 +121,9 @@ export default async function StoryPage({
             </div>
           </div>
 
-          <ShareButton title={story.title} path={`/story/${story.id}`} className="absolute bottom-5 right-5 z-10" />
+          <div className="absolute bottom-5 right-5 z-10">
+            <ShareButton title={story.title} path={`/story/${story.id}`} />
+          </div>
         </div>
 
         <div className="mt-8">

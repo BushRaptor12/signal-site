@@ -86,12 +86,14 @@ export default function ShareButton({ title, path, className = "" }: ShareButton
         </svg>
       </button>
 
-      <span
-        className="pointer-events-none absolute right-0 top-full mt-1 whitespace-nowrap text-[11px] text-neutral-500"
-        aria-live="polite"
-      >
-        {status === "copied" ? "Copied" : status === "error" ? "Could not share" : ""}
-      </span>
+      {status !== "idle" && (
+        <span
+          className="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap text-[11px] text-neutral-500"
+          aria-live="polite"
+        >
+          {status === "copied" ? "Copied" : "Could not share"}
+        </span>
+      )}
     </div>
   );
 }
