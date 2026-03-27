@@ -71,6 +71,7 @@ function textMatchesKeyword(haystack: string, keyword: string) {
 
 export default function Home() {
   const [stories, setStories] = useState<StoryWithViews[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>(getInitialActiveTab);
   const [pinned, setPinned] = useState<string[]>(getInitialPinned);
   const [showManager, setShowManager] = useState(false);
@@ -96,10 +97,16 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const res = await fetch("/api/stories", { cache: "no-store" });
-      const data = (await res.json()) as unknown;
-      if (!cancelled && Array.isArray(data)) {
-        setStories(data as StoryWithViews[]);
+      try {
+        const res = await fetch("/api/stories", { cache: "no-store" });
+        const data = (await res.json()) as unknown;
+        if (!cancelled && Array.isArray(data)) {
+          setStories(data as StoryWithViews[]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     })();
     return () => {
@@ -321,12 +328,17 @@ export default function Home() {
       )}
 
       <div className="max-w-4xl mx-auto space-y-8">
-        {visible.length === 0 ? (
+        {isLoading ? (
+          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+            <h2 className="text-2xl font-semibold text-neutral-100">Loading stories...</h2>
+            <p className="mt-3 text-neutral-400">Pulling together the latest coverage.</p>
+          </div>
+        ) : visible.length === 0 ? (
           <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
             <h2 className="text-2xl font-semibold text-neutral-100">No stories yet</h2>
             <p className="mt-3 text-neutral-400">
               {activeTab === "popular" || activeTab === "recent"
-                ? "Add stories in the editor and they will show up here."
+                ? "Check back soon for the latest stories."
                 : `There are no stories in ${toTitleCase(String(activeTab))} yet.`}
             </p>
           </div>

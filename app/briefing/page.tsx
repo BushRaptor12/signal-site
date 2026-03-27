@@ -103,6 +103,7 @@ export default async function BriefingPage() {
                 priority
                 className="h-auto w-full max-w-[420px] md:max-w-[520px]"
               />
+              <p className="mt-3 text-neutral-400">Multi-source news. Clear perspective.</p>
             </div>
           </div>
 
