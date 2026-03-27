@@ -67,7 +67,7 @@ export default function ReactionBar({ slug }: { slug: string }) {
 
   return (
     <div>
-      <div className="grid grid-cols-6 gap-2">
+      <div className="grid grid-cols-6 gap-2.5">
         {STORY_REACTIONS.map((reaction) => {
           const selected = summary.selectedReaction === reaction.key;
           const count = summary.counts[reaction.key] ?? 0;
@@ -78,7 +78,7 @@ export default function ReactionBar({ slug }: { slug: string }) {
                 type="button"
                 onClick={() => onReact(reaction.key)}
                 disabled={isPending}
-                className={`mx-auto flex h-10 w-10 items-center justify-center rounded-full border text-lg leading-none transition ${
+                className={`mx-auto flex h-11 w-11 items-center justify-center rounded-full border text-xl leading-none transition ${
                   selected
                     ? "border-neutral-100 bg-neutral-100 text-neutral-900"
                     : "border-[#0d2438] bg-[#020b14] text-neutral-200 hover:border-[#163754] hover:bg-[#03101b]"
@@ -90,11 +90,11 @@ export default function ReactionBar({ slug }: { slug: string }) {
                 <span aria-hidden="true">{reaction.emoji}</span>
               </button>
 
-              <div className="mt-1 text-[10px] leading-tight text-neutral-400">
+              <div className="mt-1.5 text-[11px] leading-tight text-neutral-400">
                 {reaction.label}
               </div>
 
-              <div className="mt-1 text-[10px] leading-none text-neutral-500">
+              <div className="mt-1 text-[11px] leading-none text-neutral-500">
                 {count}
               </div>
             </div>
