@@ -5,6 +5,7 @@ import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
 import ViewTracker from "./view-tracker";
 import ReactionBar from "./reaction-bar";
+import ShareButton from "@/app/share-button";
 
 function leanBadgeClasses(lean: "Left" | "Center" | "Right") {
   switch (lean) {
@@ -118,6 +119,10 @@ export default async function StoryPage({
                 </p>
               ))}
             </div>
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <ShareButton title={story.title} path={`/story/${story.id}`} />
           </div>
         </div>
 

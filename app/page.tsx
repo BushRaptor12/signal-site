@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { StoryWithViews } from "./lib/types";
 import { TOPICS, normalize, toTitleCase } from "./lib/vocab";
+import ShareButton from "./share-button";
 
 type TabKey = "popular" | "recent" | string;
 
@@ -399,6 +400,10 @@ export default function Home() {
                       </button>
                     );
                   })}
+                </div>
+
+                <div className="mt-5 flex justify-end">
+                  <ShareButton title={story.title} path={`/story/${story.id}`} />
                 </div>
               </div>
             </Link>
