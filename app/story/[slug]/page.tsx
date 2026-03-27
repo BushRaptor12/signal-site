@@ -153,8 +153,7 @@ export default async function StoryPage({
         <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[#020b14] p-6">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold">Quick reactions</h2>
-              <p className="mt-1 text-sm text-neutral-400">A fast way to respond without writing a full comment.</p>
+              <h2 className="text-lg font-semibold">Reactions</h2>
             </div>
           </div>
 

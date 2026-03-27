@@ -67,7 +67,7 @@ export default function ReactionBar({ slug }: { slug: string }) {
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {STORY_REACTIONS.map((reaction) => {
           const selected = summary.selectedReaction === reaction.key;
           const count = summary.counts[reaction.key] ?? 0;
@@ -78,19 +78,19 @@ export default function ReactionBar({ slug }: { slug: string }) {
               type="button"
               onClick={() => onReact(reaction.key)}
               disabled={isPending}
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs transition ${
                 selected
                   ? "border-neutral-100 bg-neutral-100 text-neutral-900"
                   : "border-[#0d2438] bg-[#020b14] text-neutral-200 hover:border-[#163754] hover:bg-[#03101b]"
               } disabled:cursor-wait disabled:opacity-70`}
               aria-pressed={selected}
             >
-              <span className="text-base leading-none" aria-hidden="true">
+              <span className="text-sm leading-none" aria-hidden="true">
                 {reaction.emoji}
               </span>
               <span>{reaction.label}</span>
               <span
-                className={`min-w-5 rounded-full px-1.5 py-0.5 text-center text-xs ${
+                className={`min-w-4 rounded-full px-1 py-0.5 text-center text-[10px] ${
                   selected ? "bg-neutral-900/10 text-neutral-900" : "bg-neutral-900 text-neutral-300"
                 }`}
               >
@@ -102,11 +102,10 @@ export default function ReactionBar({ slug }: { slug: string }) {
       </div>
 
       <p className="mt-3 text-xs text-neutral-500">
-        Tap once to react. Tap the same reaction again to remove it.
+        Tap to react, tap again to remove.
       </p>
 
       {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
     </div>
   );
 }
-
