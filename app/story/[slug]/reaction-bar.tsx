@@ -103,7 +103,7 @@ export default function ReactionBar({ slug }: { slug: string }) {
       </div>
 
       <p className="mt-3 text-xs text-neutral-500">
-        Tap to react, tap again to remove.
+        Click to react, click again to remove.
       </p>
 
       {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
