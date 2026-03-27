@@ -67,9 +67,23 @@ export default function ShareButton({ title, path, className = "" }: ShareButton
       <button
         type="button"
         onClick={onShare}
-        className="rounded-full border border-[#0d2438] bg-[#020b14] px-3 py-1.5 text-xs text-neutral-300 transition hover:border-[#163754] hover:bg-[#03101b] hover:text-neutral-100"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#0d2438] bg-[#020b14] text-neutral-400 transition hover:border-[#163754] hover:bg-[#03101b] hover:text-neutral-100"
+        aria-label="Share"
+        title="Share"
       >
-        Share
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11.2 4.72" />
+          <path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 1 0 7.07 7.07L12.8 19.28" />
+        </svg>
       </button>
 
       <span
