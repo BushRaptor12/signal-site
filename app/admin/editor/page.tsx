@@ -60,6 +60,7 @@ export default function EditorPage() {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [urgent, setUrgent] = useState(false);
+  const [pinnedStory, setPinnedStory] = useState(false);
   const [beaconInclude, setBeaconInclude] = useState(false);
   const [beaconRank, setBeaconRank] = useState("");
   const [beaconHeadline, setBeaconHeadline] = useState("");
@@ -89,6 +90,7 @@ export default function EditorPage() {
     setTitle("");
     setDate(new Date().toISOString().slice(0, 10));
     setUrgent(false);
+    setPinnedStory(false);
     setBeaconInclude(false);
     setBeaconRank("");
     setBeaconHeadline("");
@@ -104,6 +106,7 @@ export default function EditorPage() {
     setTitle(story.title);
     setDate(story.date);
     setUrgent(story.urgent);
+    setPinnedStory(story.pinned);
     setBeaconInclude(story.beacon_include);
     setBeaconRank(story.beacon_rank != null ? String(story.beacon_rank) : "");
     setBeaconHeadline(story.beacon_headline ?? "");
@@ -262,6 +265,7 @@ export default function EditorPage() {
       sources: cleanedSources,
       date,
       urgent,
+      pinned: pinnedStory,
       beacon_include: beaconInclude,
       beacon_rank: parsedBeaconRank,
       beacon_headline: trimmedBeaconHeadline || null,
@@ -442,6 +446,9 @@ export default function EditorPage() {
                     {story.beacon_include ? (
                       <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-red-300">In briefing</div>
                     ) : null}
+                    {story.pinned ? (
+                      <div className="mt-1 text-[11px] uppercase tracking-[0.18em] text-amber-300">Tracking</div>
+                    ) : null}
                   </button>
                 );
               })}
@@ -491,6 +498,16 @@ export default function EditorPage() {
               <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} className="h-4 w-4" />
               Urgent (Drudge-style emphasis)
             </label>
+          </div>
+
+          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
+            <label className="inline-flex items-center gap-3 text-sm text-neutral-300">
+              <input type="checkbox" checked={pinnedStory} onChange={(e) => setPinnedStory(e.target.checked)} className="h-4 w-4" />
+              Pin this story to the top of Popular and Recent as a tracking story
+            </label>
+            <p className="mt-3 text-xs text-neutral-500">
+              Pinned stories stay at the top of the built-in home tabs. Keyword tabs keep their normal ordering.
+            </p>
           </div>
 
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">

@@ -8,6 +8,7 @@ export type StoryDbRow = {
   date: string;
   views?: number | null;
   urgent?: boolean | null;
+  pinned?: boolean | null;
   beacon_include?: boolean | null;
   beacon_rank?: number | string | null;
   beacon_headline?: string | null;
@@ -88,6 +89,7 @@ export function coerceStory(row: StoryDbRow): StoryWithViews {
     created_at: row.created_at ?? undefined,
     updated_at: row.updated_at ?? undefined,
     urgent: Boolean(row.urgent),
+    pinned: Boolean(row.pinned),
     beacon_include: Boolean(row.beacon_include),
     beacon_rank: toNullableNumber(row.beacon_rank),
     beacon_headline: toNullableString(row.beacon_headline),

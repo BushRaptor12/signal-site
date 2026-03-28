@@ -2,13 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { StoryWithViews } from "./lib/types";
 import { TOPICS, normalize, toTitleCase } from "./lib/vocab";
 
 type TabKey = "popular" | "recent" | string;
 
 const PINNED_KEY = "signal:pinnedTags:v1";
+const DISMISSED_PINNED_STORIES_KEY = "signal:dismissedPinnedStories:v1";
 const ACTIVE_KEY = "signal:activeTab:v2";
 const INITIAL_NOW_MS = Date.now();
 
@@ -24,6 +25,17 @@ function getInitialPinned(): string[] {
     const parsed = JSON.parse(localStorage.getItem(PINNED_KEY) || "[]") as unknown;
     if (!Array.isArray(parsed)) return [];
     return parsed.map((v) => normalize(String(v))).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function getInitialDismissedPinnedStories(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DISMISSED_PINNED_STORIES_KEY) || "[]") as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((v) => String(v)).filter(Boolean);
   } catch {
     return [];
   }
@@ -74,6 +86,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>(getInitialActiveTab);
   const [pinned, setPinned] = useState<string[]>(getInitialPinned);
+  const [dismissedPinnedStories, setDismissedPinnedStories] = useState<string[]>(getInitialDismissedPinnedStories);
   const [showManager, setShowManager] = useState(false);
   const [newTag, setNewTag] = useState("");
   const [ghostTab, setGhostTab] = useState<string | null>(null);
@@ -85,6 +98,14 @@ export default function Home() {
       // ignore
     }
   }, [pinned]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DISMISSED_PINNED_STORIES_KEY, JSON.stringify(dismissedPinnedStories));
+    } catch {
+      // ignore
+    }
+  }, [dismissedPinnedStories]);
 
   useEffect(() => {
     try {
@@ -118,7 +139,7 @@ export default function Home() {
   const topicSet = useMemo(() => new Set(suggestedTopics), [suggestedTopics]);
   const customPinned = useMemo(() => pinned.filter((tag) => !topicSet.has(tag)), [pinned, topicSet]);
 
-  function storyMatchesTab(story: StoryWithViews, tab: string) {
+  const storyMatchesTab = useCallback((story: StoryWithViews, tab: string) => {
     const t = normalize(tab);
     if (!t) return false;
 
@@ -133,7 +154,9 @@ export default function Home() {
 
     const haystack = [story.title, ...(story.summary ?? [])].join(" ");
     return textMatchesKeyword(haystack, t);
-  }
+  }, [topicSet]);
+
+  const dismissedPinnedSet = useMemo(() => new Set(dismissedPinnedStories), [dismissedPinnedStories]);
 
   const tabs = useMemo(() => {
     const baseTabs = [
@@ -157,11 +180,18 @@ export default function Home() {
   const visible = useMemo(() => {
     const nowMs = INITIAL_NOW_MS;
     const recent = [...stories].sort((a, b) => publishedAtMs(b) - publishedAtMs(a));
+    const prioritizePinnedStories = (items: StoryWithViews[]) => {
+      const remaining = items.filter((story) => !(story.pinned && dismissedPinnedSet.has(story.id)));
+      const pinnedStories = remaining.filter((story) => story.pinned);
+      const standardStories = remaining.filter((story) => !story.pinned);
+      return [...pinnedStories, ...standardStories];
+    };
 
-    if (activeTab === "recent") return recent;
+    if (activeTab === "recent") return prioritizePinnedStories(recent);
 
     if (activeTab === "popular") {
-      return [...stories].sort((a, b) => {
+      return prioritizePinnedStories(
+        [...stories].sort((a, b) => {
         const byScore = popularScore(b, nowMs) - popularScore(a, nowMs);
         if (byScore !== 0) return byScore;
 
@@ -169,11 +199,12 @@ export default function Home() {
         if (byViews !== 0) return byViews;
 
         return publishedAtMs(b) - publishedAtMs(a);
-      });
+      })
+      );
     }
 
     return recent.filter((story) => storyMatchesTab(story, String(activeTab)));
-  }, [stories, activeTab, topicSet]);
+  }, [stories, activeTab, storyMatchesTab, dismissedPinnedSet]);
 
   function togglePin(tag: string) {
     const t = normalize(tag);
@@ -188,6 +219,10 @@ export default function Home() {
     setNewTag("");
     setActiveTab(t);
     setGhostTab(null);
+  }
+
+  function dismissPinnedStory(storyId: string) {
+    setDismissedPinnedStories((prev) => (prev.includes(storyId) ? prev : [...prev, storyId]));
   }
 
   return (
@@ -349,6 +384,9 @@ export default function Home() {
               href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
               className="block"
             >
+              {(() => {
+                const showTracking = story.pinned && (activeTab === "popular" || activeTab === "recent");
+                return (
               <div
                 className={`rounded-2xl border bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
                   story.urgent
@@ -356,6 +394,26 @@ export default function Home() {
                     : "border-[#0d2438] hover:border-[#163754]"
                 } relative`}
               >
+                {showTracking ? (
+                  <div className="mb-5 flex flex-col items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dismissPinnedStory(story.id);
+                      }}
+                      title="Click to dismiss this tracking story from your Popular and Recent tabs"
+                      aria-label="Dismiss this tracking story from Popular and Recent"
+                      className="rounded-full border border-amber-400/60 bg-amber-500/10 p-2 text-amber-200 transition hover:bg-amber-500/20"
+                    >
+                      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+                        <path d="M15 3a1 1 0 0 1 .707.293l5 5a1 1 0 0 1-1.414 1.414l-1.293-1.293-3.5 3.5V20a1 1 0 0 1-1.707.707L10 17.914l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 16.5 5.793 13.707A1 1 0 0 1 6.5 12h8.086l3.5-3.5-1.293-1.293A1 1 0 0 1 15 3Z" />
+                      </svg>
+                    </button>
+                    <div className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-300">Tracking</div>
+                  </div>
+                ) : null}
                 <h2
                   className={`text-center font-semibold ${
                     story.urgent ? "text-3xl tracking-wide text-red-400 md:text-4xl" : "text-2xl"
@@ -401,6 +459,8 @@ export default function Home() {
                   })}
                 </div>
               </div>
+                );
+              })()}
             </Link>
           ))
         )}

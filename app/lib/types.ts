@@ -32,6 +32,7 @@ export type Story = {
   tags: string[];
 
   comments: number;
+  pinned: boolean;
 };
 
 export type StoryWithViews = Story & {

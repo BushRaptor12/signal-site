@@ -98,6 +98,7 @@ export async function POST(req: Request) {
       primary_entities: toStringArray(incoming.primary_entities),
       comments: Number(incoming.comments ?? 0),
       urgent: Boolean(incoming.urgent),
+      pinned: Boolean(incoming.pinned),
       beacon_include: Boolean(incoming.beacon_include),
       beacon_rank: beaconRank,
       beacon_headline: toNullableString(incoming.beacon_headline),
