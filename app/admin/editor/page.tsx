@@ -2,13 +2,22 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { Story } from "@/app/lib/types";
+import type { Lean, Story } from "@/app/lib/types";
+import { detectSourceLean } from "@/app/lib/source-lean";
 import { TOPICS, normalize, slugify } from "@/app/lib/vocab";
 
-type Lean = "Left" | "Center" | "Right";
 type Entity = { name: string; aliases: string[] };
+type SourceEditorRow = { name: string; url: string; lean: Lean; leanMode: "auto" | "manual" };
 
 const TOKEN_KEY = "signal_admin_token";
+
+function createSourceRow(): SourceEditorRow {
+  return { name: "", url: "", lean: "Center", leanMode: "auto" };
+}
+
+function getAutoLean(name: string, url: string): Lean {
+  return detectSourceLean(name, url) ?? "Center";
+}
 
 function getInitialToken() {
   if (typeof window === "undefined") return "";
@@ -38,11 +47,7 @@ const [aliasDraft, setAliasDraft] = useState<Record<string, string>>({});
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
   const [primaryEntities, setPrimaryEntities] = useState<string[]>([]);
-  const [sources, setSources] = useState<{ name: string; url: string; lean: Lean }[]>([
-    { name: "", url: "", lean: "Center" },
-    { name: "", url: "", lean: "Center" },
-    { name: "", url: "", lean: "Center" },
-  ]);
+  const [sources, setSources] = useState<SourceEditorRow[]>([createSourceRow(), createSourceRow(), createSourceRow()]);
 
   const generatedId = title ? slugify(title) : "new-story";
 useEffect(() => {
@@ -93,16 +98,42 @@ useEffect(() => {
     });
   }
 
-  function updateSource(index: number, patch: Partial<(typeof sources)[number]>) {
+  function updateSource(index: number, patch: Partial<SourceEditorRow>) {
     setSources((prev) => {
       const next = [...prev];
-      next[index] = { ...next[index], ...patch };
+      const current = next[index];
+      if (!current) return prev;
+
+      const merged = { ...current, ...patch };
+
+      next[index] =
+        merged.leanMode === "auto"
+          ? {
+              ...merged,
+              lean: getAutoLean(merged.name, merged.url),
+            }
+          : merged;
       return next;
     });
   }
 
   function addSourceRow() {
-    setSources((prev) => [...prev, { name: "", url: "", lean: "Center" }]);
+    setSources((prev) => [...prev, createSourceRow()]);
+  }
+
+  function setSourceLeanMode(index: number, leanMode: "auto" | "manual") {
+    setSources((prev) => {
+      const next = [...prev];
+      const current = next[index];
+      if (!current) return prev;
+
+      next[index] =
+        leanMode === "auto"
+          ? { ...current, leanMode, lean: getAutoLean(current.name, current.url) }
+          : { ...current, leanMode };
+
+      return next;
+    });
   }
 
   function toggleEntity(name: string) {
@@ -580,13 +611,28 @@ async function saveAliases(entityName: string, aliases: string[]) {
                   />
                   <select
                     value={source.lean}
-                    onChange={(e) => updateSource(index, { lean: e.target.value as Lean })}
+                    onChange={(e) => updateSource(index, { lean: e.target.value as Lean, leanMode: "manual" })}
                     className="md:col-span-1 px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg"
                   >
                     <option value="Left">Left</option>
                     <option value="Center">Center</option>
                     <option value="Right">Right</option>
                   </select>
+                  <div className="md:col-span-6 flex flex-wrap items-center gap-3 text-xs text-neutral-500">
+                    <span>
+                      {source.leanMode === "auto"
+                        ? `Auto-detected lean: ${source.lean}`
+                        : `Manual override: ${source.lean}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSourceLeanMode(index, "auto")}
+                      className="rounded-full border border-neutral-700 px-3 py-1 text-neutral-300 hover:bg-neutral-800"
+                    >
+                      Use auto
+                    </button>
+                    <span>Edit the dropdown anytime to override.</span>
+                  </div>
                 </div>
               ))}
             </div>
