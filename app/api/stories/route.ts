@@ -51,6 +51,41 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Story must include id, title, date." }, { status: 400 });
     }
 
+    const supabase = supabaseServer();
+    const { data: existingData, error: existingError } = await supabase
+      .from("stories")
+      .select("beacon_include, beacon_rank")
+      .eq("id", String(incoming.id))
+      .maybeSingle();
+    if (existingError) throw existingError;
+
+    const existing = existingData as { beacon_include?: boolean | null; beacon_rank?: number | null } | null;
+    let beaconRank = toNullableNumber(incoming.beacon_rank);
+
+    if (Boolean(incoming.beacon_include)) {
+      if (beaconRank == null) {
+        if (existing?.beacon_include && existing.beacon_rank != null) {
+          beaconRank = existing.beacon_rank;
+        } else {
+          const { data: rankedRows, error: rankedError } = await supabase
+            .from("stories")
+            .select("beacon_rank")
+            .eq("beacon_include", true)
+            .neq("id", String(incoming.id));
+          if (rankedError) throw rankedError;
+
+          const maxRank = ((rankedRows ?? []) as Array<{ beacon_rank?: number | null }>).reduce((highest, row) => {
+            const rank = typeof row.beacon_rank === "number" ? row.beacon_rank : 0;
+            return Math.max(highest, rank);
+          }, 0);
+
+          beaconRank = maxRank + 1;
+        }
+      }
+    } else {
+      beaconRank = null;
+    }
+
     const story = {
       id: String(incoming.id),
       title: String(incoming.title),
@@ -64,12 +99,11 @@ export async function POST(req: Request) {
       comments: Number(incoming.comments ?? 0),
       urgent: Boolean(incoming.urgent),
       beacon_include: Boolean(incoming.beacon_include),
-      beacon_rank: toNullableNumber(incoming.beacon_rank),
+      beacon_rank: beaconRank,
       beacon_headline: toNullableString(incoming.beacon_headline),
       updated_at: new Date().toISOString(),
     };
 
-    const supabase = supabaseServer();
     const { error } = await supabase.from("stories").upsert(story, { onConflict: "id" });
     if (error) throw error;
 

@@ -138,9 +138,6 @@ useEffect(() => {
     if (!title.trim()) return alert("Title is required.");
     if (cleanedSummary.length === 0) return alert("Add at least 1 summary line.");
     if (cleanedSources.length === 0) return alert("Add at least 1 source.");
-    if (beaconInclude && beaconRank.trim() === "") {
-      return alert("Briefing rank is required when the story is included in The Briefing.");
-    }
     if (parsedBeaconRank !== null && (!Number.isInteger(parsedBeaconRank) || parsedBeaconRank < 1)) {
       return alert("Briefing rank must be a whole number greater than 0.");
     }
@@ -258,6 +255,9 @@ async function saveAliases(entityName: string, aliases: string[]) {
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Story Editor</h1>
           <div className="flex items-center gap-4">
+            <Link href="/admin/briefing" className="text-xs text-neutral-400 hover:text-neutral-200">
+              Manage briefing order
+            </Link>
             <button onClick={clearToken} className="text-xs text-neutral-400 hover:text-neutral-200">
               Change token
             </button>
@@ -330,7 +330,7 @@ async function saveAliases(entityName: string, aliases: string[]) {
 
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label className="block text-sm text-neutral-300 mb-2">Briefing Rank</label>
+                <label className="block text-sm text-neutral-300 mb-2">Briefing Rank (optional)</label>
                 <input
                   type="number"
                   min="1"
@@ -356,7 +356,8 @@ async function saveAliases(entityName: string, aliases: string[]) {
             </div>
 
             <p className="mt-3 text-xs text-neutral-500">
-              Rank 1 becomes the lead headline. Leave the headline blank to reuse the main story title.
+              Leave rank blank to auto-add this story to the end of the briefing. You can fine-tune the order in the
+              briefing manager. Leave the headline blank to reuse the main story title.
             </p>
           </div>
 
