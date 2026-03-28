@@ -9,7 +9,7 @@ import { TOPICS, normalize, toTitleCase } from "./lib/vocab";
 type TabKey = "popular" | "recent" | string;
 
 const PINNED_KEY = "signal:pinnedTags:v1";
-const DISMISSED_PINNED_STORIES_KEY = "signal:dismissedPinnedStories:v1";
+const COLLAPSED_PINNED_STORIES_KEY = "signal:collapsedPinnedStories:v1";
 const ACTIVE_KEY = "signal:activeTab:v2";
 const INITIAL_NOW_MS = Date.now();
 
@@ -30,10 +30,10 @@ function getInitialPinned(): string[] {
   }
 }
 
-function getInitialDismissedPinnedStories(): string[] {
+function getInitialCollapsedPinnedStories(): string[] {
   if (typeof window === "undefined") return [];
   try {
-    const parsed = JSON.parse(localStorage.getItem(DISMISSED_PINNED_STORIES_KEY) || "[]") as unknown;
+    const parsed = JSON.parse(localStorage.getItem(COLLAPSED_PINNED_STORIES_KEY) || "[]") as unknown;
     if (!Array.isArray(parsed)) return [];
     return parsed.map((v) => String(v)).filter(Boolean);
   } catch {
@@ -86,7 +86,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>(getInitialActiveTab);
   const [pinned, setPinned] = useState<string[]>(getInitialPinned);
-  const [dismissedPinnedStories, setDismissedPinnedStories] = useState<string[]>(getInitialDismissedPinnedStories);
+  const [collapsedPinnedStories, setCollapsedPinnedStories] = useState<string[]>(getInitialCollapsedPinnedStories);
   const [showManager, setShowManager] = useState(false);
   const [newTag, setNewTag] = useState("");
   const [ghostTab, setGhostTab] = useState<string | null>(null);
@@ -101,11 +101,11 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(DISMISSED_PINNED_STORIES_KEY, JSON.stringify(dismissedPinnedStories));
+      localStorage.setItem(COLLAPSED_PINNED_STORIES_KEY, JSON.stringify(collapsedPinnedStories));
     } catch {
       // ignore
     }
-  }, [dismissedPinnedStories]);
+  }, [collapsedPinnedStories]);
 
   useEffect(() => {
     try {
@@ -156,7 +156,7 @@ export default function Home() {
     return textMatchesKeyword(haystack, t);
   }, [topicSet]);
 
-  const dismissedPinnedSet = useMemo(() => new Set(dismissedPinnedStories), [dismissedPinnedStories]);
+  const collapsedPinnedSet = useMemo(() => new Set(collapsedPinnedStories), [collapsedPinnedStories]);
 
   const tabs = useMemo(() => {
     const baseTabs = [
@@ -181,9 +181,8 @@ export default function Home() {
     const nowMs = INITIAL_NOW_MS;
     const recent = [...stories].sort((a, b) => publishedAtMs(b) - publishedAtMs(a));
     const prioritizePinnedStories = (items: StoryWithViews[]) => {
-      const remaining = items.filter((story) => !(story.pinned && dismissedPinnedSet.has(story.id)));
-      const pinnedStories = remaining.filter((story) => story.pinned);
-      const standardStories = remaining.filter((story) => !story.pinned);
+      const pinnedStories = items.filter((story) => story.pinned);
+      const standardStories = items.filter((story) => !story.pinned);
       return [...pinnedStories, ...standardStories];
     };
 
@@ -204,7 +203,7 @@ export default function Home() {
     }
 
     return recent.filter((story) => storyMatchesTab(story, String(activeTab)));
-  }, [stories, activeTab, storyMatchesTab, dismissedPinnedSet]);
+  }, [stories, activeTab, storyMatchesTab]);
 
   function togglePin(tag: string) {
     const t = normalize(tag);
@@ -221,8 +220,8 @@ export default function Home() {
     setGhostTab(null);
   }
 
-  function dismissPinnedStory(storyId: string) {
-    setDismissedPinnedStories((prev) => (prev.includes(storyId) ? prev : [...prev, storyId]));
+  function togglePinnedStoryCollapsed(storyId: string) {
+    setCollapsedPinnedStories((prev) => (prev.includes(storyId) ? prev.filter((id) => id !== storyId) : [...prev, storyId]));
   }
 
   return (
@@ -387,6 +386,7 @@ export default function Home() {
               {(() => {
                 const showTracking = story.pinned && (activeTab === "popular" || activeTab === "recent");
                 const isPinnedCard = story.pinned;
+                const isCollapsed = showTracking && collapsedPinnedSet.has(story.id);
                 return (
               <div
                 className={`rounded-2xl border p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
@@ -396,23 +396,25 @@ export default function Home() {
                 } ${isPinnedCard ? "bg-[#071728]" : "bg-[var(--surface)]"} relative`}
               >
                 {showTracking ? (
-                  <div className="mb-5 flex flex-col items-center gap-2">
+                  <div className="mb-5 flex items-center justify-center gap-3">
                     <button
                       type="button"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        dismissPinnedStory(story.id);
+                        togglePinnedStoryCollapsed(story.id);
                       }}
-                      title="Click to dismiss this tracking story from your Popular and Recent tabs"
-                      aria-label="Dismiss this tracking story from Popular and Recent"
+                      title={isCollapsed ? "Click to expand this tracking story" : "Click to collapse this tracking story"}
+                      aria-label={isCollapsed ? "Expand this tracking story" : "Collapse this tracking story"}
                       className="rounded-full border border-amber-400/60 bg-amber-500/10 p-2 text-amber-200 transition hover:bg-amber-500/20"
                     >
                       <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-                        <path d="M14.5 2a1 1 0 0 1 .8.4l2.6 3.5a1 1 0 0 1-.1 1.3l-1.9 1.9 3.2 3.2a1 1 0 0 1-.7 1.7h-5.1v6.1a1 1 0 0 1-1.7.7l-1.8-1.8-1.8 1.8a1 1 0 0 1-1.7-.7V14H3a1 1 0 0 1-.7-1.7l3.2-3.2-1.9-1.9a1 1 0 0 1-.1-1.3l2.6-3.5A1 1 0 0 1 6.9 2h7.6Zm-6.5 2-1.4 1.9 1.6 1.6a1 1 0 0 1 0 1.4L5.4 12h13.2l-2.8-2.8a1 1 0 0 1 0-1.4l1.6-1.6L16 4H8Z" />
+                        <path d="M12 5c5.6 0 10 6.2 10 7s-4.4 7-10 7S2 12.8 2 12s4.4-7 10-7Zm0 2c-3.9 0-7.1 3.8-7.9 5 .8 1.2 4 5 7.9 5s7.1-3.8 7.9-5c-.8-1.2-4-5-7.9-5Zm0 1.8A3.2 3.2 0 1 1 8.8 12 3.2 3.2 0 0 1 12 8.8Zm0 2A1.2 1.2 0 1 0 13.2 12 1.2 1.2 0 0 0 12 10.8Z" />
                       </svg>
                     </button>
-                    <div className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-300">Tracking</div>
+                    <div className="text-xs font-bold uppercase tracking-[0.28em] text-amber-300" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+                      Tracking
+                    </div>
                   </div>
                 ) : null}
                 <h2
@@ -423,42 +425,50 @@ export default function Home() {
                   {story.title}
                 </h2>
 
-                <div className="mx-auto mt-4 max-w-2xl space-y-2 text-center text-neutral-400">
-                  {(story.summary ?? []).map((line, index) => (
-                    <p key={index}>{line}</p>
-                  ))}
-                </div>
+                {!isCollapsed ? (
+                  <>
+                    <div className="mx-auto mt-4 max-w-2xl space-y-2 text-center text-neutral-400">
+                      {(story.summary ?? []).map((line, index) => (
+                        <p key={index}>{line}</p>
+                      ))}
+                    </div>
 
-                <div className="mt-5 text-center text-sm text-neutral-500">
-                  {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
-                </div>
+                    <div className="mt-5 text-center text-sm text-neutral-500">
+                      {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
+                    </div>
 
-                <div className="mt-2 text-center text-sm text-neutral-500">
-                  {formatStoryDate(story.date)}
-                </div>
+                    <div className="mt-2 text-center text-sm text-neutral-500">
+                      {formatStoryDate(story.date)}
+                    </div>
 
-                <div className="mt-5 flex flex-wrap justify-center gap-2">
-                  {(story.topics ?? []).map((topic) => {
-                    const key = normalize(topic);
-                    return (
-                      <button
-                        key={key}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
+                    <div className="mt-5 flex flex-wrap justify-center gap-2">
+                      {(story.topics ?? []).map((topic) => {
+                        const key = normalize(topic);
+                        return (
+                          <button
+                            key={key}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
 
-                          setActiveTab(key);
+                              setActiveTab(key);
 
-                          if (!pinned.includes(key)) setGhostTab(key);
-                          else setGhostTab(null);
-                        }}
-                        className="rounded-full border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:bg-neutral-800"
-                      >
-                        {toTitleCase(key)}
-                      </button>
-                    );
-                  })}
-                </div>
+                              if (!pinned.includes(key)) setGhostTab(key);
+                              else setGhostTab(null);
+                            }}
+                            className="rounded-full border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:bg-neutral-800"
+                          >
+                            {toTitleCase(key)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-4 text-center text-sm text-neutral-500">
+                    Collapsed tracking story. Click the eye to expand it again.
+                  </div>
+                )}
               </div>
                 );
               })()}
