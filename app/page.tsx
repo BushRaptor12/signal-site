@@ -386,13 +386,14 @@ export default function Home() {
             >
               {(() => {
                 const showTracking = story.pinned && (activeTab === "popular" || activeTab === "recent");
+                const isPinnedCard = story.pinned;
                 return (
               <div
-                className={`rounded-2xl border bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
+                className={`rounded-2xl border p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
                   story.urgent
                     ? "border-red-500/70 hover:border-red-400"
                     : "border-[#0d2438] hover:border-[#163754]"
-                } relative`}
+                } ${isPinnedCard ? "bg-[#071728]" : "bg-[var(--surface)]"} relative`}
               >
                 {showTracking ? (
                   <div className="mb-5 flex flex-col items-center gap-2">
@@ -408,7 +409,7 @@ export default function Home() {
                       className="rounded-full border border-amber-400/60 bg-amber-500/10 p-2 text-amber-200 transition hover:bg-amber-500/20"
                     >
                       <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-                        <path d="M15 3a1 1 0 0 1 .707.293l5 5a1 1 0 0 1-1.414 1.414l-1.293-1.293-3.5 3.5V20a1 1 0 0 1-1.707.707L10 17.914l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 16.5 5.793 13.707A1 1 0 0 1 6.5 12h8.086l3.5-3.5-1.293-1.293A1 1 0 0 1 15 3Z" />
+                        <path d="M14.5 2a1 1 0 0 1 .8.4l2.6 3.5a1 1 0 0 1-.1 1.3l-1.9 1.9 3.2 3.2a1 1 0 0 1-.7 1.7h-5.1v6.1a1 1 0 0 1-1.7.7l-1.8-1.8-1.8 1.8a1 1 0 0 1-1.7-.7V14H3a1 1 0 0 1-.7-1.7l3.2-3.2-1.9-1.9a1 1 0 0 1-.1-1.3l2.6-3.5A1 1 0 0 1 6.9 2h7.6Zm-6.5 2-1.4 1.9 1.6 1.6a1 1 0 0 1 0 1.4L5.4 12h13.2l-2.8-2.8a1 1 0 0 1 0-1.4l1.6-1.6L16 4H8Z" />
                       </svg>
                     </button>
                     <div className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-300">Tracking</div>
