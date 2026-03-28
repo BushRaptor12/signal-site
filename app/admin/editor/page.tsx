@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import type { Lean, Story } from "@/app/lib/types";
+import { useEffect, useMemo, useState } from "react";
+import type { Lean, Story, StoryWithViews } from "@/app/lib/types";
 import { detectSourceLean } from "@/app/lib/source-lean";
 import { TOPICS, normalize, slugify } from "@/app/lib/vocab";
 
@@ -17,6 +17,22 @@ function createSourceRow(): SourceEditorRow {
 
 function getAutoLean(name: string, url: string): Lean {
   return detectSourceLean(name, url) ?? "Center";
+}
+
+function toEditorSource(source: Story["sources"][number]): SourceEditorRow {
+  const detectedLean = getAutoLean(source.name, source.url);
+  return {
+    ...source,
+    leanMode: detectedLean === source.lean ? "auto" : "manual",
+  };
+}
+
+function blankSummary() {
+  return ["", "", ""];
+}
+
+function blankSources() {
+  return [createSourceRow(), createSourceRow(), createSourceRow()];
 }
 
 function getInitialToken() {
@@ -34,29 +50,90 @@ export default function EditorPage() {
   const [adminToken, setAdminToken] = useState(initialToken);
   const [showTokenInput, setShowTokenInput] = useState(!initialToken);
   const [tokenDraft, setTokenDraft] = useState(initialToken);
-const [entities, setEntities] = useState<Entity[]>([]);
-const [entitySearch, setEntitySearch] = useState("");
-const [aliasDraft, setAliasDraft] = useState<Record<string, string>>({});
+  const [entities, setEntities] = useState<Entity[]>([]);
+  const [entitySearch, setEntitySearch] = useState("");
+  const [aliasDraft, setAliasDraft] = useState<Record<string, string>>({});
+  const [storySearch, setStorySearch] = useState("");
+  const [stories, setStories] = useState<StoryWithViews[]>([]);
+  const [loadingStories, setLoadingStories] = useState(false);
+  const [activeStoryId, setActiveStoryId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [urgent, setUrgent] = useState(false);
   const [beaconInclude, setBeaconInclude] = useState(false);
   const [beaconRank, setBeaconRank] = useState("");
   const [beaconHeadline, setBeaconHeadline] = useState("");
-  const [summary, setSummary] = useState<string[]>(["", "", ""]);
+  const [summary, setSummary] = useState<string[]>(blankSummary());
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
   const [primaryEntities, setPrimaryEntities] = useState<string[]>([]);
-  const [sources, setSources] = useState<SourceEditorRow[]>([createSourceRow(), createSourceRow(), createSourceRow()]);
+  const [sources, setSources] = useState<SourceEditorRow[]>(blankSources());
 
   const generatedId = title ? slugify(title) : "new-story";
-useEffect(() => {
-  (async () => {
-    const res = await fetch("/api/entities", { cache: "no-store" });
-    const data = await res.json();
-    if (Array.isArray(data)) setEntities(data);
-  })();
-}, []);
+  const storyId = activeStoryId ?? generatedId;
+
+  async function loadStories() {
+    setLoadingStories(true);
+
+    try {
+      const res = await fetch("/api/stories", { cache: "no-store" });
+      const data = (await res.json().catch(() => [])) as StoryWithViews[];
+      if (Array.isArray(data)) setStories(data);
+    } finally {
+      setLoadingStories(false);
+    }
+  }
+
+  function resetForm() {
+    setActiveStoryId(null);
+    setTitle("");
+    setDate(new Date().toISOString().slice(0, 10));
+    setUrgent(false);
+    setBeaconInclude(false);
+    setBeaconRank("");
+    setBeaconHeadline("");
+    setSummary(blankSummary());
+    setTopics([]);
+    setSelectedEntities([]);
+    setPrimaryEntities([]);
+    setSources(blankSources());
+  }
+
+  function loadStoryIntoForm(story: StoryWithViews) {
+    setActiveStoryId(story.id);
+    setTitle(story.title);
+    setDate(story.date);
+    setUrgent(story.urgent);
+    setBeaconInclude(story.beacon_include);
+    setBeaconRank(story.beacon_rank != null ? String(story.beacon_rank) : "");
+    setBeaconHeadline(story.beacon_headline ?? "");
+    setSummary([...story.summary, "", "", ""].slice(0, Math.max(3, story.summary.length)));
+    setTopics(story.topics);
+    setSelectedEntities(story.entities.map((entity) => entity.name));
+    setPrimaryEntities(story.primary_entities);
+    setSources(story.sources.length > 0 ? story.sources.map(toEditorSource) : blankSources());
+  }
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch("/api/entities", { cache: "no-store" });
+      const data = await res.json();
+      if (Array.isArray(data)) setEntities(data);
+    })();
+    void loadStories();
+  }, []);
+
+  const filteredStories = useMemo(() => {
+    const query = storySearch.trim().toLowerCase();
+    if (!query) return stories;
+
+    return stories.filter((story) => {
+      const headline = story.title.toLowerCase();
+      const id = story.id.toLowerCase();
+      const briefingHeadline = (story.beacon_headline ?? "").toLowerCase();
+      return headline.includes(query) || id.includes(query) || briefingHeadline.includes(query);
+    });
+  }, [stories, storySearch]);
   function saveToken() {
     const token = tokenDraft.trim();
     if (!token) return;
@@ -179,7 +256,7 @@ useEffect(() => {
   .map((e) => ({ name: e!.name, aliases: e!.aliases }));
 
     const story: Story = {
-      id: generatedId,
+      id: storyId,
       title: title.trim(),
       summary: cleanedSummary,
       sources: cleanedSources,
@@ -210,6 +287,8 @@ useEffect(() => {
       return;
     }
 
+    await loadStories();
+    setActiveStoryId(story.id);
     alert(`Saved! id: ${story.id}`);
   }
 
@@ -220,7 +299,7 @@ useEffect(() => {
       return;
     }
 
-    const id = generatedId;
+    const id = storyId;
     if (!id || id === "new-story") {
       alert("Enter a title first so the story ID exists.");
       return;
@@ -239,53 +318,58 @@ useEffect(() => {
       return;
     }
 
+    await loadStories();
+    resetForm();
     alert(`Deleted: ${id}`);
   }
-async function createEntity(name: string) {
-  const res = await fetch("/api/entities", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, aliases: [] }),
-  });
+  async function createEntity(name: string) {
+    const res = await fetch("/api/entities", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, aliases: [] }),
+    });
 
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    alert(`Create entity failed: ${json?.error ?? res.statusText}`);
-    return null;
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(`Create entity failed: ${json?.error ?? res.statusText}`);
+      return null;
+    }
+
+    const created = json.entity as Entity;
+    setEntities((prev) => {
+      const next = [...prev, created];
+      next.sort((a, b) => a.name.localeCompare(b.name));
+      return next;
+    });
+
+    return created;
   }
 
-  const created = json.entity as Entity;
-  setEntities((prev) => {
-    const next = [...prev, created];
-    next.sort((a, b) => a.name.localeCompare(b.name));
-    return next;
-  });
+  async function saveAliases(entityName: string, aliases: string[]) {
+    const res = await fetch(`/api/entities/${encodeURIComponent(entityName)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ aliases }),
+    });
 
-  return created;
-}
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(`Update aliases failed: ${json?.error ?? res.statusText}`);
+      return;
+    }
 
-async function saveAliases(entityName: string, aliases: string[]) {
-  const res = await fetch(`/api/entities/${encodeURIComponent(entityName)}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ aliases }),
-  });
-
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    alert(`Update aliases failed: ${json?.error ?? res.statusText}`);
-    return;
+    const updated = json.entity as Entity;
+    setEntities((prev) => prev.map((e) => (e.name === updated.name ? updated : e)));
   }
-
-  const updated = json.entity as Entity;
-  setEntities((prev) => prev.map((e) => (e.name === updated.name ? updated : e)));
-}
   return (
     <main className="min-h-screen bg-neutral-900 text-neutral-100 p-8">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Story Editor</h1>
           <div className="flex items-center gap-4">
+            <button onClick={resetForm} className="text-xs text-neutral-400 hover:text-neutral-200">
+              New story
+            </button>
             <Link href="/admin/briefing" className="text-xs text-neutral-400 hover:text-neutral-200">
               Manage briefing order
             </Link>
@@ -317,7 +401,69 @@ async function saveAliases(entityName: string, aliases: string[]) {
           </div>
         )}
 
-        <div className="mt-8 space-y-6">
+        <div className="mt-8 grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="rounded-2xl border border-neutral-700 bg-neutral-900 p-5 h-fit xl:sticky xl:top-8">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold uppercase text-neutral-300">Current Stories</div>
+              <button
+                onClick={() => void loadStories()}
+                className="text-xs text-neutral-400 hover:text-neutral-200"
+                type="button"
+              >
+                Refresh
+              </button>
+            </div>
+            <input
+              value={storySearch}
+              onChange={(e) => setStorySearch(e.target.value)}
+              placeholder="Search stories..."
+              className="mt-4 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+            />
+            <div className="mt-4 text-xs text-neutral-500">
+              {loadingStories ? "Loading..." : `${filteredStories.length} stories`}
+            </div>
+            <div className="mt-4 max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+              {filteredStories.map((story) => {
+                const active = story.id === activeStoryId;
+                return (
+                  <button
+                    key={story.id}
+                    type="button"
+                    onClick={() => loadStoryIntoForm(story)}
+                    className={`w-full rounded-xl border p-4 text-left transition ${
+                      active
+                        ? "border-neutral-300 bg-neutral-100/10"
+                        : "border-neutral-700 bg-neutral-950/40 hover:border-neutral-500"
+                    }`}
+                  >
+                    <div className="text-xs uppercase tracking-[0.18em] text-neutral-500">{story.date}</div>
+                    <div className="mt-2 text-sm font-semibold text-neutral-100">{story.title}</div>
+                    <div className="mt-2 text-xs text-neutral-500">{story.id}</div>
+                    {story.beacon_include ? (
+                      <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-red-300">In briefing</div>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-neutral-700 bg-neutral-900 p-6">
+              <div className="text-sm font-semibold uppercase text-neutral-300">
+                {activeStoryId ? "Editing Existing Story" : "Creating New Story"}
+              </div>
+              <div className="mt-3 text-sm text-neutral-500">
+                Story ID: <span className="text-neutral-300">{storyId}</span>
+              </div>
+              {activeStoryId ? (
+                <p className="mt-2 text-xs text-neutral-500">
+                  Changing the title will not change this story&apos;s ID. Use `New story` if you want to create a separate item.
+                </p>
+              ) : null}
+            </div>
+
+            <div className="space-y-6">
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <label className="block text-sm text-neutral-300 mb-2">Title</label>
             <input
@@ -648,6 +794,8 @@ async function saveAliases(entityName: string, aliases: string[]) {
           >
             Delete story
           </button>
+            </div>
+          </div>
         </div>
       </div>
     </main>
