@@ -13,6 +13,11 @@ type AdminBriefingResponse = {
   ok?: boolean;
 };
 
+type SavedBriefingItem = {
+  id: string;
+  beacon_headline: string | null;
+};
+
 function getInitialToken() {
   if (typeof window === "undefined") return "";
   try {
@@ -58,7 +63,7 @@ export default function AdminBriefingPage() {
   const [tokenDraft, setTokenDraft] = useState(initialToken);
   const [briefingStories, setBriefingStories] = useState<StoryWithViews[]>([]);
   const [libraryStories, setLibraryStories] = useState<StoryWithViews[]>([]);
-  const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [savedBriefing, setSavedBriefing] = useState<SavedBriefingItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -88,7 +93,12 @@ export default function AdminBriefingPage() {
       const nextLibrary = json.library ?? [];
       setBriefingStories(nextBriefing);
       setLibraryStories(nextLibrary);
-      setSavedIds(nextBriefing.map((story) => story.id));
+      setSavedBriefing(
+        nextBriefing.map((story) => ({
+          id: story.id,
+          beacon_headline: story.beacon_headline?.trim() || null,
+        }))
+      );
     } catch (loadError: unknown) {
       const message = loadError instanceof Error ? loadError.message : String(loadError);
       setError(message);
@@ -103,10 +113,15 @@ export default function AdminBriefingPage() {
   }, [adminToken]);
 
   const hasUnsavedChanges = useMemo(() => {
-    const currentIds = briefingStories.map((story) => story.id);
-    if (currentIds.length !== savedIds.length) return true;
-    return currentIds.some((id, index) => id !== savedIds[index]);
-  }, [briefingStories, savedIds]);
+    if (briefingStories.length !== savedBriefing.length) return true;
+
+    return briefingStories.some((story, index) => {
+      const saved = savedBriefing[index];
+      if (!saved) return true;
+
+      return saved.id !== story.id || saved.beacon_headline !== (story.beacon_headline?.trim() || null);
+    });
+  }, [briefingStories, savedBriefing]);
 
   const filteredLibrary = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -147,7 +162,7 @@ export default function AdminBriefingPage() {
     setShowTokenInput(true);
     setBriefingStories([]);
     setLibraryStories([]);
-    setSavedIds([]);
+    setSavedBriefing([]);
     setSearch("");
     setError("");
     setStatus("");
@@ -176,6 +191,20 @@ export default function AdminBriefingPage() {
     setStatus("");
   }
 
+  function updateBriefingHeadline(storyId: string, value: string) {
+    setBriefingStories((current) =>
+      current.map((story) =>
+        story.id === storyId
+          ? {
+              ...story,
+              beacon_headline: value,
+            }
+          : story
+      )
+    );
+    setStatus("");
+  }
+
   async function saveOrder() {
     if (!adminToken) {
       setShowTokenInput(true);
@@ -194,7 +223,12 @@ export default function AdminBriefingPage() {
           "Content-Type": "application/json",
           "x-admin-token": adminToken,
         },
-        body: JSON.stringify({ briefingIds: briefingStories.map((story) => story.id) }),
+        body: JSON.stringify({
+          briefing: briefingStories.map((story) => ({
+            id: story.id,
+            beacon_headline: story.beacon_headline?.trim() || null,
+          })),
+        }),
       });
 
       const json = (await res.json().catch(() => ({}))) as AdminBriefingResponse;
@@ -206,7 +240,12 @@ export default function AdminBriefingPage() {
       const nextLibrary = json.library ?? [];
       setBriefingStories(nextBriefing);
       setLibraryStories(nextLibrary);
-      setSavedIds(nextBriefing.map((story) => story.id));
+      setSavedBriefing(
+        nextBriefing.map((story) => ({
+          id: story.id,
+          beacon_headline: story.beacon_headline?.trim() || null,
+        }))
+      );
       setStatus("Briefing saved.");
     } catch (saveError: unknown) {
       const message = saveError instanceof Error ? saveError.message : String(saveError);
@@ -343,6 +382,17 @@ export default function AdminBriefingPage() {
                           <div className="mt-2 text-sm text-neutral-500">Story title: {story.title}</div>
                         ) : null}
                         {story.summary[0] ? <p className="mt-3 text-sm leading-6 text-neutral-400">{story.summary[0]}</p> : null}
+                        <div className="mt-4">
+                          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                            Briefing Title Override
+                          </label>
+                          <input
+                            value={story.beacon_headline ?? ""}
+                            onChange={(event) => updateBriefingHeadline(story.id, event.target.value)}
+                            placeholder="Leave blank to use the story title"
+                            className="w-full rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-500"
+                          />
+                        </div>
                       </div>
 
                       <div className="flex shrink-0 flex-wrap items-center gap-2 lg:max-w-sm lg:justify-end">

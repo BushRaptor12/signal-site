@@ -56,7 +56,7 @@ export async function GET(req: Request) {
 }
 
 type ReorderPayload = {
-  briefingIds?: unknown;
+  briefing?: unknown;
 };
 
 export async function PUT(req: Request) {
@@ -66,14 +66,38 @@ export async function PUT(req: Request) {
     }
 
     const body = (await req.json()) as ReorderPayload;
-    if (!Array.isArray(body.briefingIds)) {
-      return NextResponse.json({ error: "briefingIds must be an array." }, { status: 400 });
+    if (!Array.isArray(body.briefing)) {
+      return NextResponse.json({ error: "briefing must be an array." }, { status: 400 });
     }
 
-    const briefingIds = body.briefingIds.map((value) => String(value));
+    const briefingItems = body.briefing
+      .map((value) => {
+        if (typeof value !== "object" || value === null) return null;
+        const row = value as { id?: unknown; beacon_headline?: unknown };
+        if (!row.id) return null;
+
+        const headline =
+          typeof row.beacon_headline === "string"
+            ? row.beacon_headline.trim() || null
+            : row.beacon_headline == null
+              ? null
+              : String(row.beacon_headline).trim() || null;
+
+        return {
+          id: String(row.id),
+          beacon_headline: headline,
+        };
+      })
+      .filter((item): item is { id: string; beacon_headline: string | null } => Boolean(item));
+
+    if (briefingItems.length !== body.briefing.length) {
+      return NextResponse.json({ error: "Each briefing item must include an id." }, { status: 400 });
+    }
+
+    const briefingIds = briefingItems.map((item) => item.id);
     const uniqueIds = new Set(briefingIds);
     if (briefingIds.length !== uniqueIds.size) {
-      return NextResponse.json({ error: "briefingIds must not contain duplicates." }, { status: 400 });
+      return NextResponse.json({ error: "briefing must not contain duplicate story ids." }, { status: 400 });
     }
 
     const allStories = await loadAllStories();
@@ -86,11 +110,16 @@ export async function PUT(req: Request) {
     const timestamp = new Date().toISOString();
     const supabase = supabaseServer();
     const includedIds = new Set(briefingIds);
+    const headlineById = new Map(briefingItems.map((item) => [item.id, item.beacon_headline]));
 
     for (const story of allStories) {
       const nextInclude = includedIds.has(story.id);
       const nextRank = nextInclude ? briefingIds.indexOf(story.id) + 1 : null;
-      const changed = story.beacon_include !== nextInclude || (story.beacon_rank ?? null) !== nextRank;
+      const nextHeadline = nextInclude ? (headlineById.get(story.id) ?? null) : story.beacon_headline ?? null;
+      const changed =
+        story.beacon_include !== nextInclude ||
+        (story.beacon_rank ?? null) !== nextRank ||
+        (story.beacon_headline ?? null) !== nextHeadline;
 
       if (!changed) continue;
 
@@ -99,6 +128,7 @@ export async function PUT(req: Request) {
         .update({
           beacon_include: nextInclude,
           beacon_rank: nextRank,
+          beacon_headline: nextHeadline,
           updated_at: timestamp,
         })
         .eq("id", story.id);
