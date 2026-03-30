@@ -382,7 +382,7 @@ export default function Home() {
                  const showTracking = story.pinned && (activeTab === "popular" || activeTab === "recent");
                  const isPinnedCard = story.pinned;
                  const isCollapsed = showTracking && collapsedPinnedSet.has(story.id);
-                 const updatedAt = story.updated_at ?? story.created_at ?? null;
+                 const updatedAt = story.content_updated_at ?? story.created_at ?? null;
                  return (
                <div
                 className={`rounded-2xl border p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${

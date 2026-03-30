@@ -23,6 +23,7 @@ export type Story = {
   beacon_headline?: string | null;
   created_at?: string;
   updated_at?: string;
+  content_updated_at?: string;
   // keyword system
   topics: string[];          // high-level sections
   entities: Entity[];        // canonical + aliases

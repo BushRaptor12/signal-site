@@ -52,15 +52,34 @@ export async function POST(req: Request) {
     }
 
     const supabase = supabaseServer();
+    const nowIso = new Date().toISOString();
     const { data: existingData, error: existingError } = await supabase
       .from("stories")
-      .select("beacon_include, beacon_rank")
+      .select("beacon_include, beacon_rank, summary, sources, content_updated_at, updated_at, created_at")
       .eq("id", String(incoming.id))
       .maybeSingle();
     if (existingError) throw existingError;
 
-    const existing = existingData as { beacon_include?: boolean | null; beacon_rank?: number | null } | null;
+    const existing = existingData as {
+      beacon_include?: boolean | null;
+      beacon_rank?: number | null;
+      summary?: unknown;
+      sources?: unknown;
+      content_updated_at?: string | null;
+      updated_at?: string | null;
+      created_at?: string | null;
+    } | null;
     let beaconRank = toNullableNumber(incoming.beacon_rank);
+    const normalizedSummary = toStringArray(incoming.summary);
+    const normalizedSources = toSources(incoming.sources);
+    const contentChanged =
+      !existing ||
+      JSON.stringify(toStringArray(existing.summary)) !== JSON.stringify(normalizedSummary) ||
+      JSON.stringify(toSources(existing.sources)) !== JSON.stringify(normalizedSources);
+    const contentUpdatedAt =
+      contentChanged
+        ? nowIso
+        : existing?.content_updated_at ?? existing?.updated_at ?? existing?.created_at ?? nowIso;
 
     if (Boolean(incoming.beacon_include)) {
       if (beaconRank == null) {
@@ -89,8 +108,8 @@ export async function POST(req: Request) {
     const story = {
       id: String(incoming.id),
       title: String(incoming.title),
-      summary: toStringArray(incoming.summary),
-      sources: toSources(incoming.sources),
+      summary: normalizedSummary,
+      sources: normalizedSources,
       date: String(incoming.date),
       topics: toStringArray(incoming.topics),
       tags: toStringArray(incoming.tags),
@@ -102,7 +121,8 @@ export async function POST(req: Request) {
       beacon_include: Boolean(incoming.beacon_include),
       beacon_rank: beaconRank,
       beacon_headline: toNullableString(incoming.beacon_headline),
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso,
+      content_updated_at: contentUpdatedAt,
     };
 
     const { error } = await supabase.from("stories").upsert(story, { onConflict: "id" });

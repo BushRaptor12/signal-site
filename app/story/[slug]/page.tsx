@@ -95,7 +95,7 @@ export default async function StoryPage({
     );
   }
 
-  const updatedAt = story.updated_at ?? story.created_at ?? null;
+  const updatedAt = story.content_updated_at ?? story.created_at ?? null;
 
   return (
     <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">

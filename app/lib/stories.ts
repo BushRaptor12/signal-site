@@ -19,6 +19,7 @@ export type StoryDbRow = {
   comments?: number | null;
   created_at?: string | null;
   updated_at?: string | null;
+  content_updated_at?: string | null;
 };
 
 export function toStringArray(value: unknown): string[] {
@@ -88,6 +89,7 @@ export function coerceStory(row: StoryDbRow): StoryWithViews {
     date: row.date,
     created_at: row.created_at ?? undefined,
     updated_at: row.updated_at ?? undefined,
+    content_updated_at: row.content_updated_at ?? undefined,
     urgent: Boolean(row.urgent),
     pinned: Boolean(row.pinned),
     beacon_include: Boolean(row.beacon_include),
