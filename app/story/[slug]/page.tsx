@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { formatUpdatedAt } from "@/app/lib/dates";
@@ -101,11 +102,19 @@ export default async function StoryPage({
     <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
       <ViewTracker slug={slug} />
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
           <Link href={backHref} className="text-neutral-300 hover:text-white transition">
             {"<- Back"}
           </Link>
-          <div className="text-sm text-neutral-400">
+          <Image
+            src="/small logo.png"
+            alt="Signal logo"
+            width={600}
+            height={140}
+            priority
+            className="h-auto w-[120px] justify-self-center md:w-[136px]"
+          />
+          <div className="justify-self-end text-sm text-neutral-400">
             {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
           </div>
         </div>

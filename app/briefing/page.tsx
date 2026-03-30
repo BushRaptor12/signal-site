@@ -91,6 +91,7 @@ export default async function BriefingPage() {
               <p className="mt-3 text-neutral-400">Multi-source news. Clear perspective.</p>
             </div>
           </div>
+          <div className="mb-8 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80" />
 
           <div className="mb-8">
             <div className="flex items-center justify-between gap-4">
