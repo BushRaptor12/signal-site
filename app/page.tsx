@@ -221,7 +221,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-transparent p-8 text-neutral-100">
-      <div className="max-w-4xl mx-auto mb-8 flex justify-center">
+      <div className="max-w-4xl mx-auto mb-8">
         <div className="flex flex-col items-center text-center">
             <Image
               src="/psbeacon.png"
@@ -239,6 +239,7 @@ export default function Home() {
               Read The Briefing
             </Link>
         </div>
+        <div className="mt-8 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80" />
       </div>
 
       <div className="max-w-4xl mx-auto mb-4 flex items-center justify-between gap-4">
