@@ -232,14 +232,16 @@ export default function Home() {
             className="h-auto w-full max-w-[420px] md:max-w-[520px]"
           />
           <p className="mt-3 text-neutral-400">Multi-source news. Clear perspective.</p>
-            <Link
-              href="/briefing"
-              className="mt-4 rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
-            >
-              Read The Briefing
-            </Link>
         </div>
         <div className="mt-8 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80" />
+        <div className="mt-6 flex justify-center">
+          <Link
+            href="/briefing"
+            className="inline-flex min-w-[240px] justify-center rounded-full border border-red-500/70 bg-[#18070b] px-8 py-3 text-base font-semibold text-[#f4d7dd] shadow-[0_14px_32px_rgba(0,0,0,0.28)] transition hover:border-red-400 hover:bg-[#220a10] hover:text-white"
+          >
+            Read The Briefing
+          </Link>
+        </div>
       </div>
 
       <div className="max-w-4xl mx-auto mb-4 flex items-center justify-between gap-4">
