@@ -112,7 +112,7 @@ export default async function StoryPage({
             width={600}
             height={140}
             priority
-            className="h-auto w-[120px] justify-self-center md:w-[136px]"
+            className="h-auto w-[144px] justify-self-center md:w-[168px]"
           />
           <div className="justify-self-end text-sm text-neutral-400">
             {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
