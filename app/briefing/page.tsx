@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
@@ -10,27 +11,6 @@ export const revalidate = 0;
 export const metadata: Metadata = {
   title: "The Briefing",
 };
-
-function formatStoryDate(value: string) {
-  const [year, month, day] = value.split("-");
-  if (!year || !month || !day) return value;
-  return `${month}/${day}/${year}`;
-}
-
-function formatUpdatedAt(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZone: "America/New_York",
-  }).format(date);
-}
 
 function displayHeadline(story: StoryWithViews) {
   return story.beacon_headline?.trim() || story.title;

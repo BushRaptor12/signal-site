@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatStoryDate, formatUpdatedAt } from "./lib/dates";
 import type { StoryWithViews } from "./lib/types";
 import { TOPICS, normalize, toTitleCase } from "./lib/vocab";
 
@@ -12,12 +13,6 @@ const PINNED_KEY = "signal:pinnedTags:v1";
 const COLLAPSED_PINNED_STORIES_KEY = "signal:collapsedPinnedStories:v1";
 const ACTIVE_KEY = "signal:activeTab:v2";
 const INITIAL_NOW_MS = Date.now();
-
-function formatStoryDate(value: string) {
-  const [year, month, day] = value.split("-");
-  if (!year || !month || !day) return value;
-  return `${month}/${day}/${year}`;
-}
 
 function getInitialPinned(): string[] {
   if (typeof window === "undefined") return [];
@@ -384,22 +379,23 @@ export default function Home() {
               className="block"
             >
               {(() => {
-                const showTracking = story.pinned && (activeTab === "popular" || activeTab === "recent");
-                const isPinnedCard = story.pinned;
-                const isCollapsed = showTracking && collapsedPinnedSet.has(story.id);
-                return (
-              <div
+                 const showTracking = story.pinned && (activeTab === "popular" || activeTab === "recent");
+                 const isPinnedCard = story.pinned;
+                 const isCollapsed = showTracking && collapsedPinnedSet.has(story.id);
+                 const updatedAt = story.updated_at ?? story.created_at ?? null;
+                 return (
+               <div
                 className={`rounded-2xl border p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
                   story.urgent
                     ? "border-red-500/70 hover:border-red-400"
                     : "border-[#0d2438] hover:border-[#163754]"
                 } ${isPinnedCard ? "bg-[#071728]" : "bg-[var(--surface)]"} relative`}
               >
-                {showTracking ? (
-                  <div className="mb-5 flex items-center justify-center gap-3">
-                    <button
-                      type="button"
-                      onClick={(e) => {
+                 {showTracking ? (
+                   <div className="mb-5 flex flex-col items-center justify-center gap-2 text-center">
+                     <button
+                       type="button"
+                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         togglePinnedStoryCollapsed(story.id);
@@ -409,14 +405,19 @@ export default function Home() {
                       className="rounded-full border border-amber-400/60 bg-amber-500/10 p-2 text-amber-200 transition hover:bg-amber-500/20"
                     >
                       <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-                        <path d="M12 5c5.6 0 10 6.2 10 7s-4.4 7-10 7S2 12.8 2 12s4.4-7 10-7Zm0 2c-3.9 0-7.1 3.8-7.9 5 .8 1.2 4 5 7.9 5s7.1-3.8 7.9-5c-.8-1.2-4-5-7.9-5Zm0 1.8A3.2 3.2 0 1 1 8.8 12 3.2 3.2 0 0 1 12 8.8Zm0 2A1.2 1.2 0 1 0 13.2 12 1.2 1.2 0 0 0 12 10.8Z" />
+                       <path d="M12 5c5.6 0 10 6.2 10 7s-4.4 7-10 7S2 12.8 2 12s4.4-7 10-7Zm0 2c-3.9 0-7.1 3.8-7.9 5 .8 1.2 4 5 7.9 5s7.1-3.8 7.9-5c-.8-1.2-4-5-7.9-5Zm0 1.8A3.2 3.2 0 1 1 8.8 12 3.2 3.2 0 0 1 12 8.8Zm0 2A1.2 1.2 0 1 0 13.2 12 1.2 1.2 0 0 0 12 10.8Z" />
                       </svg>
                     </button>
-                    <div className="text-xs font-bold uppercase tracking-[0.28em] text-amber-300" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
-                      Tracking
-                    </div>
-                  </div>
-                ) : null}
+                     <div>
+                       <div className="text-xs font-bold uppercase tracking-[0.28em] text-amber-300" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+                         Tracking
+                       </div>
+                       <div className="mt-1 text-sm text-neutral-400">
+                         Updated: {updatedAt ? formatUpdatedAt(updatedAt) : "--"}
+                       </div>
+                     </div>
+                   </div>
+                 ) : null}
                 <h2
                   className={`text-center font-semibold ${
                     story.urgent ? "text-3xl tracking-wide text-red-400 md:text-4xl" : "text-2xl"

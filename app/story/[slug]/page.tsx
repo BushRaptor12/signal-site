@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { formatUpdatedAt } from "@/app/lib/dates";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
@@ -94,6 +95,8 @@ export default async function StoryPage({
     );
   }
 
+  const updatedAt = story.updated_at ?? story.created_at ?? null;
+
   return (
     <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
       <ViewTracker slug={slug} />
@@ -128,7 +131,14 @@ export default async function StoryPage({
 
         <div className="mt-8">
           <div className="flex items-end justify-between">
-            <h2 className="text-lg font-semibold">Coverage</h2>
+            <div>
+              <h2 className="text-lg font-semibold">Coverage</h2>
+              {story.pinned ? (
+                <p className="mt-1 text-sm text-neutral-400">
+                  Updated: {updatedAt ? formatUpdatedAt(updatedAt) : "--"}
+                </p>
+              ) : null}
+            </div>
             <p className="text-sm text-neutral-400">Multiple sources, one story block.</p>
           </div>
 
