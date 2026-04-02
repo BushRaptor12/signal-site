@@ -12,6 +12,7 @@ type TabKey = "popular" | "recent" | string;
 const PINNED_KEY = "signal:pinnedTags:v1";
 const ACTIVE_KEY = "signal:activeTab:v2";
 const INITIAL_NOW_MS = Date.now();
+const STORY_BATCH_SIZE = 10;
 
 function getInitialPinned(): string[] {
   const defaultPinned = TOPICS.map((topic) => normalize(topic)).filter(Boolean);
@@ -86,6 +87,7 @@ export default function Home() {
   const [showManager, setShowManager] = useState(false);
   const [newTag, setNewTag] = useState("");
   const [ghostTab, setGhostTab] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(STORY_BATCH_SIZE);
 
   useEffect(() => {
     try {
@@ -101,6 +103,10 @@ export default function Home() {
     } catch {
       // ignore
     }
+  }, [activeTab]);
+
+  useEffect(() => {
+    setVisibleCount(STORY_BATCH_SIZE);
   }, [activeTab]);
 
   useEffect(() => {
@@ -190,6 +196,9 @@ export default function Home() {
 
     return recent.filter((story) => storyMatchesTab(story, String(activeTab)));
   }, [stories, activeTab, storyMatchesTab]);
+
+  const visibleStories = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
+  const canLoadMore = visibleCount < visible.length;
 
   function togglePin(tag: string) {
     const t = normalize(tag);
@@ -396,7 +405,7 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          visible.map((story) => (
+          visibleStories.map((story) => (
             <Link
               key={story.id}
               href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
@@ -458,6 +467,17 @@ export default function Home() {
           ))
         )}
       </div>
+
+      {!isLoading && canLoadMore ? (
+        <div className="mx-auto mt-8 flex max-w-4xl justify-center">
+          <button
+            onClick={() => setVisibleCount((count) => count + STORY_BATCH_SIZE)}
+            className="rounded-2xl border border-[#8f7740]/70 bg-[var(--surface)] px-8 py-4 text-base font-semibold text-neutral-100 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#b89a55] hover:bg-[#07101a] hover:text-white"
+          >
+            Read more
+          </button>
+        </div>
+      ) : null}
     </main>
   );
 }
