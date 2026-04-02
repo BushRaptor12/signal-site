@@ -14,13 +14,17 @@ const ACTIVE_KEY = "signal:activeTab:v2";
 const INITIAL_NOW_MS = Date.now();
 
 function getInitialPinned(): string[] {
+  const defaultPinned = TOPICS.map((topic) => normalize(topic)).filter(Boolean);
   if (typeof window === "undefined") return [];
   try {
-    const parsed = JSON.parse(localStorage.getItem(PINNED_KEY) || "[]") as unknown;
-    if (!Array.isArray(parsed)) return [];
+    const raw = localStorage.getItem(PINNED_KEY);
+    if (!raw) return defaultPinned;
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return defaultPinned;
     return parsed.map((v) => normalize(String(v))).filter(Boolean);
   } catch {
-    return [];
+    return defaultPinned;
   }
 }
 

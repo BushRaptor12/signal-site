@@ -148,7 +148,7 @@ export default async function StoryPage({
                 </p>
               ) : null}
             </div>
-            <p className="text-sm text-neutral-400">Multiple sources, one story block.</p>
+            <p className="text-sm text-neutral-400">Multiple sources, one story.</p>
           </div>
 
           <div className="mt-4 space-y-3">
