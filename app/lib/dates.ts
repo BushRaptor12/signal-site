@@ -18,3 +18,17 @@ export function formatUpdatedAt(value: string) {
     timeZone: "America/New_York",
   }).format(date);
 }
+
+export function formatUpdatedAgo(value: string, nowMs = Date.now()) {
+  const updatedMs = new Date(value).getTime();
+  if (Number.isNaN(updatedMs)) return "recently";
+
+  const diffMs = Math.max(0, nowMs - updatedMs);
+  const diffMinutes = Math.floor(diffMs / 60_000);
+
+  if (diffMinutes < 1) return "just now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  return `${diffHours}h ago`;
+}
