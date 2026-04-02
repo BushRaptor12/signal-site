@@ -144,6 +144,7 @@ export default function Home() {
     () => [...stories].filter((story) => story.pinned).sort((a, b) => updatedAtMs(b) - updatedAtMs(a)),
     [stories]
   );
+  const hasMultipleTrackingStories = trackingStories.length > 1;
 
   const tabs = useMemo(() => {
     const baseTabs = [
@@ -225,17 +226,31 @@ export default function Home() {
           </Link>
         </div>
         {trackingStories.length > 0 ? (
-          <div className="mt-4 flex flex-col items-center gap-3">
+          <div
+            className={`mt-4 ${
+              hasMultipleTrackingStories
+                ? "flex w-full max-w-4xl items-stretch justify-center gap-3"
+                : "flex flex-col items-center gap-3"
+            }`}
+          >
             {trackingStories.map((story) => {
               const updatedAt = story.content_updated_at ?? story.created_at ?? story.date;
               return (
                 <Link
                   key={story.id}
                   href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
-                  className="w-full max-w-[32rem] rounded-2xl border border-[#8f7740]/60 bg-[var(--surface)] px-6 py-3 text-center shadow-[0_18px_45px_rgba(0,0,0,0.28)] transition hover:border-[#b89a55] hover:bg-[#07101a] hover:text-white"
+                  className={`rounded-2xl border border-[#8f7740]/60 bg-[var(--surface)] text-center shadow-[0_18px_45px_rgba(0,0,0,0.28)] transition hover:border-[#b89a55] hover:bg-[#07101a] hover:text-white ${
+                    hasMultipleTrackingStories
+                      ? "min-w-0 flex-1 px-4 py-3"
+                      : "w-full max-w-[32rem] px-6 py-3"
+                  }`}
                 >
-                  <div className="text-sm font-semibold text-neutral-100">{story.title}</div>
-                  <div className="mt-1 text-xs text-neutral-400">Updated {formatUpdatedAgo(updatedAt)}</div>
+                  <div className={hasMultipleTrackingStories ? "text-[13px] font-semibold leading-snug text-neutral-100" : "text-sm font-semibold text-neutral-100"}>
+                    {story.title}
+                  </div>
+                  <div className={`mt-1 text-neutral-400 ${hasMultipleTrackingStories ? "text-[11px]" : "text-xs"}`}>
+                    Updated {formatUpdatedAgo(updatedAt)}
+                  </div>
                 </Link>
               );
             })}
