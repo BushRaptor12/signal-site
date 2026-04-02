@@ -225,37 +225,6 @@ export default function Home() {
             Read The Briefing
           </Link>
         </div>
-        {trackingStories.length > 0 ? (
-          <div
-            className={`mt-4 ${
-              hasMultipleTrackingStories
-                ? "flex w-full max-w-4xl items-stretch justify-center gap-3"
-                : "flex flex-col items-center gap-3"
-            }`}
-          >
-            {trackingStories.map((story) => {
-              const updatedAt = story.content_updated_at ?? story.created_at ?? story.date;
-              return (
-                <Link
-                  key={story.id}
-                  href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
-                  className={`rounded-2xl border border-[#8f7740]/60 bg-[var(--surface)] text-center shadow-[0_18px_45px_rgba(0,0,0,0.28)] transition hover:border-[#b89a55] hover:bg-[#07101a] hover:text-white ${
-                    hasMultipleTrackingStories
-                      ? "min-w-0 flex-1 px-4 py-3"
-                      : "w-full max-w-[32rem] px-6 py-3"
-                  }`}
-                >
-                  <div className={hasMultipleTrackingStories ? "text-[13px] font-semibold leading-snug text-neutral-100" : "text-sm font-semibold text-neutral-100"}>
-                    {story.title}
-                  </div>
-                  <div className={`mt-1 text-neutral-400 ${hasMultipleTrackingStories ? "text-[11px]" : "text-xs"}`}>
-                    Updated {formatUpdatedAgo(updatedAt)}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        ) : null}
       </div>
 
       <div className="max-w-4xl mx-auto mb-4 flex items-center justify-between gap-4">
@@ -298,6 +267,40 @@ export default function Home() {
           {showManager ? "Done" : "Edit tabs"}
         </button>
       </div>
+
+      {trackingStories.length > 0 ? (
+        <div className="max-w-4xl mx-auto mb-8">
+          <div
+            className={`${
+              hasMultipleTrackingStories
+                ? "flex w-full items-stretch justify-center gap-3"
+                : "flex flex-col items-center gap-3"
+            }`}
+          >
+            {trackingStories.map((story) => {
+              const updatedAt = story.content_updated_at ?? story.created_at ?? story.date;
+              return (
+                <Link
+                  key={story.id}
+                  href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
+                  className={`rounded-2xl border border-[#8f7740]/60 bg-[var(--surface)] text-center shadow-[0_18px_45px_rgba(0,0,0,0.28)] transition hover:border-[#b89a55] hover:bg-[#07101a] hover:text-white ${
+                    hasMultipleTrackingStories
+                      ? "min-w-0 flex-1 px-4 py-3"
+                      : "w-full max-w-[32rem] px-6 py-3"
+                  }`}
+                >
+                  <div className={hasMultipleTrackingStories ? "text-[13px] font-semibold leading-snug text-neutral-100" : "text-sm font-semibold text-neutral-100"}>
+                    {story.title}
+                  </div>
+                  <div className={`mt-1 text-neutral-400 ${hasMultipleTrackingStories ? "text-[11px]" : "text-xs"}`}>
+                    Updated {formatUpdatedAgo(updatedAt)}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       {showManager && (
         <div className="max-w-4xl mx-auto mb-8 rounded-xl border border-neutral-700 bg-[var(--surface)] p-6">
