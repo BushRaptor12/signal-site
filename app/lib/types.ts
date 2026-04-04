@@ -4,6 +4,7 @@ export type Source = {
   name: string;
   url: string;
   lean: Lean;
+  title?: string | null;
 };
 
 export type Entity = {
@@ -17,6 +18,8 @@ export type Story = {
   summary: string[];
   sources: Source[];
   date: string; // YYYY-MM-DD
+  image_url?: string | null;
+  image_path?: string | null;
   urgent: boolean;
   beacon_include: boolean;
   beacon_rank?: number | null;

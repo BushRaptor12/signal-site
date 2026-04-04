@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
+import { deleteStoryImage } from "@/app/lib/story-images";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 
@@ -40,8 +41,17 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const supabase = supabaseServer();
     const id = (await params).id;
 
+    const { data: existing, error: existingError } = await supabase
+      .from("stories")
+      .select("image_path")
+      .eq("id", id)
+      .maybeSingle();
+    if (existingError) throw existingError;
+
     const { error } = await supabase.from("stories").delete().eq("id", id);
     if (error) throw error;
+
+    await deleteStoryImage(supabase, existing?.image_path ?? null);
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {

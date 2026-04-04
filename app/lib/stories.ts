@@ -6,6 +6,8 @@ export type StoryDbRow = {
   summary: unknown;
   sources: unknown;
   date: string;
+  image_url?: string | null;
+  image_path?: string | null;
   views?: number | null;
   urgent?: boolean | null;
   pinned?: boolean | null;
@@ -35,7 +37,12 @@ export function toSources(value: unknown): Source[] {
       const row = item as Partial<Source>;
       if (!row.name || !row.url || !row.lean) return null;
       if (row.lean !== "Left" && row.lean !== "Center" && row.lean !== "Right") return null;
-      return { name: String(row.name), url: String(row.url), lean: row.lean };
+      return {
+        name: String(row.name),
+        url: String(row.url),
+        lean: row.lean,
+        title: toNullableString(row.title),
+      };
     })
     .filter((item): item is Source => Boolean(item));
 }
@@ -87,6 +94,8 @@ export function coerceStory(row: StoryDbRow): StoryWithViews {
     summary: toStringArray(row.summary),
     sources: toSources(row.sources),
     date: row.date,
+    image_url: toNullableString(row.image_url),
+    image_path: toNullableString(row.image_path),
     created_at: row.created_at ?? undefined,
     updated_at: row.updated_at ?? undefined,
     content_updated_at: row.content_updated_at ?? undefined,

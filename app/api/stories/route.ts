@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
+import { deleteStoryImage, isStoryImagePath, storyImagePublicUrl } from "@/app/lib/story-images";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { StoryWithViews } from "@/app/lib/types";
 import {
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
     const nowIso = new Date().toISOString();
     const { data: existingData, error: existingError } = await supabase
       .from("stories")
-      .select("beacon_include, beacon_rank, summary, sources, content_updated_at, updated_at, created_at")
+      .select("beacon_include, beacon_rank, summary, sources, image_path, content_updated_at, updated_at, created_at")
       .eq("id", String(incoming.id))
       .maybeSingle();
     if (existingError) throw existingError;
@@ -65,6 +66,7 @@ export async function POST(req: Request) {
       beacon_rank?: number | null;
       summary?: unknown;
       sources?: unknown;
+      image_path?: string | null;
       content_updated_at?: string | null;
       updated_at?: string | null;
       created_at?: string | null;
@@ -72,10 +74,17 @@ export async function POST(req: Request) {
     let beaconRank = toNullableNumber(incoming.beacon_rank);
     const normalizedSummary = toStringArray(incoming.summary);
     const normalizedSources = toSources(incoming.sources);
+    const normalizedImagePath = toNullableString(incoming.image_path);
+    if (normalizedImagePath && !isStoryImagePath(normalizedImagePath)) {
+      return NextResponse.json({ error: "Invalid story image path." }, { status: 400 });
+    }
+
+    const normalizedImageUrl = normalizedImagePath ? storyImagePublicUrl(supabase, normalizedImagePath) : null;
     const contentChanged =
       !existing ||
       JSON.stringify(toStringArray(existing.summary)) !== JSON.stringify(normalizedSummary) ||
-      JSON.stringify(toSources(existing.sources)) !== JSON.stringify(normalizedSources);
+      JSON.stringify(toSources(existing.sources)) !== JSON.stringify(normalizedSources) ||
+      toNullableString(existing.image_path) !== normalizedImagePath;
     const contentUpdatedAt =
       contentChanged
         ? nowIso
@@ -111,6 +120,8 @@ export async function POST(req: Request) {
       summary: normalizedSummary,
       sources: normalizedSources,
       date: String(incoming.date),
+      image_path: normalizedImagePath,
+      image_url: normalizedImageUrl,
       topics: toStringArray(incoming.topics),
       tags: toStringArray(incoming.tags),
       entities: toEntities(incoming.entities),
@@ -127,6 +138,11 @@ export async function POST(req: Request) {
 
     const { error } = await supabase.from("stories").upsert(story, { onConflict: "id" });
     if (error) throw error;
+
+    const existingImagePath = toNullableString(existing?.image_path);
+    if (existingImagePath && existingImagePath !== normalizedImagePath) {
+      await deleteStoryImage(supabase, existingImagePath);
+    }
 
     return NextResponse.json({ ok: true, story });
   } catch (e: unknown) {

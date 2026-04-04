@@ -413,14 +413,28 @@ export default function Home() {
             >
                 <div
                  className={`rounded-2xl border p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
-                   story.urgent
-                     ? "border-red-500/70 hover:border-red-400"
-                     : "border-[#0d2438] hover:border-[#163754]"
-                 } bg-[var(--surface)] relative`}
-               >
-                 <h2
-                   className={`text-center font-semibold ${
-                     story.urgent ? "text-3xl tracking-wide text-red-400 md:text-4xl" : "text-2xl"
+                    story.urgent
+                      ? "border-red-500/70 hover:border-red-400"
+                      : "border-[#0d2438] hover:border-[#163754]"
+                  } bg-[var(--surface)] relative`}
+                >
+                  {story.image_url ? (
+                    <div className="mb-6 overflow-hidden rounded-xl border border-[#163754]/60 bg-[#020b14]">
+                      <div className="relative aspect-[16/10]">
+                        <Image
+                          src={story.image_url}
+                          alt={story.title}
+                          fill
+                          sizes="(max-width: 768px) 100vw, 896px"
+                          className="object-cover"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <h2
+                    className={`text-center font-semibold ${
+                      story.urgent ? "text-3xl tracking-wide text-red-400 md:text-4xl" : "text-2xl"
                    }`}
                  >
                    {story.title}

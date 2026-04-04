@@ -3,6 +3,11 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+function messageFromError(e: unknown) {
+  if (e instanceof Error) return e.message;
+  return String(e);
+}
+
 function normalize(s: string) {
   return String(s).trim();
 }
@@ -45,7 +50,7 @@ export async function PATCH(
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, entity: data });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: messageFromError(e) }, { status: 500 });
   }
 }
