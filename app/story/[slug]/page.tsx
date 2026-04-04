@@ -167,9 +167,9 @@ export default async function StoryPage({
                       {src.lean}
                     </span>
                     {src.title ? (
-                      <div className="relative min-w-0 flex-1 overflow-hidden whitespace-nowrap pr-12 text-sm text-neutral-400">
+                      <div className="relative min-w-0 flex-1 overflow-hidden whitespace-nowrap pr-20 text-sm text-neutral-400">
                         <span className="block overflow-hidden whitespace-nowrap">{src.title}</span>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 w-20 bg-gradient-to-r from-transparent to-[#020b14] transition-colors group-hover:to-[#03101b]" />
+                        <div className="pointer-events-none absolute inset-y-0 right-0 w-32 bg-gradient-to-r from-transparent via-[#020b14]/65 to-[#020b14] transition-colors group-hover:via-[#03101b]/65 group-hover:to-[#03101b]" />
                       </div>
                     ) : null}
                   </div>
