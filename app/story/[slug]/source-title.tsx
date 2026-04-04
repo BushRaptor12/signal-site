@@ -7,33 +7,56 @@ type SourceTitleProps = {
   className?: string;
 };
 
-function trimToWordBoundary(title: string, maxWidth: number, font: string) {
+function measureTextWidth(text: string, sourceElement: HTMLElement) {
+  if (typeof window === "undefined") return text.length;
+  const computed = window.getComputedStyle(sourceElement);
+  const measurer = document.createElement("span");
+
+  measurer.style.position = "absolute";
+  measurer.style.visibility = "hidden";
+  measurer.style.pointerEvents = "none";
+  measurer.style.whiteSpace = "nowrap";
+  measurer.style.font = computed.font;
+  measurer.style.fontFamily = computed.fontFamily;
+  measurer.style.fontSize = computed.fontSize;
+  measurer.style.fontWeight = computed.fontWeight;
+  measurer.style.letterSpacing = computed.letterSpacing;
+  measurer.style.textTransform = computed.textTransform;
+  measurer.textContent = text;
+
+  document.body.appendChild(measurer);
+  const width = measurer.getBoundingClientRect().width;
+  document.body.removeChild(measurer);
+
+  return width;
+}
+
+function trimToWordBoundary(title: string, maxWidth: number, element: HTMLElement) {
   if (typeof window === "undefined") return title;
-
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
-  if (!context) return title;
-
-  context.font = font;
-
-  if (context.measureText(title).width <= maxWidth) {
+  if (measureTextWidth(title, element) <= maxWidth) {
     return title;
   }
 
   const ellipsis = "...";
-  const ellipsisWidth = context.measureText(ellipsis).width;
+  const ellipsisWidth = measureTextWidth(ellipsis, element);
   const words = title.trim().split(/\s+/).filter(Boolean);
 
   if (words.length === 0) return ellipsis;
 
+  let low = 0;
+  let high = words.length;
   let fitted = "";
 
-  for (const word of words) {
-    const candidate = fitted ? `${fitted} ${word}` : word;
-    if (context.measureText(candidate).width + ellipsisWidth > maxWidth) {
-      break;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    const candidate = words.slice(0, mid).join(" ");
+
+    if (measureTextWidth(candidate, element) + ellipsisWidth <= maxWidth) {
+      fitted = candidate;
+      low = mid;
+    } else {
+      high = mid - 1;
     }
-    fitted = candidate;
   }
 
   if (!fitted) {
@@ -52,20 +75,7 @@ export default function SourceTitle({ title, className }: SourceTitleProps) {
     if (!element) return;
 
     const updateTitle = () => {
-      const computed = window.getComputedStyle(element);
-      const font = [
-        computed.fontStyle,
-        computed.fontVariant,
-        computed.fontWeight,
-        computed.fontStretch,
-        computed.fontSize,
-        computed.lineHeight === "normal" ? "" : `/${computed.lineHeight}`,
-        computed.fontFamily,
-      ]
-        .filter(Boolean)
-        .join(" ");
-
-      setDisplayTitle(trimToWordBoundary(title, element.clientWidth, font));
+      setDisplayTitle(trimToWordBoundary(title, element.clientWidth, element));
     };
 
     updateTitle();
