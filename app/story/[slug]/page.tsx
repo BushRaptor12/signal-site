@@ -7,6 +7,7 @@ import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
 import ViewTracker from "./view-tracker";
 import ReactionBar from "./reaction-bar";
+import SourceTitle from "./source-title";
 import ShareButton from "@/app/share-button";
 
 function leanBadgeClasses(lean: "Left" | "Center" | "Right") {
@@ -158,7 +159,7 @@ export default async function StoryPage({
                 href={src.url}
                 target="_blank"
                 rel="noreferrer"
-                className="group block rounded-2xl border border-[#0d2438] bg-[#020b14] p-5 transition hover:border-[#163754] hover:bg-[#03101b]"
+                className="block rounded-2xl border border-[#0d2438] bg-[#020b14] p-5 transition hover:border-[#163754] hover:bg-[#03101b]"
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0 flex flex-1 items-center gap-3">
@@ -167,10 +168,10 @@ export default async function StoryPage({
                       {src.lean}
                     </span>
                     {src.title ? (
-                      <div className="relative min-w-0 flex-1 overflow-hidden whitespace-nowrap pr-20 text-sm text-neutral-400">
-                        <span className="block overflow-hidden whitespace-nowrap">{src.title}</span>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 w-32 bg-gradient-to-r from-transparent via-[#020b14]/65 to-[#020b14] transition-colors group-hover:via-[#03101b]/65 group-hover:to-[#03101b]" />
-                      </div>
+                      <SourceTitle
+                        title={src.title}
+                        className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-sm text-neutral-400"
+                      />
                     ) : null}
                   </div>
                   <div className="shrink-0 text-sm text-neutral-400">Read -&gt;</div>
