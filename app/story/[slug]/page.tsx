@@ -158,24 +158,22 @@ export default async function StoryPage({
                 href={src.url}
                 target="_blank"
                 rel="noreferrer"
-                className="block rounded-2xl border border-[#0d2438] bg-[#020b14] p-5 transition hover:border-[#163754] hover:bg-[#03101b]"
+                className="group block rounded-2xl border border-[#0d2438] bg-[#020b14] p-5 transition hover:border-[#163754] hover:bg-[#03101b]"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="text-base font-medium">{src.name}</div>
-                      <span className={`text-xs px-2 py-1 rounded-full ${leanBadgeClasses(src.lean)}`}>
-                        {src.lean}
-                      </span>
-                    </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0 flex flex-1 items-center gap-3">
+                    <div className="shrink-0 text-base font-medium">{src.name}</div>
+                    <span className={`shrink-0 text-xs px-2 py-1 rounded-full ${leanBadgeClasses(src.lean)}`}>
+                      {src.lean}
+                    </span>
                     {src.title ? (
-                      <div className="relative mt-2 overflow-hidden whitespace-nowrap pr-12 text-sm text-neutral-400">
+                      <div className="relative min-w-0 flex-1 overflow-hidden whitespace-nowrap pr-12 text-sm text-neutral-400">
                         <span className="block overflow-hidden whitespace-nowrap">{src.title}</span>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 w-20 bg-gradient-to-r from-transparent to-[#020b14]" />
+                        <div className="pointer-events-none absolute inset-y-0 right-0 w-20 bg-gradient-to-r from-transparent to-[#020b14] transition-colors group-hover:to-[#03101b]" />
                       </div>
                     ) : null}
                   </div>
-                  <div className="shrink-0 pt-0.5 text-sm text-neutral-400">Read -&gt;</div>
+                  <div className="shrink-0 text-sm text-neutral-400">Read -&gt;</div>
                 </div>
               </a>
             ))}
