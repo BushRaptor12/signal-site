@@ -31,20 +31,24 @@ export function toStringArray(value: unknown): string[] {
 
 export function toSources(value: unknown): Source[] {
   if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => {
-      if (typeof item !== "object" || item === null) return null;
-      const row = item as Partial<Source>;
-      if (!row.name || !row.url || !row.lean) return null;
-      if (row.lean !== "Left" && row.lean !== "Center" && row.lean !== "Right") return null;
-      return {
-        name: String(row.name),
-        url: String(row.url),
-        lean: row.lean,
-        title: toNullableString(row.title),
-      };
-    })
-    .filter((item): item is Source => Boolean(item));
+  const sources: Source[] = [];
+
+  for (const item of value) {
+    if (typeof item !== "object" || item === null) continue;
+
+    const row = item as Partial<Source>;
+    if (!row.name || !row.url || !row.lean) continue;
+    if (row.lean !== "Left" && row.lean !== "Center" && row.lean !== "Right") continue;
+
+    sources.push({
+      name: String(row.name),
+      url: String(row.url),
+      lean: row.lean,
+      title: toNullableString(row.title),
+    });
+  }
+
+  return sources;
 }
 
 export function toEntities(value: unknown): Entity[] {
