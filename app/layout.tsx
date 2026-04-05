@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: {
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer className="border-t border-[#0d2438] bg-[var(--surface)] px-6 py-4 text-center text-sm text-neutral-400">
           &copy; 2026 The Beacon. All rights reserved.
         </footer>
+        <Analytics />
       </body>
     </html>
   );
