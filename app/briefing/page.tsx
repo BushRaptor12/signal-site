@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
+import { DEFAULT_OG_IMAGE, SITE_NAME, trimDescription } from "@/app/lib/seo";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
@@ -10,6 +11,29 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const metadata: Metadata = {
   title: "The Briefing",
+  description: trimDescription("The Beacon's ranked briefing of the most important stories and latest updates."),
+  alternates: {
+    canonical: "/briefing",
+  },
+  openGraph: {
+    type: "website",
+    url: "/briefing",
+    title: `The Briefing | ${SITE_NAME}`,
+    description: trimDescription("The Beacon's ranked briefing of the most important stories and latest updates."),
+    siteName: SITE_NAME,
+    images: [
+      {
+        url: DEFAULT_OG_IMAGE,
+        alt: "The Briefing",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `The Briefing | ${SITE_NAME}`,
+    description: trimDescription("The Beacon's ranked briefing of the most important stories and latest updates."),
+    images: [DEFAULT_OG_IMAGE],
+  },
 };
 
 function displayHeadline(story: StoryWithViews) {

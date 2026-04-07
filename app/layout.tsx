@@ -1,13 +1,39 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Analytics } from "@vercel/analytics/next";
+import { DEFAULT_OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, getSiteUrl } from "@/app/lib/seo";
 
 export const metadata: Metadata = {
+  metadataBase: getSiteUrl(),
+  applicationName: SITE_NAME,
   title: {
-    default: "The Beacon",
-    template: "%s | The Beacon",
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
   },
-  description: "Multi-source news. Clear perspective.",
+  description: SITE_DESCRIPTION,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    url: "/",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    siteName: SITE_NAME,
+    images: [
+      {
+        url: DEFAULT_OG_IMAGE,
+        alt: SITE_NAME,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    images: [DEFAULT_OG_IMAGE],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -16,7 +42,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="flex min-h-screen flex-col">
         <div className="flex-1">{children}</div>
         <footer className="border-t border-[#0d2438] bg-[var(--surface)] px-6 py-4 text-center text-sm text-neutral-400">
-          &copy; 2026 The Beacon. All rights reserved.
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+            <span>&copy; 2026 The Beacon. All rights reserved.</span>
+            <Link href="/privacy" className="text-neutral-300 transition hover:text-white">
+              Privacy Policy
+            </Link>
+          </div>
         </footer>
         <Analytics />
       </body>

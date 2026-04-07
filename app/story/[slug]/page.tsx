@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { formatUpdatedAt } from "@/app/lib/dates";
+import { SITE_NAME, absoluteUrl, buildStoryMetadata, storyDescription, storyKeywords, storyModifiedTime, storyPublishedTime } from "@/app/lib/seo";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
@@ -43,15 +44,21 @@ export async function generateMetadata({
     if (!story) {
       return {
         title: "Story",
+        robots: {
+          index: false,
+          follow: false,
+        },
       };
     }
 
-    return {
-      title: story.title,
-    };
+    return buildStoryMetadata(story);
   } catch {
     return {
       title: "Story",
+      robots: {
+        index: false,
+        follow: false,
+      },
     };
   }
 }
@@ -98,9 +105,42 @@ export default async function StoryPage({
   }
 
   const updatedAt = story.content_updated_at ?? story.created_at ?? null;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: story.title,
+    description: storyDescription(story),
+    datePublished: storyPublishedTime(story),
+    dateModified: storyModifiedTime(story),
+    mainEntityOfPage: absoluteUrl(`/story/${story.id}`),
+    isAccessibleForFree: true,
+    image: story.image_url ? [story.image_url] : undefined,
+    articleSection: story.topics,
+    keywords: storyKeywords(story).join(", "),
+    about: story.primary_entities.map((entity) => ({
+      "@type": "Thing",
+      name: entity,
+    })),
+    author: {
+      "@type": "Organization",
+      name: SITE_NAME,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      logo: {
+        "@type": "ImageObject",
+        url: absoluteUrl("/small logo.png"),
+      },
+    },
+  };
 
   return (
     <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <ViewTracker slug={slug} />
       <div className="max-w-3xl mx-auto">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
