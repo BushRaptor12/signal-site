@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   },
 };
 
-const LAST_UPDATED = "April 6, 2026";
+const LAST_UPDATED = "April 7, 2026";
 
 const sections = [
   {
@@ -86,7 +86,7 @@ const sections = [
     paragraphs: [
       "You can browse much of the site without creating an account or directly submitting identifying information.",
       "You can avoid using reaction features, clear cookies and browser storage, or use browser privacy controls to limit certain types of tracking.",
-      "Depending on where you live, you may have privacy rights under applicable law, such as rights to request access to or deletion of certain information. Because the public site does not currently include a dedicated account portal or request form, any privacy request will need to be handled through the contact channel made available by the operator of this site.",
+      "Depending on where you live, you may have privacy rights under applicable law, such as rights to request access to or deletion of certain information. Because the public site does not currently include a dedicated account portal or request form, privacy requests may be sent to contact@readthebeacon.news.",
     ],
   },
   {
@@ -118,7 +118,7 @@ const sections = [
   {
     title: "Contact",
     paragraphs: [
-      "Privacy questions or requests may be directed to the contact method made available by The Beacon.",
+      "Privacy questions or requests may be directed to contact@readthebeacon.news.",
     ],
   },
 ] as const;

@@ -90,10 +90,13 @@ export default async function StoryPage({
     return (
       <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
         <div className="max-w-3xl mx-auto">
-          <Link href={backHref} className="text-neutral-300 hover:text-white transition">
-            {"<- Back"}
+          <Link
+            href={backHref}
+            className="inline-flex rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
+          >
+            Back
           </Link>
-          <div className="mt-10 rounded-2xl border border-[#0d2438] bg-[#020b14] p-8">
+          <div className="mt-10 rounded-2xl border border-[#15324d] bg-[#03101b] p-8 shadow-[0_18px_44px_rgba(0,0,0,0.22)]">
             <h1 className="text-2xl font-semibold">Story not found</h1>
             <p className="text-neutral-400 mt-2">
               {`This story is not available: ${slug}`}
@@ -144,30 +147,35 @@ export default async function StoryPage({
       <ViewTracker slug={slug} />
       <div className="max-w-3xl mx-auto">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-          <Link href={backHref} className="text-neutral-300 hover:text-white transition">
-            {"<- Back"}
+          <Link
+            href={backHref}
+            className="inline-flex rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
+          >
+            Back
           </Link>
-          <Image
-            src="/small logo.png"
-            alt="Signal logo"
-            width={600}
-            height={140}
-            priority
-            className="h-auto w-[144px] justify-self-center md:w-[168px]"
-          />
-          <div className="justify-self-end text-sm text-neutral-400">
+          <Link href="/" aria-label="Go to The Beacon home page" className="justify-self-center">
+            <Image
+              src="/small logo.png"
+              alt="Signal logo"
+              width={600}
+              height={140}
+              priority
+              className="h-auto w-[144px] md:w-[168px]"
+            />
+          </Link>
+          <div className="justify-self-end text-sm text-neutral-500">
             {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
           </div>
         </div>
 
-        <div className="relative mt-8 rounded-2xl border border-[#0d2438] bg-[#020b14] p-8 pb-12">
+        <div className="relative mt-8 rounded-2xl border border-[#15324d] bg-[#03101b] p-8 pb-12 shadow-[0_22px_55px_rgba(0,0,0,0.24)]">
           <h1 className="text-3xl font-semibold leading-tight">{story.title}</h1>
 
           <div className="mt-6">
-            <h2 className="text-sm font-medium text-neutral-300 uppercase tracking-wide">Summary</h2>
-            <div className="mt-3 space-y-2 text-neutral-300">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">Summary</h2>
+            <div className="mt-4 space-y-3 text-[1.05rem] text-neutral-200">
               {story.summary.map((point, i) => (
-                <p key={i} className="leading-relaxed">
+                <p key={i} className="leading-8">
                   {point}
                 </p>
               ))}
@@ -180,16 +188,16 @@ export default async function StoryPage({
         </div>
 
         <div className="mt-8">
-          <div className="flex items-end justify-between">
+          <div className="flex items-end justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold">Coverage</h2>
               {story.pinned ? (
-                <p className="mt-1 text-sm text-neutral-400">
+                <p className="mt-1 text-sm text-neutral-500">
                   Updated: {updatedAt ? formatUpdatedAt(updatedAt) : "--"}
                 </p>
               ) : null}
             </div>
-            <p className="text-sm text-neutral-400">Multiple sources, one story.</p>
+            <p className="text-sm text-neutral-500">Multiple sources, one story.</p>
           </div>
 
           <div className="mt-4 space-y-3">
@@ -199,29 +207,29 @@ export default async function StoryPage({
                 href={src.url}
                 target="_blank"
                 rel="noreferrer"
-                className="block rounded-2xl border border-[#0d2438] bg-[#020b14] p-5 transition hover:border-[#163754] hover:bg-[#03101b]"
+                className="group block rounded-2xl border border-[#13314b] bg-[#03101b] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:border-[#21496b] hover:bg-[#041524] hover:shadow-[0_16px_38px_rgba(0,0,0,0.2)]"
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0 flex flex-1 items-center gap-3">
-                    <div className="shrink-0 text-base font-medium">{src.name}</div>
+                    <div className="shrink-0 text-base font-semibold text-neutral-100">{src.name}</div>
                     <span className={`shrink-0 text-xs px-2 py-1 rounded-full ${leanBadgeClasses(src.lean)}`}>
                       {src.lean}
                     </span>
                     {src.title ? (
                       <SourceTitle
                         title={src.title}
-                        className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-sm text-neutral-400"
+                        className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-sm text-neutral-300 transition group-hover:text-neutral-200"
                       />
                     ) : null}
                   </div>
-                  <div className="shrink-0 text-sm text-neutral-400">Read -&gt;</div>
+                  <div className="shrink-0 text-sm text-neutral-500 transition group-hover:text-neutral-300">Read -&gt;</div>
                 </div>
               </a>
             ))}
           </div>
         </div>
 
-        <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[#020b14] p-6">
+        <div className="mt-8 rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
           <div className="flex items-end justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold">Reactions</h2>
@@ -233,7 +241,7 @@ export default async function StoryPage({
           </div>
         </div>
 
-        <div className="mt-10 rounded-2xl border border-[#0d2438] bg-[#020b14] p-8">
+        <div className="mt-10 rounded-2xl border border-[#13314b] bg-[#03101b] p-8 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
           <h2 className="text-lg font-semibold">Comments</h2>
           <p className="text-neutral-400 mt-2">Coming next.</p>
         </div>

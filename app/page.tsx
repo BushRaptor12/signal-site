@@ -219,14 +219,16 @@ export default function Home() {
     <main className="min-h-screen bg-transparent p-8 text-neutral-100">
       <div className="max-w-4xl mx-auto mb-8">
         <div className="flex flex-col items-center text-center">
+          <Link href="/" aria-label="Go to The Beacon home page">
             <Image
               src="/psbeacon.png"
               alt="The Briefing"
               width={1920}
               height={1080}
               priority
-            className="h-auto w-full max-w-[420px] md:max-w-[520px]"
-          />
+              className="h-auto w-full max-w-[420px] md:max-w-[520px]"
+            />
+          </Link>
           <p className="mt-3 text-neutral-400">Multi-source news. Clear perspective.</p>
         </div>
         <div className="mt-8 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80" />

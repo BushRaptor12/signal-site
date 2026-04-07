@@ -47,6 +47,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/privacy" className="text-neutral-300 transition hover:text-white">
               Privacy Policy
             </Link>
+            <a href="mailto:contact@readthebeacon.news" className="text-neutral-300 transition hover:text-white">
+              Contact
+            </a>
           </div>
         </footer>
         <Analytics />
