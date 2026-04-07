@@ -153,16 +153,19 @@ export default async function StoryPage({
           >
             Back
           </Link>
-          <Link href="/" aria-label="Go to The Beacon home page" className="justify-self-center">
-            <Image
-              src="/small logo.png"
-              alt="Signal logo"
-              width={600}
-              height={140}
-              priority
-              className="h-auto w-[144px] md:w-[168px]"
-            />
-          </Link>
+          <div className="justify-self-center text-center">
+            <Link href="/" aria-label="Go to The Beacon home page" className="inline-block">
+              <Image
+                src="/small logo.png"
+                alt="Signal logo"
+                width={600}
+                height={140}
+                priority
+                className="h-auto w-[144px] md:w-[168px]"
+              />
+            </Link>
+            <p className="mt-1 text-[11px] text-neutral-500 md:text-xs">Multi-source news. Clear perspective.</p>
+          </div>
           <div className="justify-self-end text-sm text-neutral-500">
             {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
           </div>
