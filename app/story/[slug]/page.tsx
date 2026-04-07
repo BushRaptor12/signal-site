@@ -92,7 +92,7 @@ export default async function StoryPage({
         <div className="max-w-3xl mx-auto">
           <Link
             href={backHref}
-            className="inline-flex rounded-full border border-[#0d2438] bg-[#020b14] px-4 py-1.5 text-xs text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
+            className="inline-flex w-fit rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
           >
             Back
           </Link>
@@ -149,7 +149,7 @@ export default async function StoryPage({
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
           <Link
             href={backHref}
-            className="inline-flex rounded-full border border-[#0d2438] bg-[#020b14] px-4 py-1.5 text-xs text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
+            className="inline-flex w-fit justify-self-start rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
           >
             Back
           </Link>

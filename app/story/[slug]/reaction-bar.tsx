@@ -67,7 +67,7 @@ export default function ReactionBar({ slug }: { slug: string }) {
 
   return (
     <div>
-      <div className="grid grid-cols-6 gap-2.5">
+      <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-8">
         {STORY_REACTIONS.map((reaction) => {
           const selected = summary.selectedReaction === reaction.key;
           const count = summary.counts[reaction.key] ?? 0;
