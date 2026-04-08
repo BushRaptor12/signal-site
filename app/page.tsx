@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { formatStoryDate, formatUpdatedAgo } from "./lib/dates";
+import { formatStoryDate } from "./lib/dates";
 import type { StoryWithViews } from "./lib/types";
 import { TOPICS, normalize, toTitleCase } from "./lib/vocab";
 
@@ -194,7 +194,6 @@ export default function Home() {
     () => [...stories].filter((story) => story.pinned).sort((a, b) => updatedAtMs(b) - updatedAtMs(a)),
     [stories]
   );
-  const hasMultipleTrackingStories = trackingStories.length > 1;
 
   const tabs = useMemo(() => {
     const baseTabs = [
@@ -420,34 +419,17 @@ export default function Home() {
 
       {trackingStories.length > 0 && (activeTab === "popular" || activeTab === "recent") ? (
         <div className="max-w-4xl mx-auto mb-8">
-          <div
-            className={`${
-              hasMultipleTrackingStories
-                ? "flex w-full items-stretch justify-center gap-3"
-                : "flex flex-col items-center gap-3"
-            }`}
-          >
-            {trackingStories.map((story) => {
-              const updatedAt = story.content_updated_at ?? story.created_at ?? story.date;
-              return (
-                <Link
-                  key={story.id}
-                  href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
-                  className={`rounded-2xl border border-[#8f7740]/60 bg-[var(--surface)] text-center shadow-[0_18px_45px_rgba(0,0,0,0.28)] transition hover:border-[#b89a55] hover:bg-[#07101a] hover:text-white ${
-                    hasMultipleTrackingStories
-                      ? "min-w-0 flex-1 px-4 py-3"
-                      : "w-full max-w-[32rem] px-6 py-3"
-                  }`}
-                >
-                  <div className={hasMultipleTrackingStories ? "text-[13px] font-semibold leading-snug text-neutral-100" : "text-sm font-semibold text-neutral-100"}>
-                    {story.title}
-                  </div>
-                  <div className={`mt-1 text-neutral-400 ${hasMultipleTrackingStories ? "text-[11px]" : "text-xs"}`}>
-                    Updated {formatUpdatedAgo(updatedAt)}
-                  </div>
-                </Link>
-              );
-            })}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
+            {trackingStories.map((story) => (
+              <Link
+                key={story.id}
+                href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
+                className="min-w-0 text-sm font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
+              >
+                {story.title}
+              </Link>
+            ))}
           </div>
         </div>
       ) : null}
