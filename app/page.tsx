@@ -32,6 +32,65 @@ const TOP_RANGE_DESCRIPTIONS: Record<TopRange, string> = {
   month: "last 30 days",
 };
 
+function TopRangeDropdown({
+  value,
+  onChange,
+  hidden = false,
+}: {
+  value: TopRange;
+  onChange: (range: TopRange) => void;
+  hidden?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div
+      className={`relative ${hidden ? "pointer-events-none opacity-0" : ""}`}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="inline-flex min-w-[88px] items-center justify-between rounded-full border border-[#0d2438] bg-[#020b14] px-3 py-1.5 text-xs text-[#d7e2ef] transition hover:bg-[#03101b]"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <span>{TOP_RANGE_LABELS[value]}</span>
+        <span className="ml-2 text-[10px]" aria-hidden="true">
+          v
+        </span>
+      </button>
+
+      {open ? (
+        <div className="absolute right-0 z-20 mt-2 min-w-[120px] overflow-hidden rounded-2xl border border-[#163754] bg-[#020b14] shadow-[0_18px_45px_rgba(0,0,0,0.32)]">
+          {(["day", "week", "month"] as TopRange[]).map((range) => (
+            <button
+              key={range}
+              type="button"
+              onClick={() => {
+                onChange(range);
+                setOpen(false);
+              }}
+              className={`block w-full px-4 py-2.5 text-left text-sm transition ${
+                value === range
+                  ? "bg-[#07101a] text-white"
+                  : "text-neutral-300 hover:bg-[#03101b] hover:text-white"
+              }`}
+              role="menuitem"
+            >
+              {TOP_RANGE_LABELS[range]}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function getInitialPinned(): string[] {
   const defaultPinned = TOPICS.map((topic) => normalize(topic)).filter(Boolean);
   if (typeof window === "undefined") return [];
@@ -371,21 +430,7 @@ export default function Home() {
           ) : (
             <div />
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            {(["day", "week", "month"] as TopRange[]).map((range) => (
-              <button
-                key={range}
-                onClick={() => setPopularTopRange(range)}
-                className={`rounded-full border px-3 py-1.5 text-xs transition ${
-                  popularTopRange === range
-                    ? "border-neutral-100 bg-neutral-100 text-neutral-900"
-                    : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
-                }`}
-              >
-                {TOP_RANGE_LABELS[range]}
-              </button>
-            ))}
-          </div>
+          <TopRangeDropdown value={popularTopRange} onChange={setPopularTopRange} />
         </div>
       ) : activeTab !== "recent" ? (
         <div className="max-w-4xl mx-auto mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -405,24 +450,10 @@ export default function Home() {
               </button>
             ))}
           </div>
-          <div className="flex flex-col items-end gap-2">
-            {customSortMode === "top" ? (
-              <div className="flex flex-wrap items-center gap-2">
-                {(["day", "week", "month"] as TopRange[]).map((range) => (
-                  <button
-                    key={range}
-                    onClick={() => setCustomTopRange(range)}
-                    className={`rounded-full border px-3 py-1.5 text-xs transition ${
-                      customTopRange === range
-                        ? "border-neutral-100 bg-neutral-100 text-neutral-900"
-                        : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
-                    }`}
-                  >
-                    {TOP_RANGE_LABELS[range]}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+            <div className="flex flex-col items-end gap-2">
+              {customSortMode === "top" ? (
+                <TopRangeDropdown value={customTopRange} onChange={setCustomTopRange} />
+              ) : null}
             {shouldFallbackToCustomNew ? (
               <div className="text-right text-xs text-neutral-500">
                 No top stories in the {TOP_RANGE_DESCRIPTIONS[customTopRange]}. Showing newest instead.
@@ -446,13 +477,7 @@ export default function Home() {
               </Link>
             ))}
           </div>
-          <div className="flex flex-wrap items-center gap-2 opacity-0">
-            {(["day", "week", "month"] as TopRange[]).map((range) => (
-              <span key={range} className="rounded-full border px-3 py-1.5 text-xs">
-                {TOP_RANGE_LABELS[range]}
-              </span>
-            ))}
-          </div>
+          <TopRangeDropdown value={popularTopRange} onChange={setPopularTopRange} hidden />
         </div>
       ) : null}
 
