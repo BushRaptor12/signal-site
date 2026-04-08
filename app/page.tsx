@@ -215,32 +215,58 @@ export default function Home() {
     return [...baseTabs, ...pinnedTabs, ...ghostTabs];
   }, [pinned, ghostTab]);
 
-  const visible = useMemo(() => {
+  const recentStories = useMemo(
+    () => [...stories].filter((story) => !story.pinned).sort((a, b) => publishedAtMs(b) - publishedAtMs(a)),
+    [stories]
+  );
+
+  const topStories = useCallback((pool: StoryWithViews[], range: TopRange) => {
     const nowMs = INITIAL_NOW_MS;
-    const storyPool = stories.filter((story) => !story.pinned);
-    const recent = [...storyPool].sort((a, b) => publishedAtMs(b) - publishedAtMs(a));
-    const topStories = (pool: StoryWithViews[], range: TopRange) =>
-      pool
-        .filter((story) => isWithinTopRange(story, nowMs, range))
-        .sort((a, b) => {
-          const byViews = Number(b.views ?? 0) - Number(a.views ?? 0);
-          if (byViews !== 0) return byViews;
+    return pool
+      .filter((story) => isWithinTopRange(story, nowMs, range))
+      .sort((a, b) => {
+        const byViews = Number(b.views ?? 0) - Number(a.views ?? 0);
+        if (byViews !== 0) return byViews;
 
-          const byUpdated = updatedAtMs(b) - updatedAtMs(a);
-          if (byUpdated !== 0) return byUpdated;
+        const byUpdated = updatedAtMs(b) - updatedAtMs(a);
+        if (byUpdated !== 0) return byUpdated;
 
-          return publishedAtMs(b) - publishedAtMs(a);
-        });
+        return publishedAtMs(b) - publishedAtMs(a);
+      });
+  }, []);
 
-    if (activeTab === "recent") return recent;
+  const customTabStories = useMemo(() => {
+    if (activeTab === "popular" || activeTab === "recent") return [];
+    return recentStories.filter((story) => storyMatchesTab(story, String(activeTab)));
+  }, [recentStories, activeTab, storyMatchesTab]);
+
+  const customTopStories = useMemo(() => topStories(customTabStories, customTopRange), [customTabStories, customTopRange, topStories]);
+  const shouldFallbackToCustomNew =
+    activeTab !== "popular" &&
+    activeTab !== "recent" &&
+    customSortMode === "top" &&
+    customTopStories.length === 0 &&
+    customTabStories.length > 0;
+  const effectiveCustomSortMode: CustomSortMode =
+    shouldFallbackToCustomNew ? "new" : customSortMode;
+
+  const visible = useMemo(() => {
+    if (activeTab === "recent") return recentStories;
 
     if (activeTab === "popular") {
-      return topStories(storyPool, popularTopRange);
+      return topStories(recentStories, popularTopRange);
     }
 
-    const tabStories = recent.filter((story) => storyMatchesTab(story, String(activeTab)));
-    return customSortMode === "new" ? tabStories : topStories(tabStories, customTopRange);
-  }, [stories, activeTab, storyMatchesTab, popularTopRange, customSortMode, customTopRange]);
+    return effectiveCustomSortMode === "new" ? customTabStories : customTopStories;
+  }, [
+    activeTab,
+    recentStories,
+    topStories,
+    popularTopRange,
+    effectiveCustomSortMode,
+    customTabStories,
+    customTopStories,
+  ]);
 
   const visibleStories = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
   const canLoadMore = visibleCount < visible.length;
@@ -365,23 +391,30 @@ export default function Home() {
               </button>
             ))}
           </div>
-          {customSortMode === "top" ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {(["day", "week", "month"] as TopRange[]).map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setCustomTopRange(range)}
-                  className={`rounded-full border px-3 py-1.5 text-xs transition ${
-                    customTopRange === range
-                      ? "border-neutral-100 bg-neutral-100 text-neutral-900"
-                      : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
-                  }`}
-                >
-                  {TOP_RANGE_LABELS[range]}
-                </button>
-              ))}
-            </div>
-          ) : null}
+          <div className="flex flex-col items-end gap-2">
+            {customSortMode === "top" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {(["day", "week", "month"] as TopRange[]).map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setCustomTopRange(range)}
+                    className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                      customTopRange === range
+                        ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                        : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
+                    }`}
+                  >
+                    {TOP_RANGE_LABELS[range]}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {shouldFallbackToCustomNew ? (
+              <div className="text-right text-xs text-neutral-500">
+                No top stories in the {TOP_RANGE_DESCRIPTIONS[customTopRange]}. Showing newest instead.
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -507,7 +540,7 @@ export default function Home() {
                   ? activeTab === "recent"
                     ? "Check back soon for the latest stories."
                     : `There are no top stories from the ${TOP_RANGE_DESCRIPTIONS[popularTopRange]} yet.`
-                  : customSortMode === "new"
+                  : effectiveCustomSortMode === "new"
                     ? `There are no new stories in ${toTitleCase(String(activeTab))} yet.`
                     : `There are no top stories in ${toTitleCase(String(activeTab))} from the ${TOP_RANGE_DESCRIPTIONS[customTopRange]} yet.`}
               </p>
