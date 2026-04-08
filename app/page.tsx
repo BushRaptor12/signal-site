@@ -13,7 +13,6 @@ type CustomSortMode = "top" | "new";
 
 const PINNED_KEY = "signal:pinnedTags:v1";
 const ACTIVE_KEY = "signal:activeTab:v2";
-const POPULAR_TOP_RANGE_KEY = "signal:popularTopRange:v1";
 const INITIAL_NOW_MS = Date.now();
 const STORY_BATCH_SIZE = 10;
 const TOP_RANGE_MS: Record<TopRange, number> = {
@@ -116,16 +115,6 @@ function getInitialActiveTab(): TabKey {
   }
 }
 
-function getInitialPopularTopRange(): TopRange {
-  if (typeof window === "undefined") return "day";
-  try {
-    const raw = localStorage.getItem(POPULAR_TOP_RANGE_KEY);
-    return raw === "week" || raw === "month" || raw === "day" ? raw : "day";
-  } catch {
-    return "day";
-  }
-}
-
 function publishedAtMs(story: StoryWithViews): number {
   const created = new Date(story.created_at ?? "").getTime();
   if (Number.isFinite(created) && created > 0) return created;
@@ -134,6 +123,24 @@ function publishedAtMs(story: StoryWithViews): number {
   if (Number.isFinite(dateOnly) && dateOnly > 0) return dateOnly;
 
   return 0;
+}
+
+function popularScore(story: StoryWithViews, nowMs: number): number {
+  const hoursSincePublish = Math.max(0, (nowMs - publishedAtMs(story)) / 3_600_000);
+  return Number(story.views ?? 0) / (hoursSincePublish + 2);
+}
+
+function compareByPopularity(left: StoryWithViews, right: StoryWithViews, nowMs: number): number {
+  const byScore = popularScore(right, nowMs) - popularScore(left, nowMs);
+  if (byScore !== 0) return byScore;
+
+  const byViews = Number(right.views ?? 0) - Number(left.views ?? 0);
+  if (byViews !== 0) return byViews;
+
+  const byUpdated = updatedAtMs(right) - updatedAtMs(left);
+  if (byUpdated !== 0) return byUpdated;
+
+  return publishedAtMs(right) - publishedAtMs(left);
 }
 
 function updatedAtMs(story: StoryWithViews): number {
@@ -176,7 +183,6 @@ export default function Home() {
   const [newTag, setNewTag] = useState("");
   const [ghostTab, setGhostTab] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(STORY_BATCH_SIZE);
-  const [popularTopRange, setPopularTopRange] = useState<TopRange>(getInitialPopularTopRange);
   const [customSortMode, setCustomSortMode] = useState<CustomSortMode>("new");
   const [customTopRange, setCustomTopRange] = useState<TopRange>("day");
 
@@ -197,16 +203,8 @@ export default function Home() {
   }, [activeTab]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(POPULAR_TOP_RANGE_KEY, popularTopRange);
-    } catch {
-      // ignore
-    }
-  }, [popularTopRange]);
-
-  useEffect(() => {
     setVisibleCount(STORY_BATCH_SIZE);
-  }, [activeTab, popularTopRange, customSortMode, customTopRange]);
+  }, [activeTab, customSortMode, customTopRange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -282,15 +280,7 @@ export default function Home() {
     const nowMs = INITIAL_NOW_MS;
     return pool
       .filter((story) => isWithinTopRange(story, nowMs, range))
-      .sort((a, b) => {
-        const byViews = Number(b.views ?? 0) - Number(a.views ?? 0);
-        if (byViews !== 0) return byViews;
-
-        const byUpdated = updatedAtMs(b) - updatedAtMs(a);
-        if (byUpdated !== 0) return byUpdated;
-
-        return publishedAtMs(b) - publishedAtMs(a);
-      });
+      .sort((a, b) => compareByPopularity(a, b, nowMs));
   }, []);
 
   const customTabStories = useMemo(() => {
@@ -312,15 +302,13 @@ export default function Home() {
     if (activeTab === "recent") return recentStories;
 
     if (activeTab === "popular") {
-      return topStories(recentStories, popularTopRange);
+      return [...recentStories].sort((a, b) => compareByPopularity(a, b, INITIAL_NOW_MS));
     }
 
     return effectiveCustomSortMode === "new" ? customTabStories : customTopStories;
   }, [
     activeTab,
     recentStories,
-    topStories,
-    popularTopRange,
     effectiveCustomSortMode,
     customTabStories,
     customTopStories,
@@ -430,7 +418,6 @@ export default function Home() {
           ) : (
             <div />
           )}
-          <TopRangeDropdown value={popularTopRange} onChange={setPopularTopRange} />
         </div>
       ) : activeTab !== "recent" ? (
         <div className="max-w-4xl mx-auto mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -477,7 +464,6 @@ export default function Home() {
               </Link>
             ))}
           </div>
-          <TopRangeDropdown value={popularTopRange} onChange={setPopularTopRange} hidden />
         </div>
       ) : null}
 
@@ -568,7 +554,7 @@ export default function Home() {
                 {activeTab === "popular" || activeTab === "recent"
                   ? activeTab === "recent"
                     ? "Check back soon for the latest stories."
-                    : `There are no top stories from the ${TOP_RANGE_DESCRIPTIONS[popularTopRange]} yet.`
+                    : "Check back soon for popular stories."
                   : effectiveCustomSortMode === "new"
                     ? `There are no new stories in ${toTitleCase(String(activeTab))} yet.`
                     : `There are no top stories in ${toTitleCase(String(activeTab))} from the ${TOP_RANGE_DESCRIPTIONS[customTopRange]} yet.`}

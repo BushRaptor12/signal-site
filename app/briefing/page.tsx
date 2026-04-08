@@ -44,14 +44,25 @@ type BriefingMetaRow = {
   updated_at: string | null;
 };
 
+function storyColumnWeight(story: StoryWithViews): number {
+  const summaryLength = story.summary[0]?.trim().length ?? 0;
+  const summaryWeight = Math.min(summaryLength, 180) / 180;
+  return 1 + (story.image_url ? 1.2 : 0) + summaryWeight * 0.35;
+}
+
 function splitColumns(stories: StoryWithViews[]) {
-  return stories.reduce<[StoryWithViews[], StoryWithViews[]]>(
-    (columns, story, index) => {
-      columns[index % 2].push(story);
-      return columns;
-    },
-    [[], []]
-  );
+  const columns: [StoryWithViews[], StoryWithViews[]] = [[], []];
+  const weights = [0, 0];
+
+  stories.forEach((story, index) => {
+    const targetColumn =
+      weights[0] === weights[1] ? index % 2 : weights[0] < weights[1] ? 0 : 1;
+
+    columns[targetColumn].push(story);
+    weights[targetColumn] += storyColumnWeight(story);
+  });
+
+  return columns;
 }
 
 function BriefingList({ stories }: { stories: StoryWithViews[] }) {
