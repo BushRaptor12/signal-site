@@ -418,7 +418,7 @@ export default function Home() {
         </div>
       ) : null}
 
-      {trackingStories.length > 0 ? (
+      {trackingStories.length > 0 && (activeTab === "popular" || activeTab === "recent") ? (
         <div className="max-w-4xl mx-auto mb-8">
           <div
             className={`${
