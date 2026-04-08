@@ -400,72 +400,57 @@ export default function Home() {
         </button>
       </div>
 
-      {activeTab === "popular" ? (
-        <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between gap-4">
-          {trackingStories.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[15px]">
-              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
-              {trackingStories.map((story) => (
-                <Link
-                  key={story.id}
-                  href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
-                  className="min-w-0 text-[15px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
+      <div className="max-w-4xl mx-auto mb-6 min-h-[44px]">
+        {activeTab === "popular" || activeTab === "recent" ? (
+          <div className="flex min-h-[44px] items-center justify-between gap-4">
+            {trackingStories.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[15px]">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
+                {trackingStories.map((story) => (
+                  <Link
+                    key={story.id}
+                    href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
+                    className="min-w-0 text-[15px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
+                  >
+                    {story.title}
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div />
+            )}
+          </div>
+        ) : (
+          <div className="flex min-h-[44px] flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Sort by</span>
+              {(["top", "new"] as CustomSortMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setCustomSortMode(mode)}
+                  className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                    customSortMode === mode
+                      ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                      : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
+                  }`}
                 >
-                  {story.title}
-                </Link>
+                  {mode === "top" ? "Top" : "New"}
+                </button>
               ))}
             </div>
-          ) : (
-            <div />
-          )}
-        </div>
-      ) : activeTab !== "recent" ? (
-        <div className="max-w-4xl mx-auto mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Sort by</span>
-            {(["top", "new"] as CustomSortMode[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setCustomSortMode(mode)}
-                className={`rounded-full border px-3 py-1.5 text-xs transition ${
-                  customSortMode === mode
-                    ? "border-neutral-100 bg-neutral-100 text-neutral-900"
-                    : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
-                }`}
-              >
-                {mode === "top" ? "Top" : "New"}
-              </button>
-            ))}
-          </div>
             <div className="flex flex-col items-end gap-2">
               {customSortMode === "top" ? (
                 <TopRangeDropdown value={customTopRange} onChange={setCustomTopRange} />
               ) : null}
-            {shouldFallbackToCustomNew ? (
-              <div className="text-right text-xs text-neutral-500">
-                No top stories in the {TOP_RANGE_DESCRIPTIONS[customTopRange]}. Showing newest instead.
-              </div>
-            ) : null}
+              {shouldFallbackToCustomNew ? (
+                <div className="text-right text-xs text-neutral-500">
+                  No top stories in the {TOP_RANGE_DESCRIPTIONS[customTopRange]}. Showing newest instead.
+                </div>
+              ) : null}
+            </div>
           </div>
-        </div>
-      ) : null}
-
-      {trackingStories.length > 0 && activeTab === "recent" ? (
-        <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[15px]">
-            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
-            {trackingStories.map((story) => (
-              <Link
-                key={story.id}
-                href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
-                className="min-w-0 text-[15px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
-              >
-                {story.title}
-              </Link>
-            ))}
-          </div>
-        </div>
-      ) : null}
+        )}
+      </div>
 
       {showManager && (
         <div className="max-w-4xl mx-auto mb-8 rounded-xl border border-neutral-700 bg-[var(--surface)] p-6">
