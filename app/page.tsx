@@ -561,7 +561,7 @@ export default function Home() {
                 >
                   {story.image_url ? (
                     <div className="mb-6 overflow-hidden rounded-xl border border-[#163754]/60 bg-[#020b14]">
-                      <div className="relative aspect-[16/10]">
+                      <div className="relative aspect-[4/3] md:aspect-[16/10]">
                         <Image
                           src={story.image_url}
                           alt={story.title}
