@@ -1,7 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { interleaveBriefingColumns, splitBriefingColumns } from "@/app/lib/briefing-layout";
 import type { StoryWithViews } from "@/app/lib/types";
 
 const TOKEN_KEY = "signal_admin_token";
@@ -16,6 +18,14 @@ type AdminBriefingResponse = {
 type SavedBriefingItem = {
   id: string;
   beacon_headline: string | null;
+};
+
+type BriefingColumn = "left" | "right";
+
+type BriefingLayoutPreview = {
+  lead: StoryWithViews | null;
+  leftColumn: StoryWithViews[];
+  rightColumn: StoryWithViews[];
 };
 
 function getInitialToken() {
@@ -56,6 +66,21 @@ function sortLibrary(stories: StoryWithViews[]) {
   });
 }
 
+function toBriefingLayout(stories: StoryWithViews[]): BriefingLayoutPreview {
+  const [lead, ...rest] = stories;
+  const { leftColumn, rightColumn } = splitBriefingColumns(rest);
+  return {
+    lead: lead ?? null,
+    leftColumn,
+    rightColumn,
+  };
+}
+
+function fromBriefingLayout(layout: BriefingLayoutPreview) {
+  const rest = interleaveBriefingColumns(layout.leftColumn, layout.rightColumn);
+  return layout.lead ? [layout.lead, ...rest] : rest;
+}
+
 export default function AdminBriefingPage() {
   const initialToken = getInitialToken();
   const [adminToken, setAdminToken] = useState(initialToken);
@@ -68,7 +93,6 @@ export default function AdminBriefingPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
-  const [draggedId, setDraggedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   async function loadStories(token: string) {
@@ -135,6 +159,12 @@ export default function AdminBriefingPage() {
     });
   }, [libraryStories, search]);
 
+  const briefingLayout = useMemo(() => toBriefingLayout(briefingStories), [briefingStories]);
+  const rankById = useMemo(
+    () => new Map(briefingStories.map((story, index) => [story.id, index + 1])),
+    [briefingStories]
+  );
+
   function saveToken() {
     const token = tokenDraft.trim();
     if (!token) return;
@@ -168,9 +198,67 @@ export default function AdminBriefingPage() {
     setStatus("");
   }
 
-  function moveStory(fromIndex: number, toIndex: number) {
-    setBriefingStories((current) => reorderStories(current, fromIndex, toIndex));
+  function updateBriefingLayout(mutator: (layout: BriefingLayoutPreview) => BriefingLayoutPreview) {
+    setBriefingStories((current) => {
+      const layout = toBriefingLayout(current);
+      return fromBriefingLayout(
+        mutator({
+          lead: layout.lead,
+          leftColumn: [...layout.leftColumn],
+          rightColumn: [...layout.rightColumn],
+        })
+      );
+    });
     setStatus("");
+  }
+
+  function moveStoryWithinColumn(column: BriefingColumn, fromIndex: number, toIndex: number) {
+    updateBriefingLayout((layout) => {
+      if (column === "left") {
+        layout.leftColumn = reorderStories(layout.leftColumn, fromIndex, toIndex);
+      } else {
+        layout.rightColumn = reorderStories(layout.rightColumn, fromIndex, toIndex);
+      }
+      return layout;
+    });
+  }
+
+  function moveStoryAcrossColumns(sourceColumn: BriefingColumn, rowIndex: number) {
+    updateBriefingLayout((layout) => {
+      if (sourceColumn === "left") {
+        const [story] = layout.leftColumn.splice(rowIndex, 1);
+        if (story) {
+          const targetIndex = Math.min(rowIndex, layout.rightColumn.length);
+          layout.rightColumn.splice(targetIndex, 0, story);
+        }
+      } else {
+        const [story] = layout.rightColumn.splice(rowIndex, 1);
+        if (story) {
+          const targetIndex = Math.min(rowIndex, layout.leftColumn.length);
+          layout.leftColumn.splice(targetIndex, 0, story);
+        }
+      }
+      return layout;
+    });
+  }
+
+  function promoteStoryToLead(sourceColumn: BriefingColumn, rowIndex: number) {
+    updateBriefingLayout((layout) => {
+      if (sourceColumn === "left") {
+        const [story] = layout.leftColumn.splice(rowIndex, 1);
+        if (story) {
+          if (layout.lead) layout.leftColumn.unshift(layout.lead);
+          layout.lead = story;
+        }
+      } else {
+        const [story] = layout.rightColumn.splice(rowIndex, 1);
+        if (story) {
+          if (layout.lead) layout.rightColumn.unshift(layout.lead);
+          layout.lead = story;
+        }
+      }
+      return layout;
+    });
   }
 
   function addStoryToBriefing(storyId: string) {
@@ -260,12 +348,13 @@ export default function AdminBriefingPage() {
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <div className="text-sm font-semibold uppercase tracking-[0.22em] text-neutral-500">Admin</div>
-            <h1 className="mt-2 text-3xl font-bold">Briefing Manager</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-400">
-              Build The Briefing here: add stories, remove stories, then drag them into the final order.
-            </p>
-          </div>
+             <div className="text-sm font-semibold uppercase tracking-[0.22em] text-neutral-500">Admin</div>
+             <h1 className="mt-2 text-3xl font-bold">Briefing Manager</h1>
+             <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-400">
+              Build The Briefing here: add stories, shape the live lead and columns, then save exactly what the page
+              should look like.
+             </p>
+           </div>
 
           <div className="flex items-center gap-3">
             <button onClick={clearToken} className="text-xs text-neutral-400 hover:text-neutral-200">
@@ -335,9 +424,10 @@ export default function AdminBriefingPage() {
           <section className="mt-8">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-neutral-100">Live Briefing Order</h2>
+                <h2 className="text-lg font-semibold text-neutral-100">Live Briefing Preview</h2>
                 <p className="mt-1 text-xs leading-5 text-neutral-500">
-                  Drag cards to reorder them. Rank 1 becomes the lead story on the public page.
+                  This mirrors the public briefing layout. Promote a lead story, then place the rest directly in the left
+                  or right column.
                 </p>
               </div>
             </div>
@@ -347,106 +437,196 @@ export default function AdminBriefingPage() {
                 No stories in The Briefing yet. Add one from the library below.
               </div>
             ) : (
-              <div className="mt-6 space-y-4">
-                {briefingStories.map((story, index) => (
-                  <article
-                    key={story.id}
-                    draggable
-                    onDragStart={() => setDraggedId(story.id)}
-                    onDragEnd={() => setDraggedId(null)}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      if (!draggedId || draggedId === story.id) return;
-                      const fromIndex = briefingStories.findIndex((item) => item.id === draggedId);
-                      moveStory(fromIndex, index);
-                      setDraggedId(null);
-                    }}
-                    className={`rounded-2xl border bg-neutral-950/60 p-5 transition ${
-                      draggedId === story.id ? "border-neutral-500 opacity-70" : "border-neutral-700"
-                    }`}
-                  >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-3 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.2em] text-neutral-500">
-                          <span className="rounded-full border border-neutral-700 px-2.5 py-1 text-neutral-300">
-                            Rank {index + 1}
-                          </span>
-                          <span>{formatDate(story.date)}</span>
-                          <span className="font-semibold text-neutral-600">{story.id}</span>
-                        </div>
-                        <div className="text-2xl font-semibold leading-tight text-neutral-100">{displayHeadline(story)}</div>
-                        {story.beacon_headline?.trim() && story.beacon_headline.trim() !== story.title ? (
-                          <div className="mt-2 text-sm text-neutral-500">Story title: {story.title}</div>
-                        ) : null}
-                        {story.summary[0] ? <p className="mt-3 text-sm leading-6 text-neutral-400">{story.summary[0]}</p> : null}
-                        <div className="mt-4">
-                          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                            Briefing Title Override
-                          </label>
-                          <input
-                            value={story.beacon_headline ?? ""}
-                            onChange={(event) => updateBriefingHeadline(story.id, event.target.value)}
-                            placeholder="Leave blank to use the story title"
-                            className="w-full rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-500"
+              <div className="mt-6 space-y-8">
+                {briefingLayout.lead ? (
+                  <article className="rounded-3xl border border-red-400/50 bg-neutral-950/70 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.25)]">
+                    <div className="mb-4 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.2em] text-neutral-500">
+                      <span className="rounded-full border border-red-400/40 px-2.5 py-1 text-red-200">Rank 1</span>
+                      <span className="rounded-full border border-red-400/20 px-2.5 py-1 text-red-200">Lead Story</span>
+                      <span>{formatDate(briefingLayout.lead.date)}</span>
+                      <span className="font-semibold text-neutral-600">{briefingLayout.lead.id}</span>
+                    </div>
+
+                    {briefingLayout.lead.image_url ? (
+                      <div className="mb-5 overflow-hidden rounded-2xl border border-red-400/20 bg-neutral-950">
+                        <div className="relative aspect-[4/3] md:aspect-[16/10]">
+                          <Image
+                            src={briefingLayout.lead.image_url}
+                            alt={displayHeadline(briefingLayout.lead)}
+                            fill
+                            sizes="(max-width: 768px) 100vw, 1080px"
+                            className="object-contain"
                           />
                         </div>
                       </div>
+                    ) : null}
 
-                      <div className="flex shrink-0 flex-wrap items-center gap-2 lg:max-w-sm lg:justify-end">
-                        <span
-                          className="cursor-grab rounded-full border border-neutral-700 px-3 py-2 text-xs uppercase tracking-[0.18em] text-neutral-400 active:cursor-grabbing"
-                          title="Drag to reorder"
-                        >
-                          Drag
-                        </span>
-                        <button
-                          onClick={() => moveStory(index, 0)}
-                          disabled={index === 0 || saving}
-                          className="rounded-full border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Top
-                        </button>
-                        <button
-                          onClick={() => moveStory(index, index - 1)}
-                          disabled={index === 0 || saving}
-                          className="rounded-full border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Up
-                        </button>
-                        <button
-                          onClick={() => moveStory(index, index + 1)}
-                          disabled={index === briefingStories.length - 1 || saving}
-                          className="rounded-full border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Down
-                        </button>
-                        <button
-                          onClick={() => moveStory(index, briefingStories.length - 1)}
-                          disabled={index === briefingStories.length - 1 || saving}
-                          className="rounded-full border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Bottom
-                        </button>
-                        <button
-                          onClick={() => removeStoryFromBriefing(story.id)}
-                          disabled={saving}
-                          className="rounded-full border border-red-400/50 px-3 py-2 text-xs text-red-200 transition hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Remove
-                        </button>
-                        <Link
-                          href={`/story/${story.id}?from=briefing`}
-                          className="rounded-full border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800 hover:text-white"
-                        >
-                          Preview
-                        </Link>
-                      </div>
+                    <div className="text-3xl font-semibold leading-tight text-red-300 md:text-4xl">
+                      {displayHeadline(briefingLayout.lead)}
+                    </div>
+                    {briefingLayout.lead.beacon_headline?.trim() &&
+                    briefingLayout.lead.beacon_headline.trim() !== briefingLayout.lead.title ? (
+                      <div className="mt-2 text-sm text-neutral-500">Story title: {briefingLayout.lead.title}</div>
+                    ) : null}
+                    {briefingLayout.lead.summary[0] ? (
+                      <p className="mt-4 max-w-4xl text-base leading-7 text-neutral-300">{briefingLayout.lead.summary[0]}</p>
+                    ) : null}
+
+                    <div className="mt-5">
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                        Briefing Title Override
+                      </label>
+                      <input
+                        value={briefingLayout.lead.beacon_headline ?? ""}
+                        onChange={(event) => updateBriefingHeadline(briefingLayout.lead!.id, event.target.value)}
+                        placeholder="Leave blank to use the story title"
+                        className="w-full rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-500"
+                      />
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => removeStoryFromBriefing(briefingLayout.lead!.id)}
+                        disabled={saving}
+                        className="rounded-full border border-red-400/50 px-3 py-2 text-xs text-red-200 transition hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                      <Link
+                        href={`/story/${briefingLayout.lead.id}?from=briefing`}
+                        className="rounded-full border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800 hover:text-white"
+                      >
+                        Preview
+                      </Link>
                     </div>
                   </article>
-                ))}
+                ) : null}
+
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                  {([
+                    { key: "left" as BriefingColumn, label: "Left Column" },
+                    { key: "right" as BriefingColumn, label: "Right Column" },
+                  ]).map((column) => {
+                    const stories = column.key === "left" ? briefingLayout.leftColumn : briefingLayout.rightColumn;
+
+                    return (
+                      <div key={column.key} className="space-y-4">
+                        <div className="rounded-2xl border border-neutral-800 bg-neutral-950/50 px-4 py-3">
+                          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">
+                            {column.label}
+                          </div>
+                        </div>
+
+                        {stories.length === 0 ? (
+                          <div className="rounded-2xl border border-dashed border-neutral-700 px-6 py-10 text-center text-sm text-neutral-500">
+                            No stories in this column yet.
+                          </div>
+                        ) : (
+                          stories.map((story, rowIndex) => {
+                            const rank = rankById.get(story.id) ?? rowIndex + 2;
+                            const targetColumnLabel = column.key === "left" ? "Move right" : "Move left";
+
+                            return (
+                              <article
+                                key={story.id}
+                                className="rounded-2xl border border-neutral-700 bg-neutral-950/60 p-5 shadow-[0_20px_45px_rgba(0,0,0,0.18)]"
+                              >
+                                <div className="mb-3 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.2em] text-neutral-500">
+                                  <span className="rounded-full border border-neutral-700 px-2.5 py-1 text-neutral-300">
+                                    Rank {rank}
+                                  </span>
+                                  <span className="rounded-full border border-neutral-800 px-2.5 py-1 text-neutral-400">
+                                    {column.label}
+                                  </span>
+                                  <span>{formatDate(story.date)}</span>
+                                  <span className="font-semibold text-neutral-600">{story.id}</span>
+                                </div>
+
+                                {story.image_url ? (
+                                  <div className="mb-4 overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950">
+                                    <div className="relative aspect-[16/10]">
+                                      <Image
+                                        src={story.image_url}
+                                        alt={displayHeadline(story)}
+                                        fill
+                                        sizes="(max-width: 1280px) 100vw, 520px"
+                                        className="object-contain"
+                                      />
+                                    </div>
+                                  </div>
+                                ) : null}
+
+                                <div className="text-2xl font-semibold leading-tight text-neutral-100">{displayHeadline(story)}</div>
+                                {story.beacon_headline?.trim() && story.beacon_headline.trim() !== story.title ? (
+                                  <div className="mt-2 text-sm text-neutral-500">Story title: {story.title}</div>
+                                ) : null}
+                                {story.summary[0] ? (
+                                  <p className="mt-3 text-sm leading-6 text-neutral-400">{story.summary[0]}</p>
+                                ) : null}
+
+                                <div className="mt-4">
+                                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                                    Briefing Title Override
+                                  </label>
+                                  <input
+                                    value={story.beacon_headline ?? ""}
+                                    onChange={(event) => updateBriefingHeadline(story.id, event.target.value)}
+                                    placeholder="Leave blank to use the story title"
+                                    className="w-full rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-500"
+                                  />
+                                </div>
+
+                                <div className="mt-5 flex flex-wrap items-center gap-2">
+                                  <button
+                                    onClick={() => promoteStoryToLead(column.key, rowIndex)}
+                                    disabled={saving}
+                                    className="rounded-full border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Make lead
+                                  </button>
+                                  <button
+                                    onClick={() => moveStoryWithinColumn(column.key, rowIndex, rowIndex - 1)}
+                                    disabled={rowIndex === 0 || saving}
+                                    className="rounded-full border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Up
+                                  </button>
+                                  <button
+                                    onClick={() => moveStoryWithinColumn(column.key, rowIndex, rowIndex + 1)}
+                                    disabled={rowIndex === stories.length - 1 || saving}
+                                    className="rounded-full border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Down
+                                  </button>
+                                  <button
+                                    onClick={() => moveStoryAcrossColumns(column.key, rowIndex)}
+                                    disabled={saving}
+                                    className="rounded-full border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {targetColumnLabel}
+                                  </button>
+                                  <button
+                                    onClick={() => removeStoryFromBriefing(story.id)}
+                                    disabled={saving}
+                                    className="rounded-full border border-red-400/50 px-3 py-2 text-xs text-red-200 transition hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Remove
+                                  </button>
+                                  <Link
+                                    href={`/story/${story.id}?from=briefing`}
+                                    className="rounded-full border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800 hover:text-white"
+                                  >
+                                    Preview
+                                  </Link>
+                                </div>
+                              </article>
+                            );
+                          })
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </section>
