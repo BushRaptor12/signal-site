@@ -9,10 +9,11 @@ import { TOPICS, normalize, toTitleCase } from "./lib/vocab";
 
 type TabKey = "popular" | "recent" | string;
 type TopRange = "day" | "week" | "month";
+type CustomSortMode = "top" | "new";
 
 const PINNED_KEY = "signal:pinnedTags:v1";
 const ACTIVE_KEY = "signal:activeTab:v2";
-const TOP_RANGE_KEY = "signal:topRange:v1";
+const POPULAR_TOP_RANGE_KEY = "signal:popularTopRange:v1";
 const INITIAL_NOW_MS = Date.now();
 const STORY_BATCH_SIZE = 10;
 const TOP_RANGE_MS: Record<TopRange, number> = {
@@ -56,10 +57,10 @@ function getInitialActiveTab(): TabKey {
   }
 }
 
-function getInitialTopRange(): TopRange {
+function getInitialPopularTopRange(): TopRange {
   if (typeof window === "undefined") return "day";
   try {
-    const raw = localStorage.getItem(TOP_RANGE_KEY);
+    const raw = localStorage.getItem(POPULAR_TOP_RANGE_KEY);
     return raw === "week" || raw === "month" || raw === "day" ? raw : "day";
   } catch {
     return "day";
@@ -116,7 +117,9 @@ export default function Home() {
   const [newTag, setNewTag] = useState("");
   const [ghostTab, setGhostTab] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(STORY_BATCH_SIZE);
-  const [topRange, setTopRange] = useState<TopRange>(getInitialTopRange);
+  const [popularTopRange, setPopularTopRange] = useState<TopRange>(getInitialPopularTopRange);
+  const [customSortMode, setCustomSortMode] = useState<CustomSortMode>("top");
+  const [customTopRange, setCustomTopRange] = useState<TopRange>("day");
 
   useEffect(() => {
     try {
@@ -136,15 +139,15 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(TOP_RANGE_KEY, topRange);
+      localStorage.setItem(POPULAR_TOP_RANGE_KEY, popularTopRange);
     } catch {
       // ignore
     }
-  }, [topRange]);
+  }, [popularTopRange]);
 
   useEffect(() => {
     setVisibleCount(STORY_BATCH_SIZE);
-  }, [activeTab, topRange]);
+  }, [activeTab, popularTopRange, customSortMode, customTopRange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,9 +219,9 @@ export default function Home() {
     const nowMs = INITIAL_NOW_MS;
     const storyPool = stories.filter((story) => !story.pinned);
     const recent = [...storyPool].sort((a, b) => publishedAtMs(b) - publishedAtMs(a));
-    const topStories = (pool: StoryWithViews[]) =>
+    const topStories = (pool: StoryWithViews[], range: TopRange) =>
       pool
-        .filter((story) => isWithinTopRange(story, nowMs, topRange))
+        .filter((story) => isWithinTopRange(story, nowMs, range))
         .sort((a, b) => {
           const byViews = Number(b.views ?? 0) - Number(a.views ?? 0);
           if (byViews !== 0) return byViews;
@@ -232,11 +235,12 @@ export default function Home() {
     if (activeTab === "recent") return recent;
 
     if (activeTab === "popular") {
-      return topStories(storyPool);
+      return topStories(storyPool, popularTopRange);
     }
 
-    return topStories(recent.filter((story) => storyMatchesTab(story, String(activeTab))));
-  }, [stories, activeTab, storyMatchesTab, topRange]);
+    const tabStories = recent.filter((story) => storyMatchesTab(story, String(activeTab)));
+    return customSortMode === "new" ? tabStories : topStories(tabStories, customTopRange);
+  }, [stories, activeTab, storyMatchesTab, popularTopRange, customSortMode, customTopRange]);
 
   const visibleStories = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
   const canLoadMore = visibleCount < visible.length;
@@ -324,16 +328,16 @@ export default function Home() {
         </button>
       </div>
 
-      {activeTab !== "recent" ? (
+      {activeTab === "popular" ? (
         <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between gap-4">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Top stories</div>
           <div className="flex flex-wrap items-center gap-2">
             {(["day", "week", "month"] as TopRange[]).map((range) => (
               <button
                 key={range}
-                onClick={() => setTopRange(range)}
+                onClick={() => setPopularTopRange(range)}
                 className={`rounded-full border px-3 py-1.5 text-xs transition ${
-                  topRange === range
+                  popularTopRange === range
                     ? "border-neutral-100 bg-neutral-100 text-neutral-900"
                     : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
                 }`}
@@ -342,6 +346,42 @@ export default function Home() {
               </button>
             ))}
           </div>
+        </div>
+      ) : activeTab !== "recent" ? (
+        <div className="max-w-4xl mx-auto mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Sort by</span>
+            {(["top", "new"] as CustomSortMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setCustomSortMode(mode)}
+                className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                  customSortMode === mode
+                    ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                    : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
+                }`}
+              >
+                {mode === "top" ? "Top" : "New"}
+              </button>
+            ))}
+          </div>
+          {customSortMode === "top" ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {(["day", "week", "month"] as TopRange[]).map((range) => (
+                <button
+                  key={range}
+                  onClick={() => setCustomTopRange(range)}
+                  className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                    customTopRange === range
+                      ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                      : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
+                  }`}
+                >
+                  {TOP_RANGE_LABELS[range]}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -466,8 +506,10 @@ export default function Home() {
                 {activeTab === "popular" || activeTab === "recent"
                   ? activeTab === "recent"
                     ? "Check back soon for the latest stories."
-                    : `There are no top stories from the ${TOP_RANGE_DESCRIPTIONS[topRange]} yet.`
-                  : `There are no top stories in ${toTitleCase(String(activeTab))} from the ${TOP_RANGE_DESCRIPTIONS[topRange]} yet.`}
+                    : `There are no top stories from the ${TOP_RANGE_DESCRIPTIONS[popularTopRange]} yet.`
+                  : customSortMode === "new"
+                    ? `There are no new stories in ${toTitleCase(String(activeTab))} yet.`
+                    : `There are no top stories in ${toTitleCase(String(activeTab))} from the ${TOP_RANGE_DESCRIPTIONS[customTopRange]} yet.`}
               </p>
             </div>
         ) : (
