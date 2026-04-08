@@ -177,7 +177,7 @@ export default function Home() {
   const [ghostTab, setGhostTab] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(STORY_BATCH_SIZE);
   const [popularTopRange, setPopularTopRange] = useState<TopRange>(getInitialPopularTopRange);
-  const [customSortMode, setCustomSortMode] = useState<CustomSortMode>("top");
+  const [customSortMode, setCustomSortMode] = useState<CustomSortMode>("new");
   const [customTopRange, setCustomTopRange] = useState<TopRange>("day");
 
   useEffect(() => {
