@@ -433,7 +433,7 @@ export default function Home() {
       ) : null}
 
       {trackingStories.length > 0 && activeTab === "recent" ? (
-        <div className="max-w-4xl mx-auto mb-8">
+        <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[15px]">
             <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
             {trackingStories.map((story) => (
@@ -444,6 +444,13 @@ export default function Home() {
               >
                 {story.title}
               </Link>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 opacity-0">
+            {(["day", "week", "month"] as TopRange[]).map((range) => (
+              <span key={range} className="rounded-full border px-3 py-1.5 text-xs">
+                {TOP_RANGE_LABELS[range]}
+              </span>
             ))}
           </div>
         </div>
