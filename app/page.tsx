@@ -355,7 +355,22 @@ export default function Home() {
 
       {activeTab === "popular" ? (
         <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between gap-4">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Top stories</div>
+          {trackingStories.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[15px]">
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
+              {trackingStories.map((story) => (
+                <Link
+                  key={story.id}
+                  href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
+                  className="min-w-0 text-[15px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
+                >
+                  {story.title}
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div />
+          )}
           <div className="flex flex-wrap items-center gap-2">
             {(["day", "week", "month"] as TopRange[]).map((range) => (
               <button
@@ -417,7 +432,7 @@ export default function Home() {
         </div>
       ) : null}
 
-      {trackingStories.length > 0 && (activeTab === "popular" || activeTab === "recent") ? (
+      {trackingStories.length > 0 && activeTab === "recent" ? (
         <div className="max-w-4xl mx-auto mb-8">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[15px]">
             <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
