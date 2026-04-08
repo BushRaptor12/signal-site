@@ -8,11 +8,28 @@ import type { StoryWithViews } from "./lib/types";
 import { TOPICS, normalize, toTitleCase } from "./lib/vocab";
 
 type TabKey = "popular" | "recent" | string;
+type TopRange = "day" | "week" | "month";
 
 const PINNED_KEY = "signal:pinnedTags:v1";
 const ACTIVE_KEY = "signal:activeTab:v2";
+const TOP_RANGE_KEY = "signal:topRange:v1";
 const INITIAL_NOW_MS = Date.now();
 const STORY_BATCH_SIZE = 10;
+const TOP_RANGE_MS: Record<TopRange, number> = {
+  day: 24 * 60 * 60 * 1000,
+  week: 7 * 24 * 60 * 60 * 1000,
+  month: 30 * 24 * 60 * 60 * 1000,
+};
+const TOP_RANGE_LABELS: Record<TopRange, string> = {
+  day: "Day",
+  week: "Week",
+  month: "Month",
+};
+const TOP_RANGE_DESCRIPTIONS: Record<TopRange, string> = {
+  day: "last 24 hours",
+  week: "last 7 days",
+  month: "last 30 days",
+};
 
 function getInitialPinned(): string[] {
   const defaultPinned = TOPICS.map((topic) => normalize(topic)).filter(Boolean);
@@ -39,6 +56,16 @@ function getInitialActiveTab(): TabKey {
   }
 }
 
+function getInitialTopRange(): TopRange {
+  if (typeof window === "undefined") return "day";
+  try {
+    const raw = localStorage.getItem(TOP_RANGE_KEY);
+    return raw === "week" || raw === "month" || raw === "day" ? raw : "day";
+  } catch {
+    return "day";
+  }
+}
+
 function publishedAtMs(story: StoryWithViews): number {
   const created = new Date(story.created_at ?? "").getTime();
   if (Number.isFinite(created) && created > 0) return created;
@@ -49,11 +76,6 @@ function publishedAtMs(story: StoryWithViews): number {
   return 0;
 }
 
-function popularScore(story: StoryWithViews, nowMs: number): number {
-  const hoursSincePublish = Math.max(0, (nowMs - publishedAtMs(story)) / 3_600_000);
-  return Number(story.views ?? 0) / (hoursSincePublish + 2);
-}
-
 function updatedAtMs(story: StoryWithViews): number {
   const contentUpdated = new Date(story.content_updated_at ?? "").getTime();
   if (Number.isFinite(contentUpdated) && contentUpdated > 0) return contentUpdated;
@@ -62,6 +84,12 @@ function updatedAtMs(story: StoryWithViews): number {
   if (Number.isFinite(created) && created > 0) return created;
 
   return publishedAtMs(story);
+}
+
+function isWithinTopRange(story: StoryWithViews, nowMs: number, range: TopRange): boolean {
+  const publishedMs = publishedAtMs(story);
+  if (!publishedMs) return false;
+  return publishedMs >= nowMs - TOP_RANGE_MS[range];
 }
 
 function escapeRegExp(s: string) {
@@ -88,6 +116,7 @@ export default function Home() {
   const [newTag, setNewTag] = useState("");
   const [ghostTab, setGhostTab] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(STORY_BATCH_SIZE);
+  const [topRange, setTopRange] = useState<TopRange>(getInitialTopRange);
 
   useEffect(() => {
     try {
@@ -106,8 +135,16 @@ export default function Home() {
   }, [activeTab]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem(TOP_RANGE_KEY, topRange);
+    } catch {
+      // ignore
+    }
+  }, [topRange]);
+
+  useEffect(() => {
     setVisibleCount(STORY_BATCH_SIZE);
-  }, [activeTab]);
+  }, [activeTab, topRange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -179,23 +216,27 @@ export default function Home() {
     const nowMs = INITIAL_NOW_MS;
     const storyPool = stories.filter((story) => !story.pinned);
     const recent = [...storyPool].sort((a, b) => publishedAtMs(b) - publishedAtMs(a));
+    const topStories = (pool: StoryWithViews[]) =>
+      pool
+        .filter((story) => isWithinTopRange(story, nowMs, topRange))
+        .sort((a, b) => {
+          const byViews = Number(b.views ?? 0) - Number(a.views ?? 0);
+          if (byViews !== 0) return byViews;
+
+          const byUpdated = updatedAtMs(b) - updatedAtMs(a);
+          if (byUpdated !== 0) return byUpdated;
+
+          return publishedAtMs(b) - publishedAtMs(a);
+        });
 
     if (activeTab === "recent") return recent;
 
     if (activeTab === "popular") {
-      return [...storyPool].sort((a, b) => {
-        const byScore = popularScore(b, nowMs) - popularScore(a, nowMs);
-        if (byScore !== 0) return byScore;
-
-        const byViews = Number(b.views ?? 0) - Number(a.views ?? 0);
-        if (byViews !== 0) return byViews;
-
-        return publishedAtMs(b) - publishedAtMs(a);
-      });
+      return topStories(storyPool);
     }
 
-    return recent.filter((story) => storyMatchesTab(story, String(activeTab)));
-  }, [stories, activeTab, storyMatchesTab]);
+    return topStories(recent.filter((story) => storyMatchesTab(story, String(activeTab))));
+  }, [stories, activeTab, storyMatchesTab, topRange]);
 
   const visibleStories = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
   const canLoadMore = visibleCount < visible.length;
@@ -282,6 +323,27 @@ export default function Home() {
           {showManager ? "Done" : "Edit tabs"}
         </button>
       </div>
+
+      {activeTab !== "recent" ? (
+        <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between gap-4">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Top stories</div>
+          <div className="flex flex-wrap items-center gap-2">
+            {(["day", "week", "month"] as TopRange[]).map((range) => (
+              <button
+                key={range}
+                onClick={() => setTopRange(range)}
+                className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                  topRange === range
+                    ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                    : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
+                }`}
+              >
+                {TOP_RANGE_LABELS[range]}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {trackingStories.length > 0 ? (
         <div className="max-w-4xl mx-auto mb-8">
@@ -399,13 +461,15 @@ export default function Home() {
           </div>
         ) : visible.length === 0 ? (
           <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
-            <h2 className="text-2xl font-semibold text-neutral-100">No stories yet</h2>
-            <p className="mt-3 text-neutral-400">
-              {activeTab === "popular" || activeTab === "recent"
-                ? "Check back soon for the latest stories."
-                : `There are no stories in ${toTitleCase(String(activeTab))} yet.`}
-            </p>
-          </div>
+              <h2 className="text-2xl font-semibold text-neutral-100">No stories yet</h2>
+              <p className="mt-3 text-neutral-400">
+                {activeTab === "popular" || activeTab === "recent"
+                  ? activeTab === "recent"
+                    ? "Check back soon for the latest stories."
+                    : `There are no top stories from the ${TOP_RANGE_DESCRIPTIONS[topRange]} yet.`
+                  : `There are no top stories in ${toTitleCase(String(activeTab))} from the ${TOP_RANGE_DESCRIPTIONS[topRange]} yet.`}
+              </p>
+            </div>
         ) : (
           visibleStories.map((story) => (
             <Link
