@@ -63,6 +63,19 @@ function BriefingList({ stories }: { stories: StoryWithViews[] }) {
           href={`/story/${story.id}?from=briefing`}
           className="block rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#163754]"
         >
+          {story.image_url ? (
+            <div className="mb-5 overflow-hidden rounded-xl border border-[#163754]/60 bg-[#020b14]">
+              <div className="relative aspect-[16/9]">
+                <Image
+                  src={story.image_url}
+                  alt={displayHeadline(story)}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 560px"
+                  className="object-cover transition duration-300 hover:scale-[1.02]"
+                />
+              </div>
+            </div>
+          ) : null}
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
             {formatStoryDate(story.date)}
           </div>
@@ -146,6 +159,20 @@ export default async function BriefingPage() {
                 href={`/story/${lead.id}?from=briefing`}
                 className="mt-8 block rounded-2xl border border-red-500/70 bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-red-400"
               >
+                {lead.image_url ? (
+                  <div className="mb-6 overflow-hidden rounded-2xl border border-red-500/30 bg-[#020b14]">
+                    <div className="relative aspect-[16/8]">
+                      <Image
+                        src={lead.image_url}
+                        alt={displayHeadline(lead)}
+                        fill
+                        priority
+                        sizes="(max-width: 768px) 100vw, 1152px"
+                        className="object-cover"
+                      />
+                    </div>
+                  </div>
+                ) : null}
                 <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                   {formatStoryDate(lead.date)}
                 </div>
