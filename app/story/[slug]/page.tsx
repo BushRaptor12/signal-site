@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
-import { buildRelatedStories } from "@/app/lib/related-stories";
 import { SITE_NAME, absoluteUrl, buildStoryMetadata, storyDescription, storyKeywords, storyModifiedTime, storyPublishedTime } from "@/app/lib/seo";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
@@ -37,31 +36,22 @@ async function loadStory(slug: string) {
   return coerceStory(data as StoryDbRow);
 }
 
-async function loadRelatedStoryPool(currentStory: StoryWithViews) {
+async function loadManualRelatedStories(currentStory: StoryWithViews) {
   const supabase = supabaseServer();
   const manualIds = currentStory.related_story_ids.filter((id) => id && id !== currentStory.id);
+  if (manualIds.length === 0) return [];
 
-  const [{ data: recentData, error: recentError }, manualResult] = await Promise.all([
-    supabase.from("stories").select("*").neq("id", currentStory.id).order("created_at", { ascending: false }).limit(80),
-    manualIds.length > 0
-      ? supabase.from("stories").select("*").in("id", manualIds)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  const { data, error } = await supabase.from("stories").select("*").in("id", manualIds);
+  if (error) throw error;
 
-  if (recentError) throw recentError;
-  if (manualResult.error) throw manualResult.error;
+  const byId = new Map(
+    ((data ?? []) as StoryDbRow[])
+      .map(coerceStory)
+      .filter((story) => story.id !== currentStory.id)
+      .map((story) => [story.id, story])
+  );
 
-  const merged = new Map<string, StoryWithViews>();
-  for (const row of (manualResult.data ?? []) as StoryDbRow[]) {
-    const story = coerceStory(row);
-    if (story.id !== currentStory.id) merged.set(story.id, story);
-  }
-  for (const row of (recentData ?? []) as StoryDbRow[]) {
-    const story = coerceStory(row);
-    if (story.id !== currentStory.id) merged.set(story.id, story);
-  }
-
-  return Array.from(merged.values());
+  return manualIds.map((id) => byId.get(id)).filter((story): story is StoryWithViews => Boolean(story));
 }
 
 export async function generateMetadata({
@@ -116,7 +106,7 @@ export default async function StoryPage({
   try {
     story = await loadStory(slug);
     if (story) {
-      relatedStories = buildRelatedStories(story, await loadRelatedStoryPool(story));
+      relatedStories = await loadManualRelatedStories(story);
     }
   } catch {
     story = null;
@@ -182,8 +172,14 @@ export default async function StoryPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <ViewTracker slug={slug} />
-      <div className="mx-auto max-w-[80rem] xl:grid xl:grid-cols-[minmax(0,48rem)_20rem] xl:gap-10">
-        <div className="mx-auto max-w-3xl xl:mx-0">
+      <div
+        className={
+          relatedStories.length > 0
+            ? "mx-auto max-w-[84rem] xl:grid xl:grid-cols-[16rem_minmax(0,48rem)_16rem] xl:gap-6"
+            : "mx-auto max-w-3xl"
+        }
+      >
+        <div className={relatedStories.length > 0 ? "mx-auto max-w-3xl xl:col-start-2 xl:mx-0 xl:max-w-none" : ""}>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
           <Link
             href={backHref}
@@ -289,13 +285,9 @@ export default async function StoryPage({
         </div>
 
         {relatedStories.length > 0 ? (
-          <aside className="mt-10 xl:mt-0 xl:sticky xl:top-8 xl:self-start">
+          <aside className="mt-10 xl:col-start-3 xl:mt-0 xl:w-64 xl:justify-self-start xl:self-start xl:sticky xl:top-8">
             <div className="rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
               <h2 className="text-lg font-semibold text-neutral-100">Related Stories</h2>
-              <p className="mt-2 text-sm leading-6 text-neutral-500">
-                Automatic matches use shared topics and entities. Manual links from the editor show first.
-              </p>
-
               <div className="mt-5 space-y-4">
                 {relatedStories.map((relatedStory) => (
                   <Link
