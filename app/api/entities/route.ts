@@ -30,8 +30,18 @@ function supabaseAdmin() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-export async function GET() {
+function requireAdmin(req: Request) {
+  const expected = process.env.ADMIN_TOKEN;
+  const got = req.headers.get("x-admin-token");
+  return Boolean(expected && got && got === expected);
+}
+
+export async function GET(req: Request) {
   try {
+    if (!requireAdmin(req)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const supabase = supabaseAdmin();
     const { data, error } = await supabase
       .from("entities")
@@ -47,6 +57,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    if (!requireAdmin(req)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const supabase = supabaseAdmin();
     const incoming = (await req.json()) as Partial<EntityRow>;
 

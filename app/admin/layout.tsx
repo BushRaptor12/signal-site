@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AdminAuthBoundary } from "./admin-auth";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -15,5 +16,5 @@ export const metadata: Metadata = {
 };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <AdminAuthBoundary>{children}</AdminAuthBoundary>;
 }

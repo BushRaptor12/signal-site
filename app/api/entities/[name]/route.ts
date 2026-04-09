@@ -23,11 +23,21 @@ function supabaseAdmin() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+function requireAdmin(req: Request) {
+  const expected = process.env.ADMIN_TOKEN;
+  const got = req.headers.get("x-admin-token");
+  return Boolean(expected && got && got === expected);
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ name: string }> }
 ) {
   try {
+    if (!requireAdmin(req)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const supabase = supabaseAdmin();
     const { name } = await params;
 

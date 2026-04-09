@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatStoryDate } from "./lib/dates";
 import { imageObjectPosition } from "./lib/image-focus";
@@ -13,7 +14,6 @@ type TopRange = "day" | "week" | "month";
 type CustomSortMode = "top" | "new";
 
 const PINNED_KEY = "signal:pinnedTags:v1";
-const ACTIVE_KEY = "signal:activeTab:v2";
 const INITIAL_NOW_MS = Date.now();
 const STORY_BATCH_SIZE = 10;
 const TOP_RANGE_MS: Record<TopRange, number> = {
@@ -109,8 +109,9 @@ function getInitialPinned(): string[] {
 function getInitialActiveTab(): TabKey {
   if (typeof window === "undefined") return "popular";
   try {
-    const raw = localStorage.getItem(ACTIVE_KEY);
-    return raw ? (raw as TabKey) : "popular";
+    const raw = new URLSearchParams(window.location.search).get("tab");
+    const tab = normalize(raw ?? "");
+    return tab ? (tab as TabKey) : "popular";
   } catch {
     return "popular";
   }
@@ -176,6 +177,9 @@ function textMatchesKeyword(haystack: string, keyword: string) {
 }
 
 export default function Home() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [stories, setStories] = useState<StoryWithViews[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>(getInitialActiveTab);
@@ -196,16 +200,43 @@ export default function Home() {
   }, [pinned]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(ACTIVE_KEY, String(activeTab));
-    } catch {
-      // ignore
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
     setVisibleCount(STORY_BATCH_SIZE);
   }, [activeTab, customSortMode, customTopRange]);
+
+  useEffect(() => {
+    const requestedTab = normalize(searchParams.get("tab") ?? "");
+    const nextTab = requestedTab || "popular";
+    if (normalize(String(activeTab)) !== nextTab) {
+      setActiveTab(nextTab);
+    }
+  }, [searchParams, activeTab]);
+
+  useEffect(() => {
+    const key = normalize(String(activeTab));
+    if (!key || key === "popular" || key === "recent" || pinned.includes(key)) {
+      setGhostTab(null);
+      return;
+    }
+
+    setGhostTab(key);
+  }, [activeTab, pinned]);
+
+  useEffect(() => {
+    const currentTab = normalize(searchParams.get("tab") ?? "");
+    const desiredTab = normalize(String(activeTab));
+    const nextParams = new URLSearchParams(searchParams.toString());
+
+    if (!desiredTab || desiredTab === "popular") {
+      if (!currentTab) return;
+      nextParams.delete("tab");
+    } else {
+      if (currentTab === desiredTab) return;
+      nextParams.set("tab", desiredTab);
+    }
+
+    const nextQuery = nextParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+  }, [activeTab, pathname, router, searchParams]);
 
   useEffect(() => {
     let cancelled = false;

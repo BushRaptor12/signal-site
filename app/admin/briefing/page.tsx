@@ -2,12 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAdminAuth } from "@/app/admin/admin-auth";
 import { buildBriefingLayout, serializeBriefingLayout, type BriefingLayout } from "@/app/lib/briefing-layout";
 import { imageObjectPosition } from "@/app/lib/image-focus";
 import type { BriefingPosition, StoryWithViews } from "@/app/lib/types";
-
-const TOKEN_KEY = "signal_admin_token";
 
 type AdminBriefingResponse = {
   briefing?: StoryWithViews[];
@@ -25,15 +24,6 @@ type SavedBriefingItem = {
 
 type BriefingColumn = "left" | "right";
 type BriefingTarget = "lead" | BriefingColumn;
-
-function getInitialToken() {
-  if (typeof window === "undefined") return "";
-  try {
-    return (localStorage.getItem(TOKEN_KEY) ?? "").trim();
-  } catch {
-    return "";
-  }
-}
 
 function displayHeadline(story: StoryWithViews) {
   return story.beacon_headline?.trim() || story.title;
@@ -65,10 +55,7 @@ function sortLibrary(stories: StoryWithViews[]) {
 }
 
 export default function AdminBriefingPage() {
-  const initialToken = getInitialToken();
-  const [adminToken, setAdminToken] = useState(initialToken);
-  const [showTokenInput, setShowTokenInput] = useState(!initialToken);
-  const [tokenDraft, setTokenDraft] = useState(initialToken);
+  const { adminToken, clearToken } = useAdminAuth();
   const [briefingStories, setBriefingStories] = useState<StoryWithViews[]>([]);
   const [libraryStories, setLibraryStories] = useState<StoryWithViews[]>([]);
   const [savedBriefing, setSavedBriefing] = useState<SavedBriefingItem[]>([]);
@@ -78,7 +65,7 @@ export default function AdminBriefingPage() {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
 
-  async function loadStories(token: string) {
+  const loadStories = useCallback(async (token: string) => {
     if (!token) return;
 
     setLoading(true);
@@ -91,6 +78,11 @@ export default function AdminBriefingPage() {
         cache: "no-store",
       });
       const json = (await res.json().catch(() => ({}))) as AdminBriefingResponse;
+
+      if (res.status === 401) {
+        clearToken();
+        return;
+      }
 
       if (!res.ok) {
         throw new Error(json.error ?? res.statusText);
@@ -114,12 +106,12 @@ export default function AdminBriefingPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [clearToken]);
 
   useEffect(() => {
     if (!adminToken) return;
     void loadStories(adminToken);
-  }, [adminToken]);
+  }, [adminToken, loadStories]);
 
   const hasUnsavedChanges = useMemo(() => {
     if (briefingStories.length !== savedBriefing.length) return true;
@@ -150,39 +142,6 @@ export default function AdminBriefingPage() {
   }, [libraryStories, search]);
 
   const briefingLayout = useMemo(() => buildBriefingLayout(briefingStories), [briefingStories]);
-
-  function saveToken() {
-    const token = tokenDraft.trim();
-    if (!token) return;
-
-    try {
-      localStorage.setItem(TOKEN_KEY, token);
-    } catch {
-      // ignore localStorage write failure
-    }
-
-    setAdminToken(token);
-    setShowTokenInput(false);
-    setTokenDraft(token);
-  }
-
-  function clearToken() {
-    try {
-      localStorage.removeItem(TOKEN_KEY);
-    } catch {
-      // ignore localStorage remove failure
-    }
-
-    setAdminToken("");
-    setTokenDraft("");
-    setShowTokenInput(true);
-    setBriefingStories([]);
-    setLibraryStories([]);
-    setSavedBriefing([]);
-    setSearch("");
-    setError("");
-    setStatus("");
-  }
 
   function updateBriefingLayout(mutator: (layout: BriefingLayout) => BriefingLayout) {
     setBriefingStories((current) => {
@@ -300,8 +259,7 @@ export default function AdminBriefingPage() {
 
   async function saveOrder() {
     if (!adminToken) {
-      setShowTokenInput(true);
-      setError("Admin token required.");
+      clearToken();
       return;
     }
 
@@ -327,6 +285,10 @@ export default function AdminBriefingPage() {
       });
 
       const json = (await res.json().catch(() => ({}))) as AdminBriefingResponse;
+      if (res.status === 401) {
+        clearToken();
+        return;
+      }
       if (!res.ok) {
         throw new Error(json.error ?? res.statusText);
       }
@@ -367,7 +329,7 @@ export default function AdminBriefingPage() {
 
           <div className="flex items-center gap-3">
             <button onClick={clearToken} className="text-xs text-neutral-400 hover:text-neutral-200">
-              Change token
+              Lock admin
             </button>
             <Link
               href="/admin/editor"
@@ -383,25 +345,6 @@ export default function AdminBriefingPage() {
             </Link>
           </div>
         </div>
-
-        {showTokenInput && (
-          <div className="mt-6 rounded-2xl border border-neutral-700 bg-neutral-900 p-6">
-            <div className="mb-3 text-sm font-semibold uppercase text-neutral-300">Admin Token Required</div>
-            <input
-              type="password"
-              value={tokenDraft}
-              onChange={(event) => setTokenDraft(event.target.value)}
-              placeholder="Enter admin token..."
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2"
-              onKeyDown={(event) => {
-                if (event.key === "Enter") saveToken();
-              }}
-            />
-            <button onClick={saveToken} className="mt-3 rounded-lg bg-neutral-100 px-4 py-2 text-sm text-neutral-900">
-              Save Token
-            </button>
-          </div>
-        )}
 
         <div className="mt-8 rounded-2xl border border-neutral-700 bg-neutral-900 p-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

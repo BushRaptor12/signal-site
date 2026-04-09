@@ -2,17 +2,17 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useAdminAuth } from "@/app/admin/admin-auth";
 import { DEFAULT_IMAGE_FOCUS, clampImageFocus, imageObjectPosition } from "@/app/lib/image-focus";
 import { STORY_IMAGE_ACCEPT } from "@/app/lib/story-images";
 import type { Lean, Story, StoryImageDisplay, StoryWithViews } from "@/app/lib/types";
-import { detectSourceLean } from "@/app/lib/source-lean";
+import { detectSourceLean, guessSourceLabel } from "@/app/lib/source-lean";
 import { TOPICS, normalize, slugify } from "@/app/lib/vocab";
 
 type Entity = { name: string; aliases: string[] };
 type SourceEditorRow = { name: string; title: string; url: string; lean: Lean; leanMode: "auto" | "manual" };
-
-const TOKEN_KEY = "signal_admin_token";
+type SourcePreview = { name: string; title: string; url: string };
 
 function createSourceRow(): SourceEditorRow {
   return { name: "", title: "", url: "", lean: "Center", leanMode: "auto" };
@@ -39,21 +39,8 @@ function blankSources() {
   return [createSourceRow(), createSourceRow(), createSourceRow()];
 }
 
-function getInitialToken() {
-  if (typeof window === "undefined") return "";
-  try {
-    return (localStorage.getItem(TOKEN_KEY) ?? "").trim();
-  } catch {
-    return "";
-  }
-}
-
 export default function EditorPage() {
-  const initialToken = getInitialToken();
-
-  const [adminToken, setAdminToken] = useState(initialToken);
-  const [showTokenInput, setShowTokenInput] = useState(!initialToken);
-  const [tokenDraft, setTokenDraft] = useState(initialToken);
+  const { adminToken, clearToken } = useAdminAuth();
   const [entities, setEntities] = useState<Entity[]>([]);
   const [entitySearch, setEntitySearch] = useState("");
   const [aliasDraft, setAliasDraft] = useState<Record<string, string>>({});
@@ -79,11 +66,13 @@ export default function EditorPage() {
   const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
   const [primaryEntities, setPrimaryEntities] = useState<string[]>([]);
   const [sources, setSources] = useState<SourceEditorRow[]>(blankSources());
+  const [sourceUrlDraft, setSourceUrlDraft] = useState("");
+  const [sourcePreviewLoading, setSourcePreviewLoading] = useState(false);
 
   const generatedId = title ? slugify(title) : "new-story";
   const storyId = activeStoryId ?? generatedId;
 
-  async function loadStories() {
+  const loadStories = useCallback(async () => {
     setLoadingStories(true);
 
     try {
@@ -93,7 +82,30 @@ export default function EditorPage() {
     } finally {
       setLoadingStories(false);
     }
-  }
+  }, []);
+
+  const loadEntities = useCallback(async (token = adminToken) => {
+    if (!token) {
+      setEntities([]);
+      return;
+    }
+
+    const res = await fetch("/api/entities", {
+      cache: "no-store",
+      headers: { "x-admin-token": token },
+    });
+    if (res.status === 401) {
+      clearToken();
+      return;
+    }
+    const data = await res.json().catch(() => []);
+    if (res.ok && Array.isArray(data)) {
+      setEntities(data);
+      return;
+    }
+
+    setEntities([]);
+  }, [adminToken, clearToken]);
 
   function resetForm() {
     setActiveStoryId(null);
@@ -138,13 +150,12 @@ export default function EditorPage() {
   }
 
   useEffect(() => {
-    (async () => {
-      const res = await fetch("/api/entities", { cache: "no-store" });
-      const data = await res.json();
-      if (Array.isArray(data)) setEntities(data);
-    })();
     void loadStories();
-  }, []);
+  }, [loadStories]);
+
+  useEffect(() => {
+    void loadEntities();
+  }, [loadEntities]);
 
   const filteredStories = useMemo(() => {
     const query = storySearch.trim().toLowerCase();
@@ -157,31 +168,6 @@ export default function EditorPage() {
       return headline.includes(query) || id.includes(query) || briefingHeadline.includes(query);
     });
   }, [stories, storySearch]);
-  function saveToken() {
-    const token = tokenDraft.trim();
-    if (!token) return;
-
-    try {
-      localStorage.setItem(TOKEN_KEY, token);
-    } catch {
-      // ignore localStorage write failure
-    }
-
-    setAdminToken(token);
-    setShowTokenInput(false);
-    setTokenDraft(token);
-  }
-
-  function clearToken() {
-    try {
-      localStorage.removeItem(TOKEN_KEY);
-    } catch {
-      // ignore localStorage remove failure
-    }
-    setAdminToken("");
-    setTokenDraft("");
-    setShowTokenInput(true);
-  }
 
   function toggleTopic(topic: string) {
     const key = normalize(topic);
@@ -221,6 +207,74 @@ export default function EditorPage() {
     setSources((prev) => [...prev, createSourceRow()]);
   }
 
+  function applySourceSuggestion(suggested: SourcePreview, preferredIndex?: number) {
+    setSources((prev) => {
+      const next = [...prev];
+      const emptyIndex = next.findIndex((source) => !source.name.trim() && !source.title.trim() && !source.url.trim());
+      const index = preferredIndex ?? (emptyIndex >= 0 ? emptyIndex : next.length);
+      const existing = next[index] ?? createSourceRow();
+      const name = suggested.name.trim() || existing.name.trim() || guessSourceLabel(suggested.url) || "";
+      const row: SourceEditorRow = {
+        ...existing,
+        name,
+        title: suggested.title.trim() || existing.title,
+        url: suggested.url.trim(),
+        lean: getAutoLean(name, suggested.url),
+        leanMode: "auto",
+      };
+
+      if (index >= next.length) next.push(row);
+      else next[index] = row;
+      return next;
+    });
+  }
+
+  async function addSourceFromUrl(rawUrl: string, preferredIndex?: number) {
+    if (!adminToken) {
+      clearToken();
+      return;
+    }
+
+    const url = rawUrl.trim();
+    if (!url) {
+      alert("Paste a source URL first.");
+      return;
+    }
+
+    setSourcePreviewLoading(true);
+
+    try {
+      const res = await fetch("/api/admin/source-preview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": adminToken,
+        },
+        body: JSON.stringify({ url }),
+      });
+
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        source?: SourcePreview;
+      };
+
+      if (res.status === 401) {
+        clearToken();
+        return;
+      }
+
+      if (!res.ok || !json.source) {
+        alert(`Could not fill source: ${json.error ?? res.statusText}`);
+        return;
+      }
+
+      applySourceSuggestion(json.source, preferredIndex);
+      if (preferredIndex == null) setSourceUrlDraft("");
+    } finally {
+      setSourcePreviewLoading(false);
+    }
+  }
+
   function setSourceLeanMode(index: number, leanMode: "auto" | "manual") {
     setSources((prev) => {
       const next = [...prev];
@@ -254,8 +308,7 @@ export default function EditorPage() {
 
   async function uploadImage(file: File) {
     if (!adminToken) {
-      alert("Admin token required.");
-      setShowTokenInput(true);
+      clearToken();
       return;
     }
 
@@ -281,6 +334,11 @@ export default function EditorPage() {
         imageUrl?: string;
       };
 
+      if (res.status === 401) {
+        clearToken();
+        return;
+      }
+
       if (!res.ok || !json.imagePath || !json.imageUrl) {
         alert(`Upload failed: ${json.error ?? res.statusText}`);
         return;
@@ -300,6 +358,11 @@ export default function EditorPage() {
     if (!imagePath && !imageUrl) return;
 
     if (imagePath && imagePath !== savedImagePath) {
+      if (!adminToken) {
+        clearToken();
+        return;
+      }
+
       const res = await fetch("/api/admin/story-images", {
         method: "DELETE",
         headers: {
@@ -308,6 +371,11 @@ export default function EditorPage() {
         },
         body: JSON.stringify({ imagePath }),
       });
+
+      if (res.status === 401) {
+        clearToken();
+        return;
+      }
 
       if (!res.ok) {
         const json = (await res.json().catch(() => ({}))) as { error?: string };
@@ -334,8 +402,7 @@ export default function EditorPage() {
 
   async function onSave() {
     if (!adminToken) {
-      alert("Admin token required.");
-      setShowTokenInput(true);
+      clearToken();
       return;
     }
 
@@ -391,6 +458,10 @@ export default function EditorPage() {
     });
 
     const json = (await res.json().catch(() => ({}))) as { error?: string; story?: Story };
+    if (res.status === 401) {
+      clearToken();
+      return;
+    }
     if (!res.ok) {
       alert(`Save failed: ${json.error ?? res.statusText}`);
       return;
@@ -406,8 +477,7 @@ export default function EditorPage() {
 
   async function onDelete() {
     if (!adminToken) {
-      alert("Admin token required.");
-      setShowTokenInput(true);
+      clearToken();
       return;
     }
 
@@ -424,6 +494,11 @@ export default function EditorPage() {
       headers: { "x-admin-token": adminToken },
     });
 
+    if (res.status === 401) {
+      clearToken();
+      return;
+    }
+
     if (!res.ok) {
       const err = (await res.json().catch(() => ({}))) as { error?: string };
       alert(`Delete failed: ${err.error ?? res.statusText}`);
@@ -435,13 +510,25 @@ export default function EditorPage() {
     alert(`Deleted: ${id}`);
   }
   async function createEntity(name: string) {
+    if (!adminToken) {
+      clearToken();
+      return null;
+    }
+
     const res = await fetch("/api/entities", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-token": adminToken,
+      },
       body: JSON.stringify({ name, aliases: [] }),
     });
 
     const json = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      clearToken();
+      return null;
+    }
     if (!res.ok) {
       alert(`Create entity failed: ${json?.error ?? res.statusText}`);
       return null;
@@ -458,13 +545,25 @@ export default function EditorPage() {
   }
 
   async function saveAliases(entityName: string, aliases: string[]) {
+    if (!adminToken) {
+      clearToken();
+      return;
+    }
+
     const res = await fetch(`/api/entities/${encodeURIComponent(entityName)}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-token": adminToken,
+      },
       body: JSON.stringify({ aliases }),
     });
 
     const json = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      clearToken();
+      return;
+    }
     if (!res.ok) {
       alert(`Update aliases failed: ${json?.error ?? res.statusText}`);
       return;
@@ -486,32 +585,13 @@ export default function EditorPage() {
               Manage briefing order
             </Link>
             <button onClick={clearToken} className="text-xs text-neutral-400 hover:text-neutral-200">
-              Change token
+              Lock admin
             </button>
             <Link href="/" className="text-neutral-300 hover:text-white">
               {"<- Back"}
             </Link>
           </div>
         </div>
-
-        {showTokenInput && (
-          <div className="mt-6 bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
-            <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Admin Token Required</div>
-            <input
-              type="password"
-              value={tokenDraft}
-              onChange={(e) => setTokenDraft(e.target.value)}
-              placeholder="Enter admin token..."
-              className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg mb-3"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveToken();
-              }}
-            />
-            <button onClick={saveToken} className="px-4 py-2 bg-neutral-100 text-neutral-900 rounded-lg text-sm">
-              Save Token
-            </button>
-          </div>
-        )}
 
         <div className="mt-8 grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="rounded-2xl border border-neutral-700 bg-neutral-900 p-5 h-fit xl:sticky xl:top-8">
@@ -1001,6 +1081,34 @@ export default function EditorPage() {
                 + Add source
               </button>
             </div>
+            <div className="mt-4 rounded-xl border border-neutral-700 bg-neutral-950/30 p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Paste URL Helper</div>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={sourceUrlDraft}
+                  onChange={(e) => setSourceUrlDraft(e.target.value)}
+                  className="flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+                  placeholder="Paste article URL to add a source row automatically"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void addSourceFromUrl(sourceUrlDraft);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void addSourceFromUrl(sourceUrlDraft)}
+                  disabled={sourcePreviewLoading}
+                  className="rounded-lg bg-neutral-100 px-4 py-2 text-sm text-neutral-900 disabled:cursor-wait disabled:opacity-70"
+                >
+                  {sourcePreviewLoading ? "Adding..." : "Add from link"}
+                </button>
+              </div>
+              <p className="mt-3 text-xs text-neutral-500">
+                The editor will try to fill the outlet name and article title automatically, then keep lean on auto.
+              </p>
+            </div>
             <div className="mt-4 space-y-4">
               {sources.map((source, index) => (
                 <div key={index} className="grid grid-cols-1 md:grid-cols-6 gap-2">
@@ -1019,6 +1127,12 @@ export default function EditorPage() {
                   <input
                     value={source.url}
                     onChange={(e) => updateSource(index, { url: e.target.value })}
+                    onBlur={() => {
+                      if (!source.name.trim()) {
+                        const guessedName = guessSourceLabel(source.url);
+                        if (guessedName) updateSource(index, { name: guessedName });
+                      }
+                    }}
                     className="md:col-span-3 px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg"
                     placeholder="https://..."
                   />
@@ -1031,10 +1145,20 @@ export default function EditorPage() {
                     <option value="Center">Center</option>
                     <option value="Right">Right</option>
                   </select>
-                  <div className="md:col-span-6 flex flex-wrap items-center gap-3 text-xs text-neutral-500">
-                    <span>
-                      {source.leanMode === "auto"
-                        ? `Auto-detected lean: ${source.lean}`
+                   <div className="md:col-span-6 flex flex-wrap items-center gap-3 text-xs text-neutral-500">
+                     {source.url.trim() ? (
+                       <button
+                         type="button"
+                         onClick={() => void addSourceFromUrl(source.url, index)}
+                         disabled={sourcePreviewLoading}
+                         className="rounded-full border border-neutral-700 px-3 py-1 text-neutral-300 hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-70"
+                       >
+                         Autofill from URL
+                       </button>
+                     ) : null}
+                     <span>
+                       {source.leanMode === "auto"
+                         ? `Auto-detected lean: ${source.lean}`
                         : `Manual override: ${source.lean}`}
                     </span>
                     <button
