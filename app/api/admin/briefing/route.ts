@@ -1,9 +1,10 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
+import { sortBriefingStories } from "@/app/lib/briefing-layout";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
-import type { StoryWithViews } from "@/app/lib/types";
+import type { BriefingPosition, StoryWithViews } from "@/app/lib/types";
 
 function messageFromError(error: unknown) {
   if (error instanceof Error) return error.message;
@@ -25,18 +26,7 @@ async function loadAllStories() {
 }
 
 function splitStories(stories: StoryWithViews[]) {
-  const briefing = stories
-    .filter((story) => story.beacon_include)
-    .sort((left, right) => {
-      const leftRank = left.beacon_rank ?? Number.MAX_SAFE_INTEGER;
-      const rightRank = right.beacon_rank ?? Number.MAX_SAFE_INTEGER;
-
-      if (leftRank !== rightRank) return leftRank - rightRank;
-
-      const leftCreated = Date.parse(left.created_at ?? left.date);
-      const rightCreated = Date.parse(right.created_at ?? right.date);
-      return rightCreated - leftCreated;
-    });
+  const briefing = sortBriefingStories(stories.filter((story) => story.beacon_include));
 
   const library = stories.filter((story) => !story.beacon_include);
   return { briefing, library };
@@ -59,6 +49,24 @@ type ReorderPayload = {
   briefing?: unknown;
 };
 
+function toNullableBriefingPosition(value: unknown): BriefingPosition | null {
+  if (value === "lead" || value === "left" || value === "right") return value;
+  return null;
+}
+
+function toNullableInteger(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isInteger(value) && value > 0 ? value : null;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value.trim());
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  return null;
+}
+
 export async function PUT(req: Request) {
   try {
     if (!requireAdmin(req)) {
@@ -73,7 +81,12 @@ export async function PUT(req: Request) {
     const briefingItems = body.briefing
       .map((value) => {
         if (typeof value !== "object" || value === null) return null;
-        const row = value as { id?: unknown; beacon_headline?: unknown };
+        const row = value as {
+          id?: unknown;
+          beacon_headline?: unknown;
+          beacon_position?: unknown;
+          beacon_order?: unknown;
+        };
         if (!row.id) return null;
 
         const headline =
@@ -82,16 +95,34 @@ export async function PUT(req: Request) {
             : row.beacon_headline == null
               ? null
               : String(row.beacon_headline).trim() || null;
+        const position = toNullableBriefingPosition(row.beacon_position);
+        const order = toNullableInteger(row.beacon_order);
+
+        if (!position || !order) return null;
 
         return {
           id: String(row.id),
           beacon_headline: headline,
+          beacon_position: position,
+          beacon_order: order,
         };
       })
-      .filter((item): item is { id: string; beacon_headline: string | null } => Boolean(item));
+      .filter(
+        (
+          item
+        ): item is {
+          id: string;
+          beacon_headline: string | null;
+          beacon_position: BriefingPosition;
+          beacon_order: number;
+        } => Boolean(item)
+      );
 
     if (briefingItems.length !== body.briefing.length) {
-      return NextResponse.json({ error: "Each briefing item must include an id." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Each briefing item must include an id, beacon_position, and beacon_order." },
+        { status: 400 }
+      );
     }
 
     const briefingIds = briefingItems.map((item) => item.id);
@@ -111,14 +142,32 @@ export async function PUT(req: Request) {
     const supabase = supabaseServer();
     const includedIds = new Set(briefingIds);
     const headlineById = new Map(briefingItems.map((item) => [item.id, item.beacon_headline]));
+    const positionById = new Map(briefingItems.map((item) => [item.id, item.beacon_position]));
+    const orderById = new Map(briefingItems.map((item) => [item.id, item.beacon_order]));
+
+    const leadCount = briefingItems.filter((item) => item.beacon_position === "lead").length;
+    if (briefingItems.length > 0 && leadCount !== 1) {
+      return NextResponse.json({ error: "Exactly one lead story is required." }, { status: 400 });
+    }
+
+    for (const position of ["left", "right"] as const) {
+      const orders = briefingItems
+        .filter((item) => item.beacon_position === position)
+        .map((item) => item.beacon_order);
+      if (orders.length !== new Set(orders).size) {
+        return NextResponse.json({ error: `Duplicate ${position} column positions are not allowed.` }, { status: 400 });
+      }
+    }
 
     for (const story of allStories) {
       const nextInclude = includedIds.has(story.id);
-      const nextRank = nextInclude ? briefingIds.indexOf(story.id) + 1 : null;
       const nextHeadline = nextInclude ? (headlineById.get(story.id) ?? null) : story.beacon_headline ?? null;
+      const nextPosition = nextInclude ? (positionById.get(story.id) ?? null) : null;
+      const nextOrder = nextInclude ? (orderById.get(story.id) ?? null) : null;
       const changed =
         story.beacon_include !== nextInclude ||
-        (story.beacon_rank ?? null) !== nextRank ||
+        (story.beacon_position ?? null) !== nextPosition ||
+        (story.beacon_order ?? null) !== nextOrder ||
         (story.beacon_headline ?? null) !== nextHeadline;
 
       if (!changed) continue;
@@ -127,7 +176,9 @@ export async function PUT(req: Request) {
         .from("stories")
         .update({
           beacon_include: nextInclude,
-          beacon_rank: nextRank,
+          beacon_rank: null,
+          beacon_position: nextPosition,
+          beacon_order: nextOrder,
           beacon_headline: nextHeadline,
           updated_at: timestamp,
         })

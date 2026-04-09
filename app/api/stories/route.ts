@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { deleteStoryImage, isStoryImagePath, storyImagePublicUrl } from "@/app/lib/story-images";
 import { supabaseServer } from "@/app/lib/supabase.server";
-import type { StoryWithViews } from "@/app/lib/types";
+import type { BriefingPosition, StoryWithViews } from "@/app/lib/types";
 import {
   coerceStory,
   toEntities,
@@ -23,6 +23,11 @@ function requireAdmin(req: Request) {
   const expected = process.env.ADMIN_TOKEN;
   const got = req.headers.get("x-admin-token");
   return Boolean(expected && got && got === expected);
+}
+
+function toNullableBriefingPosition(value: unknown): BriefingPosition | null {
+  if (value === "lead" || value === "left" || value === "right") return value;
+  return null;
 }
 
 export async function GET() {
@@ -56,7 +61,9 @@ export async function POST(req: Request) {
     const nowIso = new Date().toISOString();
     const { data: existingData, error: existingError } = await supabase
       .from("stories")
-      .select("beacon_include, beacon_rank, summary, sources, image_path, content_updated_at, updated_at, created_at")
+      .select(
+        "beacon_include, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, content_updated_at, updated_at, created_at"
+      )
       .eq("id", String(incoming.id))
       .maybeSingle();
     if (existingError) throw existingError;
@@ -64,6 +71,8 @@ export async function POST(req: Request) {
     const existing = existingData as {
       beacon_include?: boolean | null;
       beacon_rank?: number | null;
+      beacon_position?: BriefingPosition | null;
+      beacon_order?: number | null;
       summary?: unknown;
       sources?: unknown;
       image_path?: string | null;
@@ -72,6 +81,8 @@ export async function POST(req: Request) {
       created_at?: string | null;
     } | null;
     let beaconRank = toNullableNumber(incoming.beacon_rank);
+    let beaconPosition = toNullableBriefingPosition(incoming.beacon_position);
+    let beaconOrder = toNullableNumber(incoming.beacon_order);
     const normalizedSummary = toStringArray(incoming.summary);
     const normalizedSources = toSources(incoming.sources);
     const normalizedImagePath = toNullableString(incoming.image_path);
@@ -91,27 +102,48 @@ export async function POST(req: Request) {
         : existing?.content_updated_at ?? existing?.updated_at ?? existing?.created_at ?? nowIso;
 
     if (Boolean(incoming.beacon_include)) {
-      if (beaconRank == null) {
-        if (existing?.beacon_include && existing.beacon_rank != null) {
-          beaconRank = existing.beacon_rank;
-        } else {
-          const { data: rankedRows, error: rankedError } = await supabase
+      const { data: briefingRows, error: briefingError } = await supabase
             .from("stories")
-            .select("beacon_rank")
+            .select("id, beacon_position, beacon_order")
             .eq("beacon_include", true)
             .neq("id", String(incoming.id));
-          if (rankedError) throw rankedError;
+      if (briefingError) throw briefingError;
 
-          const maxRank = ((rankedRows ?? []) as Array<{ beacon_rank?: number | null }>).reduce((highest, row) => {
-            const rank = typeof row.beacon_rank === "number" ? row.beacon_rank : 0;
-            return Math.max(highest, rank);
+      const placementRows = (briefingRows ?? []) as Array<{
+        id?: string | null;
+        beacon_position?: BriefingPosition | null;
+        beacon_order?: number | null;
+      }>;
+
+      if (!beaconPosition && existing?.beacon_include) {
+        beaconPosition = existing.beacon_position ?? null;
+      }
+      if (beaconOrder == null && existing?.beacon_include) {
+        beaconOrder = existing.beacon_order ?? null;
+      }
+
+      if (!beaconPosition) {
+        const hasLead = placementRows.some((row) => row.beacon_position === "lead");
+        beaconPosition = hasLead ? "left" : "lead";
+      }
+
+      if (beaconOrder == null) {
+        if (beaconPosition === "lead") {
+          beaconOrder = 1;
+        } else {
+          const maxOrderForPosition = placementRows.reduce((highest, row) => {
+            if (row.beacon_position !== beaconPosition) return highest;
+            return Math.max(highest, Number(row.beacon_order ?? 0));
           }, 0);
-
-          beaconRank = maxRank + 1;
+          beaconOrder = maxOrderForPosition + 1;
         }
       }
+
+      beaconRank = null;
     } else {
       beaconRank = null;
+      beaconPosition = null;
+      beaconOrder = null;
     }
 
     const story = {
@@ -131,6 +163,8 @@ export async function POST(req: Request) {
       pinned: Boolean(incoming.pinned),
       beacon_include: Boolean(incoming.beacon_include),
       beacon_rank: beaconRank,
+      beacon_position: beaconPosition,
+      beacon_order: beaconOrder,
       beacon_headline: toNullableString(incoming.beacon_headline),
       updated_at: nowIso,
       content_updated_at: contentUpdatedAt,

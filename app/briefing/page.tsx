@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
-import { splitBriefingColumns } from "@/app/lib/briefing-layout";
+import { buildBriefingLayout } from "@/app/lib/briefing-layout";
 import { DEFAULT_OG_IMAGE, SITE_NAME, trimDescription } from "@/app/lib/seo";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
@@ -88,7 +88,8 @@ export default async function BriefingPage() {
         .from("stories")
         .select("*")
         .eq("beacon_include", true)
-        .order("beacon_rank", { ascending: true, nullsFirst: false })
+        .order("beacon_position", { ascending: true, nullsFirst: false })
+        .order("beacon_order", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false }),
       supabase.from("briefing_meta").select("updated_at").eq("id", 1).maybeSingle(),
     ]);
@@ -100,8 +101,7 @@ export default async function BriefingPage() {
       metaError && /briefing_meta/i.test(metaError.message)
         ? null
         : ((metaData as BriefingMetaRow | null)?.updated_at ?? null);
-    const [lead, ...rest] = stories;
-    const { leftColumn, rightColumn } = splitBriefingColumns(rest);
+    const { lead, leftColumn, rightColumn } = buildBriefingLayout(stories);
 
     return (
       <main className="min-h-screen bg-transparent p-8 text-neutral-100">

@@ -1,4 +1,5 @@
 export type Lean = "Left" | "Center" | "Right";
+export type BriefingPosition = "lead" | "left" | "right";
 
 export type Source = {
   name: string;
@@ -23,6 +24,8 @@ export type Story = {
   urgent: boolean;
   beacon_include: boolean;
   beacon_rank?: number | null;
+  beacon_position?: BriefingPosition | null;
+  beacon_order?: number | null;
   beacon_headline?: string | null;
   created_at?: string;
   updated_at?: string;

@@ -3,8 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { interleaveBriefingColumns, splitBriefingColumns } from "@/app/lib/briefing-layout";
-import type { StoryWithViews } from "@/app/lib/types";
+import { buildBriefingLayout, serializeBriefingLayout, type BriefingLayout } from "@/app/lib/briefing-layout";
+import type { BriefingPosition, StoryWithViews } from "@/app/lib/types";
 
 const TOKEN_KEY = "signal_admin_token";
 
@@ -18,16 +18,12 @@ type AdminBriefingResponse = {
 type SavedBriefingItem = {
   id: string;
   beacon_headline: string | null;
+  beacon_position: BriefingPosition | null;
+  beacon_order: number | null;
 };
 
 type BriefingColumn = "left" | "right";
 type BriefingTarget = "lead" | BriefingColumn;
-
-type BriefingLayoutPreview = {
-  lead: StoryWithViews | null;
-  leftColumn: StoryWithViews[];
-  rightColumn: StoryWithViews[];
-};
 
 function getInitialToken() {
   if (typeof window === "undefined") return "";
@@ -65,21 +61,6 @@ function sortLibrary(stories: StoryWithViews[]) {
     const rightDate = Date.parse(right.created_at ?? right.date);
     return rightDate - leftDate;
   });
-}
-
-function toBriefingLayout(stories: StoryWithViews[]): BriefingLayoutPreview {
-  const [lead, ...rest] = stories;
-  const { leftColumn, rightColumn } = splitBriefingColumns(rest);
-  return {
-    lead: lead ?? null,
-    leftColumn,
-    rightColumn,
-  };
-}
-
-function fromBriefingLayout(layout: BriefingLayoutPreview) {
-  const rest = interleaveBriefingColumns(layout.leftColumn, layout.rightColumn);
-  return layout.lead ? [layout.lead, ...rest] : rest;
 }
 
 export default function AdminBriefingPage() {
@@ -122,6 +103,8 @@ export default function AdminBriefingPage() {
         nextBriefing.map((story) => ({
           id: story.id,
           beacon_headline: story.beacon_headline?.trim() || null,
+          beacon_position: story.beacon_position ?? null,
+          beacon_order: story.beacon_order ?? null,
         }))
       );
     } catch (loadError: unknown) {
@@ -144,7 +127,12 @@ export default function AdminBriefingPage() {
       const saved = savedBriefing[index];
       if (!saved) return true;
 
-      return saved.id !== story.id || saved.beacon_headline !== (story.beacon_headline?.trim() || null);
+      return (
+        saved.id !== story.id ||
+        saved.beacon_headline !== (story.beacon_headline?.trim() || null) ||
+        saved.beacon_position !== (story.beacon_position ?? null) ||
+        saved.beacon_order !== (story.beacon_order ?? null)
+      );
     });
   }, [briefingStories, savedBriefing]);
 
@@ -160,7 +148,7 @@ export default function AdminBriefingPage() {
     });
   }, [libraryStories, search]);
 
-  const briefingLayout = useMemo(() => toBriefingLayout(briefingStories), [briefingStories]);
+  const briefingLayout = useMemo(() => buildBriefingLayout(briefingStories), [briefingStories]);
 
   function saveToken() {
     const token = tokenDraft.trim();
@@ -195,10 +183,10 @@ export default function AdminBriefingPage() {
     setStatus("");
   }
 
-  function updateBriefingLayout(mutator: (layout: BriefingLayoutPreview) => BriefingLayoutPreview) {
+  function updateBriefingLayout(mutator: (layout: BriefingLayout) => BriefingLayout) {
     setBriefingStories((current) => {
-      const layout = toBriefingLayout(current);
-      return fromBriefingLayout(
+      const layout = buildBriefingLayout(current);
+      return serializeBriefingLayout(
         mutator({
           lead: layout.lead,
           leftColumn: [...layout.leftColumn],
@@ -264,7 +252,7 @@ export default function AdminBriefingPage() {
 
     setLibraryStories((current) => current.filter((item) => item.id !== storyId));
     setBriefingStories((current) => {
-      const layout = toBriefingLayout(current);
+      const layout = buildBriefingLayout(current);
       const nextStory = { ...story, beacon_include: true };
 
       if (target === "lead") {
@@ -276,7 +264,7 @@ export default function AdminBriefingPage() {
         layout.rightColumn.push(nextStory);
       }
 
-      return fromBriefingLayout(layout);
+      return serializeBriefingLayout(layout);
     });
     setStatus("");
   }
@@ -286,7 +274,12 @@ export default function AdminBriefingPage() {
     if (!story) return;
 
     setBriefingStories((current) => current.filter((item) => item.id !== storyId));
-    setLibraryStories((current) => sortLibrary([...current, { ...story, beacon_include: false, beacon_rank: null }]));
+    setLibraryStories((current) =>
+      sortLibrary([
+        ...current,
+        { ...story, beacon_include: false, beacon_rank: null, beacon_position: null, beacon_order: null },
+      ])
+    );
     setStatus("");
   }
 
@@ -326,6 +319,8 @@ export default function AdminBriefingPage() {
           briefing: briefingStories.map((story) => ({
             id: story.id,
             beacon_headline: story.beacon_headline?.trim() || null,
+            beacon_position: story.beacon_position ?? null,
+            beacon_order: story.beacon_order ?? null,
           })),
         }),
       });
@@ -343,6 +338,8 @@ export default function AdminBriefingPage() {
         nextBriefing.map((story) => ({
           id: story.id,
           beacon_headline: story.beacon_headline?.trim() || null,
+          beacon_position: story.beacon_position ?? null,
+          beacon_order: story.beacon_order ?? null,
         }))
       );
       setStatus("Briefing saved.");

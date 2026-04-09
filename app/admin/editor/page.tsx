@@ -69,7 +69,6 @@ export default function EditorPage() {
   const [urgent, setUrgent] = useState(false);
   const [pinnedStory, setPinnedStory] = useState(false);
   const [beaconInclude, setBeaconInclude] = useState(false);
-  const [beaconRank, setBeaconRank] = useState("");
   const [beaconHeadline, setBeaconHeadline] = useState("");
   const [summary, setSummary] = useState<string[]>(blankSummary());
   const [topics, setTopics] = useState<string[]>([]);
@@ -102,7 +101,6 @@ export default function EditorPage() {
     setUrgent(false);
     setPinnedStory(false);
     setBeaconInclude(false);
-    setBeaconRank("");
     setBeaconHeadline("");
     setSummary(blankSummary());
     setTopics([]);
@@ -121,7 +119,6 @@ export default function EditorPage() {
     setUrgent(story.urgent);
     setPinnedStory(story.pinned);
     setBeaconInclude(story.beacon_include);
-    setBeaconRank(story.beacon_rank != null ? String(story.beacon_rank) : "");
     setBeaconHeadline(story.beacon_headline ?? "");
     setSummary([...story.summary, "", "", ""].slice(0, Math.max(3, story.summary.length)));
     setTopics(story.topics);
@@ -327,14 +324,10 @@ export default function EditorPage() {
       }))
       .filter((source) => source.name && source.url);
     const trimmedBeaconHeadline = beaconHeadline.trim();
-    const parsedBeaconRank = beaconRank.trim() === "" ? null : Number(beaconRank);
 
     if (!title.trim()) return alert("Title is required.");
     if (cleanedSummary.length === 0) return alert("Add at least 1 summary line.");
     if (cleanedSources.length === 0) return alert("Add at least 1 source.");
-    if (parsedBeaconRank !== null && (!Number.isInteger(parsedBeaconRank) || parsedBeaconRank < 1)) {
-      return alert("Briefing rank must be a whole number greater than 0.");
-    }
 
     const storyEntities = selectedEntities
   .map((name) => entities.find((e) => e.name === name))
@@ -352,7 +345,6 @@ export default function EditorPage() {
       urgent,
       pinned: pinnedStory,
       beacon_include: beaconInclude,
-      beacon_rank: parsedBeaconRank,
       beacon_headline: trimmedBeaconHeadline || null,
       topics: topics.map(normalize),
       entities: storyEntities,
@@ -672,36 +664,19 @@ export default function EditorPage() {
               Show this story in The Briefing
             </label>
 
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <label className="block text-sm text-neutral-300 mb-2">Briefing Rank (optional)</label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={beaconRank}
-                  onChange={(e) => setBeaconRank(e.target.value)}
-                  disabled={!beaconInclude}
-                  className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg disabled:opacity-50"
-                  placeholder="1"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-neutral-300 mb-2">Briefing Headline</label>
-                <input
-                  value={beaconHeadline}
-                  onChange={(e) => setBeaconHeadline(e.target.value)}
-                  disabled={!beaconInclude}
-                  className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg disabled:opacity-50"
-                  placeholder="Optional alternate headline"
-                />
-              </div>
+            <div className="mt-4">
+              <label className="block text-sm text-neutral-300 mb-2">Briefing Headline</label>
+              <input
+                value={beaconHeadline}
+                onChange={(e) => setBeaconHeadline(e.target.value)}
+                disabled={!beaconInclude}
+                className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg disabled:opacity-50"
+                placeholder="Optional alternate headline"
+              />
             </div>
 
             <p className="mt-3 text-xs text-neutral-500">
-              Leave rank blank to auto-add this story to the end of the briefing. You can fine-tune the order in the
-              briefing manager. Leave the headline blank to reuse the main story title.
+              Placement is now handled in the briefing manager. Leave the headline blank to reuse the main story title.
             </p>
           </div>
 

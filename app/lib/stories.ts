@@ -13,6 +13,8 @@ export type StoryDbRow = {
   pinned?: boolean | null;
   beacon_include?: boolean | null;
   beacon_rank?: number | string | null;
+  beacon_position?: string | null;
+  beacon_order?: number | string | null;
   beacon_headline?: string | null;
   topics?: unknown;
   tags?: unknown;
@@ -107,6 +109,11 @@ export function coerceStory(row: StoryDbRow): StoryWithViews {
     pinned: Boolean(row.pinned),
     beacon_include: Boolean(row.beacon_include),
     beacon_rank: toNullableNumber(row.beacon_rank),
+    beacon_position:
+      row.beacon_position === "lead" || row.beacon_position === "left" || row.beacon_position === "right"
+        ? row.beacon_position
+        : null,
+    beacon_order: toNullableNumber(row.beacon_order),
     beacon_headline: toNullableString(row.beacon_headline),
     topics: toStringArray(row.topics),
     tags: toStringArray(row.tags),
