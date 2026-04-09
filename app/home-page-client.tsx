@@ -219,22 +219,24 @@ export default function HomePageClient() {
     setGhostTab(key);
   }, [activeTab, pinned]);
 
-  useEffect(() => {
+  const setActiveTabAndUrl = useCallback((nextTab: TabKey) => {
     const currentTab = normalize(searchParams.get("tab") ?? "");
-    const desiredTab = normalize(String(activeTab));
+    const desiredTab = normalize(String(nextTab));
     const nextParams = new URLSearchParams(searchParams.toString());
 
     if (!desiredTab || desiredTab === "popular") {
+      setActiveTab(nextTab);
       if (!currentTab) return;
       nextParams.delete("tab");
     } else {
+      setActiveTab(nextTab);
       if (currentTab === desiredTab) return;
       nextParams.set("tab", desiredTab);
     }
 
     const nextQuery = nextParams.toString();
     router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
-  }, [activeTab, pathname, router, searchParams]);
+  }, [pathname, router, searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -358,7 +360,7 @@ export default function HomePageClient() {
 
     setPinned((prev) => (prev.includes(t) ? prev : [...prev, t]));
     setNewTag("");
-    setActiveTab(t);
+    setActiveTabAndUrl(t);
     setGhostTab(null);
   }
 
@@ -400,7 +402,7 @@ export default function HomePageClient() {
               <button
                 key={String(tab.key)}
                 onClick={() => {
-                  setActiveTab(tab.key);
+                  setActiveTabAndUrl(tab.key);
 
                   if (isBuiltinTab || pinned.includes(key)) {
                     setGhostTab(null);
@@ -644,17 +646,17 @@ export default function HomePageClient() {
                    {(story.topics ?? []).map((topic) => {
                      const key = normalize(topic);
                      return (
-                       <button
-                         key={key}
-                         onClick={(e) => {
-                           e.preventDefault();
-                           e.stopPropagation();
+                        <button
+                          key={key}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
 
-                           setActiveTab(key);
+                            setActiveTabAndUrl(key);
 
-                           if (!pinned.includes(key)) setGhostTab(key);
-                           else setGhostTab(null);
-                         }}
+                            if (!pinned.includes(key)) setGhostTab(key);
+                            else setGhostTab(null);
+                          }}
                          className="rounded-full border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:bg-neutral-800"
                        >
                          {toTitleCase(key)}
