@@ -180,7 +180,7 @@ export default async function BriefingPage() {
                 )}
               </Link>
 
-              {rest.length > 0 && (
+              {(leftColumn.length > 0 || rightColumn.length > 0) && (
                 <section className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-10">
                   <BriefingList stories={leftColumn} />
                   <BriefingList stories={rightColumn} />
