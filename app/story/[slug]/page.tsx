@@ -197,91 +197,99 @@ export default async function StoryPage({
             {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
           </div>
         </div>
+      </div>
 
-        <div className="relative mt-8 rounded-2xl border border-[#15324d] bg-[#03101b] p-8 pb-12 shadow-[0_22px_55px_rgba(0,0,0,0.24)]">
-          <h1 className="text-3xl font-semibold leading-tight">{story.title}</h1>
+      <div
+        className={
+          relatedStories.length > 0
+            ? "mx-auto mt-8 max-w-[84rem] xl:grid xl:grid-cols-[1fr_minmax(0,48rem)_15rem_1fr] xl:gap-6"
+            : "mx-auto mt-8 max-w-3xl"
+        }
+      >
+        {relatedStories.length > 0 ? <div className="hidden xl:block" /> : null}
 
-          <div className="mt-6">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">Summary</h2>
-            <div className="mt-4 space-y-3 text-[1.05rem] text-neutral-200">
-              {story.summary.map((point, i) => (
-                <p key={i} className="leading-8">
-                  {point}
-                </p>
+        <div className={relatedStories.length > 0 ? "xl:col-start-2" : ""}>
+          <div className="relative rounded-2xl border border-[#15324d] bg-[#03101b] p-8 pb-12 shadow-[0_22px_55px_rgba(0,0,0,0.24)]">
+            <h1 className="text-3xl font-semibold leading-tight">{story.title}</h1>
+
+            <div className="mt-6">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">Summary</h2>
+              <div className="mt-4 space-y-3 text-[1.05rem] text-neutral-200">
+                {story.summary.map((point, i) => (
+                  <p key={i} className="leading-8">
+                    {point}
+                  </p>
+                ))}
+              </div>
+            </div>
+
+            <div className="absolute bottom-4 right-5 z-10">
+              <ShareButton title={story.title} path={`/story/${story.id}`} />
+            </div>
+          </div>
+
+          <div className="mt-8">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Coverage</h2>
+                {story.pinned ? (
+                  <p className="mt-1 text-sm text-neutral-500">
+                    Updated: {updatedAt ? formatUpdatedAt(updatedAt) : "--"}
+                  </p>
+                ) : null}
+              </div>
+              <p className="text-sm text-neutral-500">Multiple sources, one story.</p>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {story.sources.map((src, i) => (
+                <a
+                  key={i}
+                  href={src.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group block rounded-2xl border border-[#13314b] bg-[#03101b] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:border-[#21496b] hover:bg-[#041524] hover:shadow-[0_16px_38px_rgba(0,0,0,0.2)]"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex flex-1 items-center gap-3">
+                      <div className="shrink-0 text-base font-semibold text-neutral-100">{src.name}</div>
+                      <span className={`shrink-0 text-xs px-2 py-1 rounded-full ${leanBadgeClasses(src.lean)}`}>
+                        {src.lean}
+                      </span>
+                      {src.title ? (
+                        <SourceTitle
+                          title={src.title}
+                          className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-sm text-neutral-300 transition group-hover:text-neutral-200"
+                        />
+                      ) : null}
+                    </div>
+                    <div className="shrink-0 text-sm text-neutral-500 transition group-hover:text-neutral-300">Read -&gt;</div>
+                  </div>
+                </a>
               ))}
             </div>
           </div>
 
-          <div className="absolute bottom-4 right-5 z-10">
-            <ShareButton title={story.title} path={`/story/${story.id}`} />
-          </div>
-        </div>
-
-        <div className="mt-8">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">Coverage</h2>
-              {story.pinned ? (
-                <p className="mt-1 text-sm text-neutral-500">
-                  Updated: {updatedAt ? formatUpdatedAt(updatedAt) : "--"}
-                </p>
-              ) : null}
+          <div className="mt-8 rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Reactions</h2>
+              </div>
             </div>
-            <p className="text-sm text-neutral-500">Multiple sources, one story.</p>
-          </div>
 
-          <div className="mt-4 space-y-3">
-            {story.sources.map((src, i) => (
-              <a
-                key={i}
-                href={src.url}
-                target="_blank"
-                rel="noreferrer"
-                className="group block rounded-2xl border border-[#13314b] bg-[#03101b] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:border-[#21496b] hover:bg-[#041524] hover:shadow-[0_16px_38px_rgba(0,0,0,0.2)]"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="min-w-0 flex flex-1 items-center gap-3">
-                    <div className="shrink-0 text-base font-semibold text-neutral-100">{src.name}</div>
-                    <span className={`shrink-0 text-xs px-2 py-1 rounded-full ${leanBadgeClasses(src.lean)}`}>
-                      {src.lean}
-                    </span>
-                    {src.title ? (
-                      <SourceTitle
-                        title={src.title}
-                        className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-sm text-neutral-300 transition group-hover:text-neutral-200"
-                      />
-                    ) : null}
-                  </div>
-                  <div className="shrink-0 text-sm text-neutral-500 transition group-hover:text-neutral-300">Read -&gt;</div>
-                </div>
-              </a>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-8 rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">Reactions</h2>
+            <div className="mt-4">
+              <ReactionBar slug={slug} />
             </div>
           </div>
 
-          <div className="mt-4">
-            <ReactionBar slug={slug} />
+          <div className="mt-10 rounded-2xl border border-[#13314b] bg-[#03101b] p-8 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
+            <h2 className="text-lg font-semibold">Comments</h2>
+            <p className="text-neutral-400 mt-2">Coming next.</p>
           </div>
         </div>
 
-        <div className="mt-10 rounded-2xl border border-[#13314b] bg-[#03101b] p-8 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
-          <h2 className="text-lg font-semibold">Comments</h2>
-          <p className="text-neutral-400 mt-2">Coming next.</p>
-        </div>
-      </div>
-
-      {relatedStories.length > 0 ? (
-        <div className="mx-auto mt-8 max-w-[84rem] xl:grid xl:grid-cols-[1fr_minmax(0,48rem)_15rem_1fr] xl:gap-6">
-          <div className="hidden xl:block" />
-          <div className="hidden xl:block" />
-          <aside className="xl:w-60 xl:self-start">
+        {relatedStories.length > 0 ? (
+          <aside className="xl:col-start-3 xl:w-60 xl:self-start">
             <div className="rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
               <h2 className="text-lg font-semibold text-neutral-100">Related Stories</h2>
               <div className="mt-5 space-y-4">
@@ -303,8 +311,10 @@ export default async function StoryPage({
               </div>
             </div>
           </aside>
-        </div>
-      ) : null}
+        ) : null}
+
+        {relatedStories.length > 0 ? <div className="hidden xl:block" /> : null}
+      </div>
     </main>
   );
 }

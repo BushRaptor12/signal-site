@@ -41,10 +41,10 @@ export default function AboutPage() {
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">About</div>
           <h1 className="mt-3 text-4xl font-semibold text-neutral-100">About The Beacon</h1>
           <p className="mt-6 text-base leading-7 text-neutral-300">
-            This page is reserved for your site background, editorial mission, and who is behind The Beacon.
+            The Beacon is a news publication focused on concise, multi-source coverage and clear perspective.
           </p>
           <p className="mt-4 text-base leading-7 text-neutral-400">
-            Add your story here when you&apos;re ready.
+            More information about the publication, editorial approach, and team will be added here.
           </p>
         </div>
       </div>
