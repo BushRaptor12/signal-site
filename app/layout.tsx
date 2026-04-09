@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Analytics } from "@vercel/analytics/next";
+import { getAdsenseConfig } from "@/app/lib/adsense";
 import { DEFAULT_OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, getSiteUrl } from "@/app/lib/seo";
 
 export const metadata: Metadata = {
@@ -37,13 +38,21 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const adsense = getAdsenseConfig();
+
   return (
     <html lang="en">
+      <head>
+        {adsense ? <meta name="google-adsense-account" content={adsense.metaContent} /> : null}
+      </head>
       <body className="flex min-h-screen flex-col">
         <div className="flex-1">{children}</div>
         <footer className="border-t border-[#0d2438] bg-[var(--surface)] px-6 py-4 text-center text-sm text-neutral-400">
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
             <span>&copy; 2026 The Beacon. All rights reserved.</span>
+            <Link href="/about" className="text-neutral-300 transition hover:text-white">
+              About
+            </Link>
             <Link href="/privacy" className="text-neutral-300 transition hover:text-white">
               Privacy Policy
             </Link>

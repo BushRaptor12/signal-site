@@ -172,14 +172,7 @@ export default async function StoryPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <ViewTracker slug={slug} />
-      <div
-        className={
-          relatedStories.length > 0
-            ? "mx-auto max-w-[84rem] xl:grid xl:grid-cols-[16rem_minmax(0,48rem)_16rem] xl:gap-6"
-            : "mx-auto max-w-3xl"
-        }
-      >
-        <div className={relatedStories.length > 0 ? "mx-auto max-w-3xl xl:col-start-2 xl:mx-0 xl:max-w-none" : ""}>
+      <div className="mx-auto max-w-3xl">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
           <Link
             href={backHref}
@@ -282,10 +275,13 @@ export default async function StoryPage({
           <h2 className="text-lg font-semibold">Comments</h2>
           <p className="text-neutral-400 mt-2">Coming next.</p>
         </div>
-        </div>
+      </div>
 
-        {relatedStories.length > 0 ? (
-          <aside className="mt-10 xl:col-start-3 xl:mt-0 xl:w-64 xl:justify-self-start xl:self-start xl:sticky xl:top-8">
+      {relatedStories.length > 0 ? (
+        <div className="mx-auto mt-8 max-w-[84rem] xl:grid xl:grid-cols-[1fr_minmax(0,48rem)_15rem_1fr] xl:gap-6">
+          <div className="hidden xl:block" />
+          <div className="hidden xl:block" />
+          <aside className="xl:w-60 xl:self-start">
             <div className="rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
               <h2 className="text-lg font-semibold text-neutral-100">Related Stories</h2>
               <div className="mt-5 space-y-4">
@@ -307,8 +303,8 @@ export default async function StoryPage({
               </div>
             </div>
           </aside>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </main>
   );
 }
