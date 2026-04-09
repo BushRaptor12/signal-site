@@ -1,5 +1,6 @@
 export type Lean = "Left" | "Center" | "Right";
 export type BriefingPosition = "lead" | "left" | "right";
+export type StoryImageDisplay = "cover" | "contain";
 
 export type Source = {
   name: string;
@@ -23,6 +24,7 @@ export type Story = {
   image_path?: string | null;
   image_focus_x?: number | null;
   image_focus_y?: number | null;
+  image_display?: StoryImageDisplay | null;
   urgent: boolean;
   beacon_include: boolean;
   beacon_rank?: number | null;

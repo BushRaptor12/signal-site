@@ -456,18 +456,31 @@ export default function AdminBriefingPage() {
                     </div>
 
                     {briefingLayout.lead.image_url ? (
-                      <div className="mb-6 overflow-hidden rounded-2xl border border-red-500/30 bg-[#01060b]">
-                        <div className="relative aspect-[4/3] md:aspect-[16/10]">
-                          <Image
-                            src={briefingLayout.lead.image_url}
-                            alt={displayHeadline(briefingLayout.lead)}
-                            fill
-                            sizes="(max-width: 768px) 100vw, 1080px"
-                            className="object-cover"
-                            style={{ objectPosition: imageObjectPosition(briefingLayout.lead) }}
-                          />
+                      briefingLayout.lead.image_display === "contain" ? (
+                        <div className="mb-6 overflow-hidden rounded-2xl border border-red-500/30 bg-transparent">
+                          <div className="flex justify-center p-4">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={briefingLayout.lead.image_url}
+                              alt={displayHeadline(briefingLayout.lead)}
+                              className="block max-h-[36rem] max-w-full rounded-xl object-contain"
+                            />
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="mb-6 overflow-hidden rounded-2xl border border-red-500/30 bg-[#01060b]">
+                          <div className="relative aspect-[4/3] md:aspect-[16/10]">
+                            <Image
+                              src={briefingLayout.lead.image_url}
+                              alt={displayHeadline(briefingLayout.lead)}
+                              fill
+                              sizes="(max-width: 768px) 100vw, 1080px"
+                              className="object-cover"
+                              style={{ objectPosition: imageObjectPosition(briefingLayout.lead) }}
+                            />
+                          </div>
+                        </div>
+                      )
                     ) : null}
 
                     <div className="text-4xl font-semibold leading-[0.95] text-red-400 md:text-6xl">
@@ -547,18 +560,31 @@ export default function AdminBriefingPage() {
                                 </div>
 
                                 {story.image_url ? (
-                                  <div className="mb-5 overflow-hidden rounded-xl border border-[#163754]/60 bg-[#01060b]">
-                                    <div className="relative aspect-[4/3]">
-                                      <Image
-                                        src={story.image_url}
-                                        alt={displayHeadline(story)}
-                                        fill
-                                        sizes="(max-width: 1280px) 100vw, 520px"
-                                        className="object-cover"
-                                        style={{ objectPosition: imageObjectPosition(story) }}
-                                      />
+                                  story.image_display === "contain" ? (
+                                    <div className="mb-5 overflow-hidden rounded-xl border border-[#163754]/60 bg-transparent">
+                                      <div className="flex justify-center p-3">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                          src={story.image_url}
+                                          alt={displayHeadline(story)}
+                                          className="block max-h-[22rem] max-w-full rounded-lg object-contain"
+                                        />
+                                      </div>
                                     </div>
-                                  </div>
+                                  ) : (
+                                    <div className="mb-5 overflow-hidden rounded-xl border border-[#163754]/60 bg-[#01060b]">
+                                      <div className="relative aspect-[4/3]">
+                                        <Image
+                                          src={story.image_url}
+                                          alt={displayHeadline(story)}
+                                          fill
+                                          sizes="(max-width: 1280px) 100vw, 520px"
+                                          className="object-cover"
+                                          style={{ objectPosition: imageObjectPosition(story) }}
+                                        />
+                                      </div>
+                                    </div>
+                                  )
                                 ) : null}
 
                                 <div className="text-2xl font-semibold leading-tight text-neutral-100">{displayHeadline(story)}</div>

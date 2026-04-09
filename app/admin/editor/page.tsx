@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { DEFAULT_IMAGE_FOCUS, clampImageFocus, imageObjectPosition } from "@/app/lib/image-focus";
 import { STORY_IMAGE_ACCEPT } from "@/app/lib/story-images";
-import type { Lean, Story, StoryWithViews } from "@/app/lib/types";
+import type { Lean, Story, StoryImageDisplay, StoryWithViews } from "@/app/lib/types";
 import { detectSourceLean } from "@/app/lib/source-lean";
 import { TOPICS, normalize, slugify } from "@/app/lib/vocab";
 
@@ -67,6 +67,7 @@ export default function EditorPage() {
   const [imagePath, setImagePath] = useState<string | null>(null);
   const [imageFocusX, setImageFocusX] = useState(DEFAULT_IMAGE_FOCUS);
   const [imageFocusY, setImageFocusY] = useState(DEFAULT_IMAGE_FOCUS);
+  const [imageDisplay, setImageDisplay] = useState<StoryImageDisplay>("cover");
   const [savedImagePath, setSavedImagePath] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [urgent, setUrgent] = useState(false);
@@ -102,6 +103,7 @@ export default function EditorPage() {
     setImagePath(null);
     setImageFocusX(DEFAULT_IMAGE_FOCUS);
     setImageFocusY(DEFAULT_IMAGE_FOCUS);
+    setImageDisplay("cover");
     setSavedImagePath(null);
     setUrgent(false);
     setPinnedStory(false);
@@ -122,6 +124,7 @@ export default function EditorPage() {
     setImagePath(story.image_path ?? null);
     setImageFocusX(clampImageFocus(story.image_focus_x));
     setImageFocusY(clampImageFocus(story.image_focus_y));
+    setImageDisplay(story.image_display === "contain" ? "contain" : "cover");
     setSavedImagePath(story.image_path ?? null);
     setUrgent(story.urgent);
     setPinnedStory(story.pinned);
@@ -287,6 +290,7 @@ export default function EditorPage() {
       setImageUrl(json.imageUrl);
       setImageFocusX(DEFAULT_IMAGE_FOCUS);
       setImageFocusY(DEFAULT_IMAGE_FOCUS);
+      setImageDisplay("cover");
     } finally {
       setUploadingImage(false);
     }
@@ -316,9 +320,11 @@ export default function EditorPage() {
     setImagePath(null);
     setImageFocusX(DEFAULT_IMAGE_FOCUS);
     setImageFocusY(DEFAULT_IMAGE_FOCUS);
+    setImageDisplay("cover");
   }
 
   function updateImageFocusFromClick(event: MouseEvent<HTMLButtonElement>) {
+    if (imageDisplay !== "cover") return;
     const rect = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 100;
     const y = ((event.clientY - rect.top) / rect.height) * 100;
@@ -363,6 +369,7 @@ export default function EditorPage() {
       image_path: imagePath,
       image_focus_x: imageUrl ? imageFocusX : null,
       image_focus_y: imageUrl ? imageFocusY : null,
+      image_display: imageUrl ? imageDisplay : null,
       urgent,
       pinned: pinnedStory,
       beacon_include: beaconInclude,
@@ -635,8 +642,28 @@ export default function EditorPage() {
               <div className="mt-4 rounded-2xl border border-neutral-700 bg-neutral-950/30 p-4">
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Image Framing</div>
                 <p className="mt-2 text-sm text-neutral-500">
-                  Click the preview to choose what part of the image stays centered in cropped story and briefing cards.
+                  Choose whether this image should crop to fill story cards or fit fully inside them. For cropped images,
+                  click the preview to choose what part stays centered.
                 </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {([
+                    { value: "cover" as StoryImageDisplay, label: "Crop to fill" },
+                    { value: "contain" as StoryImageDisplay, label: "Fit whole image" },
+                  ]).map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setImageDisplay(option.value)}
+                      className={`rounded-full border px-3 py-2 text-sm transition ${
+                        imageDisplay === option.value
+                          ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                          : "border-neutral-700 text-neutral-300 hover:bg-neutral-800"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <label className="text-sm text-neutral-300">
                     Horizontal focus: {Math.round(imageFocusX)}%
@@ -646,8 +673,9 @@ export default function EditorPage() {
                       max="100"
                       step="1"
                       value={imageFocusX}
+                      disabled={imageDisplay !== "cover"}
                       onChange={(e) => setImageFocusX(clampImageFocus(Number(e.target.value)))}
-                      className="mt-2 w-full"
+                      className="mt-2 w-full disabled:opacity-40"
                     />
                   </label>
                   <label className="text-sm text-neutral-300">
@@ -658,8 +686,9 @@ export default function EditorPage() {
                       max="100"
                       step="1"
                       value={imageFocusY}
+                      disabled={imageDisplay !== "cover"}
                       onChange={(e) => setImageFocusY(clampImageFocus(Number(e.target.value)))}
-                      className="mt-2 w-full"
+                      className="mt-2 w-full disabled:opacity-40"
                     />
                   </label>
                 </div>
@@ -688,21 +717,34 @@ export default function EditorPage() {
                 type="button"
                 onClick={updateImageFocusFromClick}
                 className="mt-5 block w-full overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 text-left"
-                title="Click to set the crop focus point"
+                title={imageDisplay === "cover" ? "Click to set the crop focus point" : "Image is shown fully in fit mode"}
               >
-                <div className="relative aspect-[16/10]">
-                  <Image
-                    src={imageUrl}
-                    alt="Story image preview"
-                    fill
-                    sizes="(max-width: 768px) 100vw, 720px"
-                    className="object-cover"
-                    style={{ objectPosition: imageObjectPosition({ image_focus_x: imageFocusX, image_focus_y: imageFocusY }) }}
-                  />
-                  <div
-                    className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-white/20 shadow-[0_0_0_999px_rgba(255,255,255,0)]"
-                    style={{ left: `${imageFocusX}%`, top: `${imageFocusY}%` }}
-                  />
+                <div className={`relative ${imageDisplay === "contain" ? "flex min-h-[320px] items-center justify-center p-4" : "aspect-[16/10]"}`}>
+                  {imageDisplay === "contain" ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={imageUrl}
+                        alt="Story image preview"
+                        className="block max-h-[420px] max-w-full rounded-xl object-contain"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Image
+                        src={imageUrl}
+                        alt="Story image preview"
+                        fill
+                        sizes="(max-width: 768px) 100vw, 720px"
+                        className="object-cover"
+                        style={{ objectPosition: imageObjectPosition({ image_focus_x: imageFocusX, image_focus_y: imageFocusY }) }}
+                      />
+                      <div
+                        className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-white/20 shadow-[0_0_0_999px_rgba(255,255,255,0)]"
+                        style={{ left: `${imageFocusX}%`, top: `${imageFocusY}%` }}
+                      />
+                    </>
+                  )}
                 </div>
               </button>
             ) : (

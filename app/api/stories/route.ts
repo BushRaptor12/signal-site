@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { deleteStoryImage, isStoryImagePath, storyImagePublicUrl } from "@/app/lib/story-images";
 import { supabaseServer } from "@/app/lib/supabase.server";
-import type { BriefingPosition, StoryWithViews } from "@/app/lib/types";
+import type { BriefingPosition, StoryImageDisplay, StoryWithViews } from "@/app/lib/types";
 import {
   coerceStory,
   toEntities,
@@ -27,6 +27,11 @@ function requireAdmin(req: Request) {
 
 function toNullableBriefingPosition(value: unknown): BriefingPosition | null {
   if (value === "lead" || value === "left" || value === "right") return value;
+  return null;
+}
+
+function toNullableImageDisplay(value: unknown): StoryImageDisplay | null {
+  if (value === "cover" || value === "contain") return value;
   return null;
 }
 
@@ -62,7 +67,7 @@ export async function POST(req: Request) {
     const { data: existingData, error: existingError } = await supabase
       .from("stories")
       .select(
-        "beacon_include, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, image_focus_x, image_focus_y, content_updated_at, updated_at, created_at"
+        "beacon_include, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, image_focus_x, image_focus_y, image_display, content_updated_at, updated_at, created_at"
       )
       .eq("id", String(incoming.id))
       .maybeSingle();
@@ -78,6 +83,7 @@ export async function POST(req: Request) {
       image_path?: string | null;
       image_focus_x?: number | null;
       image_focus_y?: number | null;
+      image_display?: StoryImageDisplay | null;
       content_updated_at?: string | null;
       updated_at?: string | null;
       created_at?: string | null;
@@ -88,6 +94,8 @@ export async function POST(req: Request) {
     const normalizedSummary = toStringArray(incoming.summary);
     const normalizedSources = toSources(incoming.sources);
     const normalizedImagePath = toNullableString(incoming.image_path);
+    let normalizedImageDisplay =
+      incoming.image_display === undefined ? toNullableImageDisplay(existing?.image_display) : toNullableImageDisplay(incoming.image_display);
     let normalizedImageFocusX =
       incoming.image_focus_x === undefined ? toNullableNumber(existing?.image_focus_x) : toNullableNumber(incoming.image_focus_x);
     let normalizedImageFocusY =
@@ -104,8 +112,11 @@ export async function POST(req: Request) {
 
     const normalizedImageUrl = normalizedImagePath ? storyImagePublicUrl(supabase, normalizedImagePath) : null;
     if (!normalizedImageUrl) {
+      normalizedImageDisplay = null;
       normalizedImageFocusX = null;
       normalizedImageFocusY = null;
+    } else if (!normalizedImageDisplay) {
+      normalizedImageDisplay = "cover";
     }
     const contentChanged =
       !existing ||
@@ -172,6 +183,7 @@ export async function POST(req: Request) {
       image_url: normalizedImageUrl,
       image_focus_x: normalizedImageFocusX,
       image_focus_y: normalizedImageFocusY,
+      image_display: normalizedImageDisplay,
       topics: toStringArray(incoming.topics),
       tags: toStringArray(incoming.tags),
       entities: toEntities(incoming.entities),

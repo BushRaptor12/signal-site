@@ -561,18 +561,32 @@ export default function Home() {
                   } bg-[var(--surface)] relative`}
                 >
                   {story.image_url ? (
-                    <div className="mb-6 overflow-hidden rounded-xl border border-[#163754]/60 bg-[#020b14]">
-                      <div className="relative aspect-[4/3] md:aspect-[16/10]">
-                        <Image
-                          src={story.image_url}
-                          alt={story.title}
-                          fill
-                          sizes="(max-width: 768px) 100vw, 896px"
-                          className="object-cover"
-                          style={{ objectPosition: imageObjectPosition(story) }}
-                        />
+                    story.image_display === "contain" ? (
+                      <div className="mb-6 overflow-hidden rounded-xl border border-[#163754]/60 bg-transparent">
+                        <div className="flex justify-center p-3">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={story.image_url}
+                            alt={story.title}
+                            loading="lazy"
+                            className="block max-h-[28rem] max-w-full rounded-lg object-contain"
+                          />
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="mb-6 overflow-hidden rounded-xl border border-[#163754]/60 bg-[#020b14]">
+                        <div className="relative aspect-[4/3] md:aspect-[16/10]">
+                          <Image
+                            src={story.image_url}
+                            alt={story.title}
+                            fill
+                            sizes="(max-width: 768px) 100vw, 896px"
+                            className="object-cover"
+                            style={{ objectPosition: imageObjectPosition(story) }}
+                          />
+                        </div>
+                      </div>
+                    )
                   ) : null}
 
                   <h2
