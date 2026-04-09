@@ -188,6 +188,7 @@ export async function POST(req: Request) {
       tags: toStringArray(incoming.tags),
       entities: toEntities(incoming.entities),
       primary_entities: toStringArray(incoming.primary_entities),
+      related_story_ids: toStringArray(incoming.related_story_ids),
       comments: Number(incoming.comments ?? 0),
       urgent: Boolean(incoming.urgent),
       pinned: Boolean(incoming.pinned),

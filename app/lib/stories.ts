@@ -23,6 +23,7 @@ export type StoryDbRow = {
   tags?: unknown;
   entities?: unknown;
   primary_entities?: unknown;
+  related_story_ids?: unknown;
   comments?: number | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -125,6 +126,7 @@ export function coerceStory(row: StoryDbRow): StoryWithViews {
     tags: toStringArray(row.tags),
     entities: toEntities(row.entities),
     primary_entities: toStringArray(row.primary_entities),
+    related_story_ids: toStringArray(row.related_story_ids),
     comments: Number(row.comments ?? 0),
     views: Number(row.views ?? 0),
   };

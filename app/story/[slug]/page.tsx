@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { formatUpdatedAt } from "@/app/lib/dates";
+import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
+import { buildRelatedStories } from "@/app/lib/related-stories";
 import { SITE_NAME, absoluteUrl, buildStoryMetadata, storyDescription, storyKeywords, storyModifiedTime, storyPublishedTime } from "@/app/lib/seo";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
@@ -24,12 +25,43 @@ function leanBadgeClasses(lean: "Left" | "Center" | "Right") {
   }
 }
 
+function storyHref(id: string, from?: string) {
+  return from ? `/story/${id}?from=${encodeURIComponent(from)}` : `/story/${id}`;
+}
+
 async function loadStory(slug: string) {
   const supabase = supabaseServer();
   const { data, error } = await supabase.from("stories").select("*").eq("id", slug).maybeSingle();
   if (error) throw error;
   if (!data) return null;
   return coerceStory(data as StoryDbRow);
+}
+
+async function loadRelatedStoryPool(currentStory: StoryWithViews) {
+  const supabase = supabaseServer();
+  const manualIds = currentStory.related_story_ids.filter((id) => id && id !== currentStory.id);
+
+  const [{ data: recentData, error: recentError }, manualResult] = await Promise.all([
+    supabase.from("stories").select("*").neq("id", currentStory.id).order("created_at", { ascending: false }).limit(80),
+    manualIds.length > 0
+      ? supabase.from("stories").select("*").in("id", manualIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (recentError) throw recentError;
+  if (manualResult.error) throw manualResult.error;
+
+  const merged = new Map<string, StoryWithViews>();
+  for (const row of (manualResult.data ?? []) as StoryDbRow[]) {
+    const story = coerceStory(row);
+    if (story.id !== currentStory.id) merged.set(story.id, story);
+  }
+  for (const row of (recentData ?? []) as StoryDbRow[]) {
+    const story = coerceStory(row);
+    if (story.id !== currentStory.id) merged.set(story.id, story);
+  }
+
+  return Array.from(merged.values());
 }
 
 export async function generateMetadata({
@@ -79,11 +111,16 @@ export default async function StoryPage({
     from === "briefing" || from === "beacon" ? "/briefing" : from ? `/?tab=${encodeURIComponent(from)}` : "/";
 
   let story: StoryWithViews | null = null;
+  let relatedStories: StoryWithViews[] = [];
 
   try {
     story = await loadStory(slug);
+    if (story) {
+      relatedStories = buildRelatedStories(story, await loadRelatedStoryPool(story));
+    }
   } catch {
     story = null;
+    relatedStories = [];
   }
 
   if (!story) {
@@ -145,7 +182,8 @@ export default async function StoryPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <ViewTracker slug={slug} />
-      <div className="max-w-3xl mx-auto">
+      <div className="mx-auto max-w-[80rem] xl:grid xl:grid-cols-[minmax(0,48rem)_20rem] xl:gap-10">
+        <div className="mx-auto max-w-3xl xl:mx-0">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
           <Link
             href={backHref}
@@ -248,6 +286,36 @@ export default async function StoryPage({
           <h2 className="text-lg font-semibold">Comments</h2>
           <p className="text-neutral-400 mt-2">Coming next.</p>
         </div>
+        </div>
+
+        {relatedStories.length > 0 ? (
+          <aside className="mt-10 xl:mt-0 xl:sticky xl:top-8 xl:self-start">
+            <div className="rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
+              <h2 className="text-lg font-semibold text-neutral-100">Related Stories</h2>
+              <p className="mt-2 text-sm leading-6 text-neutral-500">
+                Automatic matches use shared topics and entities. Manual links from the editor show first.
+              </p>
+
+              <div className="mt-5 space-y-4">
+                {relatedStories.map((relatedStory) => (
+                  <Link
+                    key={relatedStory.id}
+                    href={storyHref(relatedStory.id, from)}
+                    className="block rounded-2xl border border-[#0d2438] bg-[#020b14] p-4 transition hover:border-[#163754] hover:bg-[#041524]"
+                  >
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                      {formatStoryDate(relatedStory.date)}
+                    </div>
+                    <div className="mt-2 text-base font-semibold leading-6 text-neutral-100">{relatedStory.title}</div>
+                    {relatedStory.summary[0] ? (
+                      <p className="mt-2 text-sm leading-6 text-neutral-400">{relatedStory.summary[0]}</p>
+                    ) : null}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </aside>
+        ) : null}
       </div>
     </main>
   );

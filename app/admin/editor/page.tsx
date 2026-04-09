@@ -65,6 +65,8 @@ export default function EditorPage() {
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
   const [primaryEntities, setPrimaryEntities] = useState<string[]>([]);
+  const [relatedStoryIds, setRelatedStoryIds] = useState<string[]>([]);
+  const [relatedStorySearch, setRelatedStorySearch] = useState("");
   const [sources, setSources] = useState<SourceEditorRow[]>(blankSources());
   const [sourceUrlDraft, setSourceUrlDraft] = useState("");
   const [sourcePreviewLoading, setSourcePreviewLoading] = useState(false);
@@ -125,6 +127,8 @@ export default function EditorPage() {
     setTopics([]);
     setSelectedEntities([]);
     setPrimaryEntities([]);
+    setRelatedStoryIds([]);
+    setRelatedStorySearch("");
     setSources(blankSources());
   }
 
@@ -146,6 +150,8 @@ export default function EditorPage() {
     setTopics(story.topics);
     setSelectedEntities(story.entities.map((entity) => entity.name));
     setPrimaryEntities(story.primary_entities);
+    setRelatedStoryIds(story.related_story_ids);
+    setRelatedStorySearch("");
     setSources(story.sources.length > 0 ? story.sources.map(toEditorSource) : blankSources());
   }
 
@@ -168,6 +174,25 @@ export default function EditorPage() {
       return headline.includes(query) || id.includes(query) || briefingHeadline.includes(query);
     });
   }, [stories, storySearch]);
+
+  const selectedRelatedStories = useMemo(
+    () =>
+      relatedStoryIds
+        .map((id) => stories.find((story) => story.id === id))
+        .filter((story): story is StoryWithViews => Boolean(story)),
+    [relatedStoryIds, stories]
+  );
+
+  const relatedStoryOptions = useMemo(() => {
+    const query = relatedStorySearch.trim().toLowerCase();
+    return stories
+      .filter((story) => story.id !== storyId && !relatedStoryIds.includes(story.id))
+      .filter((story) => {
+        if (!query) return true;
+        return story.title.toLowerCase().includes(query) || story.id.toLowerCase().includes(query);
+      })
+      .slice(0, 12);
+  }, [relatedStoryIds, relatedStorySearch, stories, storyId]);
 
   function toggleTopic(topic: string) {
     const key = normalize(topic);
@@ -304,6 +329,10 @@ export default function EditorPage() {
       setSelectedEntities((prev) => (prev.includes(name) ? prev : [...prev, name]));
     }
     setPrimaryEntities((prev) => (prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]));
+  }
+
+  function toggleRelatedStory(id: string) {
+    setRelatedStoryIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   }
 
   async function uploadImage(file: File) {
@@ -444,6 +473,7 @@ export default function EditorPage() {
       topics: topics.map(normalize),
       entities: storyEntities,
       primary_entities: primaryEntities,
+      related_story_ids: relatedStoryIds,
       tags: [...topics.map(normalize), ...selectedEntities.map(normalize)],
       comments: 0,
     };
@@ -898,6 +928,59 @@ export default function EditorPage() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
+            <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Related Stories</div>
+            <p className="text-sm text-neutral-500">
+              Optional. These manual links will show first in the story-page related rail before the automatic matches.
+            </p>
+
+            <input
+              value={relatedStorySearch}
+              onChange={(e) => setRelatedStorySearch(e.target.value)}
+              placeholder="Search stories to mark as related"
+              className="mt-4 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+            />
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {selectedRelatedStories.map((story) => (
+                <button
+                  key={story.id}
+                  type="button"
+                  onClick={() => toggleRelatedStory(story.id)}
+                  className="rounded-full border border-neutral-700 px-3 py-1.5 text-xs text-neutral-200 hover:bg-neutral-800"
+                  title="Remove related story"
+                >
+                  x {story.title}
+                </button>
+              ))}
+              {selectedRelatedStories.length === 0 ? (
+                <span className="text-xs text-neutral-500">No manual related stories selected.</span>
+              ) : null}
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {relatedStoryOptions.map((story) => (
+                <button
+                  key={story.id}
+                  type="button"
+                  onClick={() => toggleRelatedStory(story.id)}
+                  className="flex w-full items-start justify-between gap-4 rounded-xl border border-neutral-700 bg-neutral-950/40 px-4 py-3 text-left transition hover:border-neutral-500"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-neutral-100">{story.title}</div>
+                    <div className="mt-1 text-xs text-neutral-500">{story.id}</div>
+                  </div>
+                  <div className="shrink-0 rounded-full border border-neutral-700 px-3 py-1 text-[11px] text-neutral-300">
+                    Add
+                  </div>
+                </button>
+              ))}
+              {relatedStoryOptions.length === 0 && relatedStorySearch.trim() ? (
+                <div className="text-xs text-neutral-500">No matching stories found.</div>
+              ) : null}
             </div>
           </div>
 

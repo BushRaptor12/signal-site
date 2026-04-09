@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatStoryDate } from "./lib/dates";
 import { imageObjectPosition } from "./lib/image-focus";
 import type { StoryWithViews } from "./lib/types";
@@ -14,6 +14,9 @@ type TopRange = "day" | "week" | "month";
 type CustomSortMode = "top" | "new";
 
 const PINNED_KEY = "signal:pinnedTags:v1";
+const HOME_STATE_KEY = "signal:homeState:v1";
+const CUSTOM_SORT_KEY = "signal:customSortMode:v1";
+const CUSTOM_TOP_RANGE_KEY = "signal:customTopRange:v1";
 const INITIAL_NOW_MS = Date.now();
 const STORY_BATCH_SIZE = 10;
 const TOP_RANGE_MS: Record<TopRange, number> = {
@@ -30,6 +33,13 @@ const TOP_RANGE_DESCRIPTIONS: Record<TopRange, string> = {
   day: "last 24 hours",
   week: "last 7 days",
   month: "last 30 days",
+};
+
+type SavedHomeState = {
+  customSortMode?: CustomSortMode;
+  customTopRange?: TopRange;
+  visibleCount?: number;
+  scrollY?: number;
 };
 
 function TopRangeDropdown({
@@ -117,6 +127,45 @@ function getInitialActiveTab(): TabKey {
   }
 }
 
+function getInitialCustomSortMode(): CustomSortMode {
+  if (typeof window === "undefined") return "new";
+  try {
+    return localStorage.getItem(CUSTOM_SORT_KEY) === "top" ? "top" : "new";
+  } catch {
+    return "new";
+  }
+}
+
+function getInitialCustomTopRange(): TopRange {
+  if (typeof window === "undefined") return "day";
+  try {
+    const value = localStorage.getItem(CUSTOM_TOP_RANGE_KEY);
+    return value === "week" || value === "month" ? value : "day";
+  } catch {
+    return "day";
+  }
+}
+
+function readHomeStateMap(): Record<string, SavedHomeState> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = sessionStorage.getItem(HOME_STATE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : {};
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, SavedHomeState>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeHomeStateMap(state: Record<string, SavedHomeState>) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(HOME_STATE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore
+  }
+}
+
 function publishedAtMs(story: StoryWithViews): number {
   const created = new Date(story.created_at ?? "").getTime();
   if (Number.isFinite(created) && created > 0) return created;
@@ -188,8 +237,9 @@ export default function HomePageClient() {
   const [newTag, setNewTag] = useState("");
   const [ghostTab, setGhostTab] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(STORY_BATCH_SIZE);
-  const [customSortMode, setCustomSortMode] = useState<CustomSortMode>("new");
-  const [customTopRange, setCustomTopRange] = useState<TopRange>("day");
+  const [customSortMode, setCustomSortMode] = useState<CustomSortMode>(getInitialCustomSortMode);
+  const [customTopRange, setCustomTopRange] = useState<TopRange>(getInitialCustomTopRange);
+  const pendingScrollRestoreRef = useRef<{ tabKey: string; scrollY: number } | null>(null);
 
   useEffect(() => {
     try {
@@ -200,14 +250,72 @@ export default function HomePageClient() {
   }, [pinned]);
 
   useEffect(() => {
-    setVisibleCount(STORY_BATCH_SIZE);
-  }, [activeTab, customSortMode, customTopRange]);
+    try {
+      localStorage.setItem(CUSTOM_SORT_KEY, customSortMode);
+      localStorage.setItem(CUSTOM_TOP_RANGE_KEY, customTopRange);
+    } catch {
+      // ignore
+    }
+  }, [customSortMode, customTopRange]);
 
   useEffect(() => {
     const requestedTab = normalize(searchParams.get("tab") ?? "");
     const nextTab = requestedTab || "popular";
+    const savedState = readHomeStateMap()[nextTab];
+
     setActiveTab((current) => (normalize(String(current)) === nextTab ? current : nextTab));
+    if (savedState?.customSortMode === "top" || savedState?.customSortMode === "new") {
+      setCustomSortMode(savedState.customSortMode);
+    }
+    if (savedState?.customTopRange === "day" || savedState?.customTopRange === "week" || savedState?.customTopRange === "month") {
+      setCustomTopRange(savedState.customTopRange);
+    }
+
+    const nextVisibleCount =
+      typeof savedState?.visibleCount === "number" && savedState.visibleCount > STORY_BATCH_SIZE
+        ? savedState.visibleCount
+        : STORY_BATCH_SIZE;
+    setVisibleCount(nextVisibleCount);
+    pendingScrollRestoreRef.current = {
+      tabKey: nextTab,
+      scrollY: typeof savedState?.scrollY === "number" && savedState.scrollY > 0 ? savedState.scrollY : 0,
+    };
   }, [searchParams]);
+
+  const persistHomeState = useCallback((tabOverride?: TabKey) => {
+    if (typeof window === "undefined") return;
+
+    const tabKey = normalize(String(tabOverride ?? activeTab)) || "popular";
+    const currentMap = readHomeStateMap();
+    currentMap[tabKey] = {
+      customSortMode,
+      customTopRange,
+      visibleCount,
+      scrollY: window.scrollY,
+    };
+    writeHomeStateMap(currentMap);
+  }, [activeTab, customSortMode, customTopRange, visibleCount]);
+
+  useEffect(() => {
+    persistHomeState();
+  }, [persistHomeState]);
+
+  useEffect(() => {
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        persistHomeState();
+      });
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [persistHomeState]);
 
   useEffect(() => {
     const key = normalize(String(activeTab));
@@ -220,6 +328,7 @@ export default function HomePageClient() {
   }, [activeTab, pinned]);
 
   const setActiveTabAndUrl = useCallback((nextTab: TabKey) => {
+    persistHomeState();
     const currentTab = normalize(searchParams.get("tab") ?? "");
     const desiredTab = normalize(String(nextTab));
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -236,7 +345,7 @@ export default function HomePageClient() {
 
     const nextQuery = nextParams.toString();
     router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
-  }, [pathname, router, searchParams]);
+  }, [pathname, persistHomeState, router, searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -349,6 +458,19 @@ export default function HomePageClient() {
   const visibleStories = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
   const canLoadMore = visibleCount < visible.length;
 
+  useEffect(() => {
+    if (isLoading) return;
+
+    const pending = pendingScrollRestoreRef.current;
+    const currentTab = normalize(String(activeTab)) || "popular";
+    if (!pending || pending.tabKey !== currentTab) return;
+
+    pendingScrollRestoreRef.current = null;
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: pending.scrollY, behavior: "auto" });
+    });
+  }, [activeTab, isLoading, visible, visibleCount]);
+
   function togglePin(tag: string) {
     const t = normalize(tag);
     setPinned((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
@@ -442,6 +564,7 @@ export default function HomePageClient() {
                   <Link
                     key={story.id}
                     href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
+                    onClick={() => persistHomeState()}
                     className="min-w-0 text-[15px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
                   >
                     {story.title}
@@ -459,7 +582,11 @@ export default function HomePageClient() {
               {(["top", "new"] as CustomSortMode[]).map((mode) => (
                 <button
                   key={mode}
-                  onClick={() => setCustomSortMode(mode)}
+                  onClick={() => {
+                    setCustomSortMode(mode);
+                    setVisibleCount(STORY_BATCH_SIZE);
+                    window.scrollTo({ top: 0, behavior: "auto" });
+                  }}
                   className={`rounded-full border px-3 py-1.5 text-xs transition ${
                     customSortMode === mode
                       ? "border-neutral-100 bg-neutral-100 text-neutral-900"
@@ -472,7 +599,14 @@ export default function HomePageClient() {
             </div>
             <div className="flex flex-col items-end gap-2">
               {customSortMode === "top" ? (
-                <TopRangeDropdown value={customTopRange} onChange={setCustomTopRange} />
+                <TopRangeDropdown
+                  value={customTopRange}
+                  onChange={(range) => {
+                    setCustomTopRange(range);
+                    setVisibleCount(STORY_BATCH_SIZE);
+                    window.scrollTo({ top: 0, behavior: "auto" });
+                  }}
+                />
               ) : null}
               {shouldFallbackToCustomNew ? (
                 <div className="text-right text-xs text-neutral-500">
@@ -582,6 +716,7 @@ export default function HomePageClient() {
             <Link
               key={story.id}
               href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
+              onClick={() => persistHomeState()}
               className="block"
             >
                 <div

@@ -38,6 +38,7 @@ export type Story = {
   topics: string[];          // high-level sections
   entities: Entity[];        // canonical + aliases
   primary_entities: string[];// canonical names
+  related_story_ids: string[];
 
   // legacy / optional
   tags: string[];
