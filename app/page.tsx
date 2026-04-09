@@ -562,7 +562,7 @@ export default function Home() {
                 >
                   {story.image_url ? (
                     story.image_display === "contain" ? (
-                      <div className="mb-6 overflow-hidden rounded-xl border border-[#163754]/60 bg-transparent">
+                      <div className="mb-6 overflow-hidden rounded-xl bg-transparent">
                         <div className="flex justify-center p-3">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
@@ -574,7 +574,7 @@ export default function Home() {
                         </div>
                       </div>
                     ) : (
-                      <div className="mb-6 overflow-hidden rounded-xl border border-[#163754]/60 bg-[#020b14]">
+                      <div className="mb-6 overflow-hidden rounded-xl bg-[#020b14]">
                         <div className="relative aspect-[4/3] md:aspect-[16/10]">
                           <Image
                             src={story.image_url}

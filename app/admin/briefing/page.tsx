@@ -457,7 +457,7 @@ export default function AdminBriefingPage() {
 
                     {briefingLayout.lead.image_url ? (
                       briefingLayout.lead.image_display === "contain" ? (
-                        <div className="mb-6 overflow-hidden rounded-2xl border border-red-500/30 bg-transparent">
+                        <div className="mb-6 overflow-hidden rounded-2xl bg-transparent">
                           <div className="flex justify-center p-4">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
@@ -468,7 +468,7 @@ export default function AdminBriefingPage() {
                           </div>
                         </div>
                       ) : (
-                        <div className="mb-6 overflow-hidden rounded-2xl border border-red-500/30 bg-[#01060b]">
+                        <div className="mb-6 overflow-hidden rounded-2xl bg-[#01060b]">
                           <div className="relative aspect-[4/3] md:aspect-[16/10]">
                             <Image
                               src={briefingLayout.lead.image_url}
@@ -561,7 +561,7 @@ export default function AdminBriefingPage() {
 
                                 {story.image_url ? (
                                   story.image_display === "contain" ? (
-                                    <div className="mb-5 overflow-hidden rounded-xl border border-[#163754]/60 bg-transparent">
+                                    <div className="mb-5 overflow-hidden rounded-xl bg-transparent">
                                       <div className="flex justify-center p-3">
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
@@ -572,7 +572,7 @@ export default function AdminBriefingPage() {
                                       </div>
                                     </div>
                                   ) : (
-                                    <div className="mb-5 overflow-hidden rounded-xl border border-[#163754]/60 bg-[#01060b]">
+                                    <div className="mb-5 overflow-hidden rounded-xl bg-[#01060b]">
                                       <div className="relative aspect-[4/3]">
                                         <Image
                                           src={story.image_url}

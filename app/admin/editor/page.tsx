@@ -716,7 +716,7 @@ export default function EditorPage() {
               <button
                 type="button"
                 onClick={updateImageFocusFromClick}
-                className="mt-5 block w-full overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 text-left"
+                className="mt-5 block w-full overflow-hidden rounded-2xl bg-neutral-950 text-left"
                 title={imageDisplay === "cover" ? "Click to set the crop focus point" : "Image is shown fully in fit mode"}
               >
                 <div className={`relative ${imageDisplay === "contain" ? "flex min-h-[320px] items-center justify-center p-4" : "aspect-[16/10]"}`}>
