@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { buildBriefingLayout } from "@/app/lib/briefing-layout";
+import { imageObjectPosition } from "@/app/lib/image-focus";
 import { DEFAULT_OG_IMAGE, SITE_NAME, trimDescription } from "@/app/lib/seo";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
@@ -62,7 +63,8 @@ function BriefingList({ stories }: { stories: StoryWithViews[] }) {
                   alt={displayHeadline(story)}
                   fill
                   sizes="(max-width: 768px) 100vw, 560px"
-                  className="object-contain"
+                  className="object-cover"
+                  style={{ objectPosition: imageObjectPosition(story) }}
                 />
               </div>
             </div>
@@ -159,7 +161,8 @@ export default async function BriefingPage() {
                         fill
                         priority
                         sizes="(max-width: 768px) 100vw, 1152px"
-                        className="object-contain"
+                        className="object-cover"
+                        style={{ objectPosition: imageObjectPosition(lead) }}
                       />
                     </div>
                   </div>

@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     const { data: existingData, error: existingError } = await supabase
       .from("stories")
       .select(
-        "beacon_include, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, content_updated_at, updated_at, created_at"
+        "beacon_include, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, image_focus_x, image_focus_y, content_updated_at, updated_at, created_at"
       )
       .eq("id", String(incoming.id))
       .maybeSingle();
@@ -76,6 +76,8 @@ export async function POST(req: Request) {
       summary?: unknown;
       sources?: unknown;
       image_path?: string | null;
+      image_focus_x?: number | null;
+      image_focus_y?: number | null;
       content_updated_at?: string | null;
       updated_at?: string | null;
       created_at?: string | null;
@@ -86,11 +88,25 @@ export async function POST(req: Request) {
     const normalizedSummary = toStringArray(incoming.summary);
     const normalizedSources = toSources(incoming.sources);
     const normalizedImagePath = toNullableString(incoming.image_path);
+    let normalizedImageFocusX =
+      incoming.image_focus_x === undefined ? toNullableNumber(existing?.image_focus_x) : toNullableNumber(incoming.image_focus_x);
+    let normalizedImageFocusY =
+      incoming.image_focus_y === undefined ? toNullableNumber(existing?.image_focus_y) : toNullableNumber(incoming.image_focus_y);
     if (normalizedImagePath && !isStoryImagePath(normalizedImagePath)) {
       return NextResponse.json({ error: "Invalid story image path." }, { status: 400 });
     }
+    if (normalizedImageFocusX != null && (normalizedImageFocusX < 0 || normalizedImageFocusX > 100)) {
+      return NextResponse.json({ error: "image_focus_x must be between 0 and 100." }, { status: 400 });
+    }
+    if (normalizedImageFocusY != null && (normalizedImageFocusY < 0 || normalizedImageFocusY > 100)) {
+      return NextResponse.json({ error: "image_focus_y must be between 0 and 100." }, { status: 400 });
+    }
 
     const normalizedImageUrl = normalizedImagePath ? storyImagePublicUrl(supabase, normalizedImagePath) : null;
+    if (!normalizedImageUrl) {
+      normalizedImageFocusX = null;
+      normalizedImageFocusY = null;
+    }
     const contentChanged =
       !existing ||
       JSON.stringify(toStringArray(existing.summary)) !== JSON.stringify(normalizedSummary) ||
@@ -154,6 +170,8 @@ export async function POST(req: Request) {
       date: String(incoming.date),
       image_path: normalizedImagePath,
       image_url: normalizedImageUrl,
+      image_focus_x: normalizedImageFocusX,
+      image_focus_y: normalizedImageFocusY,
       topics: toStringArray(incoming.topics),
       tags: toStringArray(incoming.tags),
       entities: toEntities(incoming.entities),

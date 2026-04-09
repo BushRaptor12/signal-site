@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { buildBriefingLayout, serializeBriefingLayout, type BriefingLayout } from "@/app/lib/briefing-layout";
+import { imageObjectPosition } from "@/app/lib/image-focus";
 import type { BriefingPosition, StoryWithViews } from "@/app/lib/types";
 
 const TOKEN_KEY = "signal_admin_token";
@@ -462,7 +463,8 @@ export default function AdminBriefingPage() {
                             alt={displayHeadline(briefingLayout.lead)}
                             fill
                             sizes="(max-width: 768px) 100vw, 1080px"
-                            className="object-contain"
+                            className="object-cover"
+                            style={{ objectPosition: imageObjectPosition(briefingLayout.lead) }}
                           />
                         </div>
                       </div>
@@ -552,7 +554,8 @@ export default function AdminBriefingPage() {
                                         alt={displayHeadline(story)}
                                         fill
                                         sizes="(max-width: 1280px) 100vw, 520px"
-                                        className="object-contain"
+                                        className="object-cover"
+                                        style={{ objectPosition: imageObjectPosition(story) }}
                                       />
                                     </div>
                                   </div>

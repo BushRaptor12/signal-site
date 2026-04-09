@@ -21,6 +21,8 @@ export type Story = {
   date: string; // YYYY-MM-DD
   image_url?: string | null;
   image_path?: string | null;
+  image_focus_x?: number | null;
+  image_focus_y?: number | null;
   urgent: boolean;
   beacon_include: boolean;
   beacon_rank?: number | null;

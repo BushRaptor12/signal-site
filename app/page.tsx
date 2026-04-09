@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatStoryDate } from "./lib/dates";
+import { imageObjectPosition } from "./lib/image-focus";
 import type { StoryWithViews } from "./lib/types";
 import { TOPICS, normalize, toTitleCase } from "./lib/vocab";
 
@@ -568,6 +569,7 @@ export default function Home() {
                           fill
                           sizes="(max-width: 768px) 100vw, 896px"
                           className="object-cover"
+                          style={{ objectPosition: imageObjectPosition(story) }}
                         />
                       </div>
                     </div>

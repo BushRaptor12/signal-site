@@ -8,6 +8,8 @@ export type StoryDbRow = {
   date: string;
   image_url?: string | null;
   image_path?: string | null;
+  image_focus_x?: number | string | null;
+  image_focus_y?: number | string | null;
   views?: number | null;
   urgent?: boolean | null;
   pinned?: boolean | null;
@@ -102,6 +104,8 @@ export function coerceStory(row: StoryDbRow): StoryWithViews {
     date: row.date,
     image_url: toNullableString(row.image_url),
     image_path: toNullableString(row.image_path),
+    image_focus_x: toNullableNumber(row.image_focus_x),
+    image_focus_y: toNullableNumber(row.image_focus_y),
     created_at: row.created_at ?? undefined,
     updated_at: row.updated_at ?? undefined,
     content_updated_at: row.content_updated_at ?? undefined,

@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { DEFAULT_IMAGE_FOCUS, clampImageFocus, imageObjectPosition } from "@/app/lib/image-focus";
 import { STORY_IMAGE_ACCEPT } from "@/app/lib/story-images";
 import type { Lean, Story, StoryWithViews } from "@/app/lib/types";
 import { detectSourceLean } from "@/app/lib/source-lean";
@@ -64,6 +65,8 @@ export default function EditorPage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imagePath, setImagePath] = useState<string | null>(null);
+  const [imageFocusX, setImageFocusX] = useState(DEFAULT_IMAGE_FOCUS);
+  const [imageFocusY, setImageFocusY] = useState(DEFAULT_IMAGE_FOCUS);
   const [savedImagePath, setSavedImagePath] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [urgent, setUrgent] = useState(false);
@@ -97,6 +100,8 @@ export default function EditorPage() {
     setDate(new Date().toISOString().slice(0, 10));
     setImageUrl(null);
     setImagePath(null);
+    setImageFocusX(DEFAULT_IMAGE_FOCUS);
+    setImageFocusY(DEFAULT_IMAGE_FOCUS);
     setSavedImagePath(null);
     setUrgent(false);
     setPinnedStory(false);
@@ -115,6 +120,8 @@ export default function EditorPage() {
     setDate(story.date);
     setImageUrl(story.image_url ?? null);
     setImagePath(story.image_path ?? null);
+    setImageFocusX(clampImageFocus(story.image_focus_x));
+    setImageFocusY(clampImageFocus(story.image_focus_y));
     setSavedImagePath(story.image_path ?? null);
     setUrgent(story.urgent);
     setPinnedStory(story.pinned);
@@ -278,6 +285,8 @@ export default function EditorPage() {
 
       setImagePath(json.imagePath);
       setImageUrl(json.imageUrl);
+      setImageFocusX(DEFAULT_IMAGE_FOCUS);
+      setImageFocusY(DEFAULT_IMAGE_FOCUS);
     } finally {
       setUploadingImage(false);
     }
@@ -305,6 +314,16 @@ export default function EditorPage() {
 
     setImageUrl(null);
     setImagePath(null);
+    setImageFocusX(DEFAULT_IMAGE_FOCUS);
+    setImageFocusY(DEFAULT_IMAGE_FOCUS);
+  }
+
+  function updateImageFocusFromClick(event: MouseEvent<HTMLButtonElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 100;
+    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    setImageFocusX(clampImageFocus(x));
+    setImageFocusY(clampImageFocus(y));
   }
 
   async function onSave() {
@@ -342,6 +361,8 @@ export default function EditorPage() {
       date,
       image_url: imageUrl,
       image_path: imagePath,
+      image_focus_x: imageUrl ? imageFocusX : null,
+      image_focus_y: imageUrl ? imageFocusY : null,
       urgent,
       pinned: pinnedStory,
       beacon_include: beaconInclude,
@@ -610,6 +631,52 @@ export default function EditorPage() {
             <p className="mt-3 text-xs text-neutral-500">
               JPG, PNG, WEBP, or GIF up to 5MB.
             </p>
+            {imageUrl ? (
+              <div className="mt-4 rounded-2xl border border-neutral-700 bg-neutral-950/30 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Image Framing</div>
+                <p className="mt-2 text-sm text-neutral-500">
+                  Click the preview to choose what part of the image stays centered in cropped story and briefing cards.
+                </p>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="text-sm text-neutral-300">
+                    Horizontal focus: {Math.round(imageFocusX)}%
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={imageFocusX}
+                      onChange={(e) => setImageFocusX(clampImageFocus(Number(e.target.value)))}
+                      className="mt-2 w-full"
+                    />
+                  </label>
+                  <label className="text-sm text-neutral-300">
+                    Vertical focus: {Math.round(imageFocusY)}%
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={imageFocusY}
+                      onChange={(e) => setImageFocusY(clampImageFocus(Number(e.target.value)))}
+                      className="mt-2 w-full"
+                    />
+                  </label>
+                </div>
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImageFocusX(DEFAULT_IMAGE_FOCUS);
+                      setImageFocusY(DEFAULT_IMAGE_FOCUS);
+                    }}
+                    className="rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
+                  >
+                    Reset framing
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {savedImagePath && !imagePath ? (
               <p className="mt-2 text-xs text-amber-300">
                 This saved image will be removed after you click Save story.
@@ -617,7 +684,12 @@ export default function EditorPage() {
             ) : null}
 
             {imageUrl ? (
-              <div className="mt-5 overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950">
+              <button
+                type="button"
+                onClick={updateImageFocusFromClick}
+                className="mt-5 block w-full overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-950 text-left"
+                title="Click to set the crop focus point"
+              >
                 <div className="relative aspect-[16/10]">
                   <Image
                     src={imageUrl}
@@ -625,9 +697,14 @@ export default function EditorPage() {
                     fill
                     sizes="(max-width: 768px) 100vw, 720px"
                     className="object-cover"
+                    style={{ objectPosition: imageObjectPosition({ image_focus_x: imageFocusX, image_focus_y: imageFocusY }) }}
+                  />
+                  <div
+                    className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-white/20 shadow-[0_0_0_999px_rgba(255,255,255,0)]"
+                    style={{ left: `${imageFocusX}%`, top: `${imageFocusY}%` }}
                   />
                 </div>
-              </div>
+              </button>
             ) : (
               <div className="mt-5 rounded-2xl border border-dashed border-neutral-700 bg-neutral-950/40 p-6 text-sm text-neutral-500">
                 No image selected.
