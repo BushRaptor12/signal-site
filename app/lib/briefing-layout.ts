@@ -66,7 +66,7 @@ export function buildBriefingLayout(stories: StoryWithViews[]): BriefingLayout {
   const placedIds = new Set(explicitStories.map((story) => story.id));
   const fallbackStories = includedStories.filter((story) => !placedIds.has(story.id));
 
-  let lead = leadCandidates[0] ?? null;
+  let lead: StoryWithViews | null = leadCandidates[0] ?? null;
   if (!lead && fallbackStories.length > 0) {
     const legacy = legacyLayout(fallbackStories);
     lead = legacy.lead;
