@@ -206,10 +206,8 @@ export default function HomePageClient() {
   useEffect(() => {
     const requestedTab = normalize(searchParams.get("tab") ?? "");
     const nextTab = requestedTab || "popular";
-    if (normalize(String(activeTab)) !== nextTab) {
-      setActiveTab(nextTab);
-    }
-  }, [searchParams, activeTab]);
+    setActiveTab((current) => (normalize(String(current)) === nextTab ? current : nextTab));
+  }, [searchParams]);
 
   useEffect(() => {
     const key = normalize(String(activeTab));
