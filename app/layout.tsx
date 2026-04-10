@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Analytics } from "@vercel/analytics/next";
 import { getAdsenseConfig } from "@/app/lib/adsense";
 import { DEFAULT_OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, getSiteUrl } from "@/app/lib/seo";
+import SiteUtilities from "@/app/site-utilities";
 
 export const metadata: Metadata = {
   metadataBase: getSiteUrl(),
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {adsense ? <meta name="google-adsense-account" content={adsense.metaContent} /> : null}
       </head>
       <body className="flex min-h-screen flex-col">
+        <SiteUtilities />
         <div className="flex-1">{children}</div>
         <footer className="border-t border-[#0d2438] bg-[var(--surface)] px-6 py-4 text-center text-sm text-neutral-400">
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">

@@ -202,13 +202,14 @@ export default async function StoryPage({
       <div
         className={
           relatedStories.length > 0
-            ? "mx-auto mt-8 max-w-[84rem] xl:grid xl:grid-cols-[1fr_minmax(0,48rem)_15rem_1fr] xl:gap-6"
+            ? "mx-auto mt-8 max-w-[100rem] xl:grid xl:grid-cols-[1fr_15rem_minmax(0,48rem)_15rem_1fr] xl:gap-6"
             : "mx-auto mt-8 max-w-3xl"
         }
       >
         {relatedStories.length > 0 ? <div className="hidden xl:block" /> : null}
+        {relatedStories.length > 0 ? <div className="hidden xl:block" /> : null}
 
-        <div className={relatedStories.length > 0 ? "xl:col-start-2" : ""}>
+        <div className={relatedStories.length > 0 ? "xl:col-start-3" : ""}>
           <div className="relative rounded-2xl border border-[#15324d] bg-[#03101b] p-8 pb-12 shadow-[0_22px_55px_rgba(0,0,0,0.24)]">
             <h1 className="text-3xl font-semibold leading-tight">{story.title}</h1>
 
@@ -289,7 +290,7 @@ export default async function StoryPage({
         </div>
 
         {relatedStories.length > 0 ? (
-          <aside className="xl:col-start-3 xl:w-60 xl:self-start">
+          <aside className="xl:col-start-4 xl:w-60 xl:self-start">
             <div className="rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
               <h2 className="text-lg font-semibold text-neutral-100">Related Stories</h2>
               <div className="mt-5 space-y-4">

@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { deleteStoryImage, isStoryImagePath, storyImagePublicUrl } from "@/app/lib/story-images";
+import { insertSiteNotification, sendUrgentPushForStory } from "@/app/lib/push";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { BriefingPosition, StoryImageDisplay, StoryWithViews } from "@/app/lib/types";
 import {
@@ -67,7 +68,7 @@ export async function POST(req: Request) {
     const { data: existingData, error: existingError } = await supabase
       .from("stories")
       .select(
-        "beacon_include, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, image_focus_x, image_focus_y, image_display, content_updated_at, updated_at, created_at"
+        "beacon_include, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, image_focus_x, image_focus_y, image_display, content_updated_at, updated_at, created_at, urgent"
       )
       .eq("id", String(incoming.id))
       .maybeSingle();
@@ -87,6 +88,7 @@ export async function POST(req: Request) {
       content_updated_at?: string | null;
       updated_at?: string | null;
       created_at?: string | null;
+      urgent?: boolean | null;
     } | null;
     let beaconRank = toNullableNumber(incoming.beacon_rank);
     let beaconPosition = toNullableBriefingPosition(incoming.beacon_position);
@@ -207,6 +209,30 @@ export async function POST(req: Request) {
     const existingImagePath = toNullableString(existing?.image_path);
     if (existingImagePath && existingImagePath !== normalizedImagePath) {
       await deleteStoryImage(supabase, existingImagePath);
+    }
+
+    const shouldSendUrgentNotification = Boolean(story.urgent) && !Boolean(existing?.urgent);
+    if (shouldSendUrgentNotification) {
+      const pushedStory = coerceStory({
+        ...story,
+        created_at: existing?.created_at ?? nowIso,
+        updated_at: nowIso,
+        content_updated_at: contentUpdatedAt,
+        views: Number(incoming.views ?? 0),
+      } as StoryDbRow);
+
+      try {
+        await insertSiteNotification({
+          type: "urgent",
+          title: "Urgent News",
+          body: story.title,
+          href: `/story/${story.id}`,
+          story_id: story.id,
+        });
+        await sendUrgentPushForStory(pushedStory);
+      } catch {
+        // story save should still succeed even if push fanout fails
+      }
     }
 
     return NextResponse.json({ ok: true, story });
