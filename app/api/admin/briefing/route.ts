@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
+import { requestHasAdminAccess } from "@/app/lib/admin.server";
 import { sortBriefingStories } from "@/app/lib/briefing-layout";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
@@ -9,12 +10,6 @@ import type { BriefingPosition, StoryWithViews } from "@/app/lib/types";
 function messageFromError(error: unknown) {
   if (error instanceof Error) return error.message;
   return String(error);
-}
-
-function requireAdmin(req: Request) {
-  const expected = process.env.ADMIN_TOKEN;
-  const got = req.headers.get("x-admin-token");
-  return Boolean(expected && got && got === expected);
 }
 
 async function loadAllStories() {
@@ -34,7 +29,7 @@ function splitStories(stories: StoryWithViews[]) {
 
 export async function GET(req: Request) {
   try {
-    if (!requireAdmin(req)) {
+    if (!(await requestHasAdminAccess(req))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -69,7 +64,7 @@ function toNullableInteger(value: unknown): number | null {
 
 export async function PUT(req: Request) {
   try {
-    if (!requireAdmin(req)) {
+    if (!(await requestHasAdminAccess(req))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

@@ -1,9 +1,11 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createClient, type User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { queueUsernameReview } from "@/app/lib/notifications.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { StoryWithViews } from "@/app/lib/types";
+import { getUsernameModerationError, getUsernameReviewReason } from "@/app/lib/username-moderation";
 
 const ACCOUNT_SESSION_COOKIE = "beacon_account";
 const ACCOUNT_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
@@ -16,8 +18,10 @@ type SessionPayload = {
 };
 
 type UserProfileRow = {
+  admin_granted_at: string | null;
   created_at: string;
   email: string;
+  is_admin: boolean;
   updated_at: string;
   user_id: string;
   username: string;
@@ -37,8 +41,10 @@ type UserCommentRow = {
 };
 
 export type AccountProfile = {
+  adminGrantedAt: string | null;
   createdAt: string;
   email: string;
+  isAdmin: boolean;
   updatedAt: string;
   userId: string;
   username: string;
@@ -160,10 +166,24 @@ export function isValidUsername(username: string) {
   return USERNAME_PATTERN.test(username.trim());
 }
 
+function readCookieValue(cookieHeader: string | null | undefined, key: string) {
+  if (!cookieHeader) return undefined;
+
+  for (const part of cookieHeader.split(";")) {
+    const trimmed = part.trim();
+    if (!trimmed.startsWith(`${key}=`)) continue;
+    return trimmed.slice(key.length + 1);
+  }
+
+  return undefined;
+}
+
 function toAccountProfile(row: UserProfileRow): AccountProfile {
   return {
+    adminGrantedAt: row.admin_granted_at,
     createdAt: row.created_at,
     email: row.email,
+    isAdmin: Boolean(row.is_admin),
     updatedAt: row.updated_at,
     userId: row.user_id,
     username: row.username,
@@ -179,6 +199,11 @@ async function findAvailableUsername(seed: string) {
     const trimmedBase = base.slice(0, Math.max(3, 24 - suffix.length));
     const username = `${trimmedBase}${suffix}`;
     const usernameNormalized = normalizeUsername(username);
+
+    if (getUsernameModerationError(username)) {
+      continue;
+    }
+
     const { data, error } = await supabase
       .from("user_profiles")
       .select("user_id")
@@ -195,6 +220,13 @@ async function findAvailableUsername(seed: string) {
   }
 
   const fallback = `reader${Date.now().toString().slice(-6)}`;
+  if (getUsernameModerationError(fallback)) {
+    return {
+      username: "readernews",
+      usernameNormalized: normalizeUsername("readernews"),
+    };
+  }
+
   return {
     username: fallback,
     usernameNormalized: normalizeUsername(fallback),
@@ -273,10 +305,12 @@ export async function getAccountUserId() {
   return session?.sub ?? null;
 }
 
-export async function getAccountProfile() {
-  const userId = await getAccountUserId();
-  if (!userId) return null;
+export function getAccountUserIdFromCookieHeader(cookieHeader: string | null | undefined) {
+  const session = parseSessionValue(readCookieValue(cookieHeader, ACCOUNT_SESSION_COOKIE));
+  return session?.sub ?? null;
+}
 
+export async function getAccountProfileByUserId(userId: string) {
   const supabase = supabaseServer();
   const { data, error } = await supabase.from("user_profiles").select("*").eq("user_id", userId).maybeSingle();
   if (error) {
@@ -284,6 +318,12 @@ export async function getAccountProfile() {
   }
 
   return data ? toAccountProfile(data as UserProfileRow) : null;
+}
+
+export async function getAccountProfile() {
+  const userId = await getAccountUserId();
+  if (!userId) return null;
+  return getAccountProfileByUserId(userId);
 }
 
 export async function loginWithEmail(email: string, password: string) {
@@ -316,6 +356,11 @@ export async function signupWithEmail(email: string, password: string, username:
 
   if (!isValidUsername(displayUsername)) {
     throw new Error("Username must be 3-24 characters and use only letters, numbers, or underscores.");
+  }
+
+  const moderationError = getUsernameModerationError(displayUsername);
+  if (moderationError) {
+    throw new Error(moderationError);
   }
 
   const supabase = supabaseServer();
@@ -361,6 +406,20 @@ export async function signupWithEmail(email: string, password: string, username:
   if (profileError) {
     await supabase.auth.admin.deleteUser(user.id).catch(() => null);
     throw new Error(friendlyAuthError(profileError.message, "We couldn't finish creating your account."));
+  }
+
+  const reviewReason = getUsernameReviewReason(displayUsername);
+  if (reviewReason) {
+    try {
+      await queueUsernameReview({
+        email: normalizedEmail,
+        reason: reviewReason,
+        userId: user.id,
+        username: displayUsername,
+      });
+    } catch {
+      // A review alert should not prevent account creation.
+    }
   }
 
   return toAccountProfile(insertedProfile as UserProfileRow);

@@ -1,8 +1,8 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import type { SiteNotificationEntry } from "@/app/lib/notification-store";
-import { supabaseServer } from "@/app/lib/supabase.server";
+import { getAccountUserId } from "@/app/lib/account.server";
+import { listNotificationsForUser, markAllNotificationsReadForUser } from "@/app/lib/notifications.server";
 
 function messageFromError(error: unknown) {
   if (error instanceof Error) return error.message;
@@ -11,36 +11,34 @@ function messageFromError(error: unknown) {
 
 export async function GET(req: Request) {
   try {
+    const userId = await getAccountUserId();
+    if (!userId) {
+      return NextResponse.json([]);
+    }
+
     const url = new URL(req.url);
     const rawLimit = Number(url.searchParams.get("limit") ?? 20);
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 50) : 20;
+    return NextResponse.json(await listNotificationsForUser(userId, limit));
+  } catch (error) {
+    return NextResponse.json({ error: messageFromError(error) }, { status: 500 });
+  }
+}
 
-    const supabase = supabaseServer();
-    const { data, error } = await supabase
-      .from("site_notifications")
-      .select("id, type, title, body, href, created_at")
-      .order("created_at", { ascending: false })
-      .limit(limit);
-    if (error) throw error;
+export async function PATCH(req: Request) {
+  try {
+    const userId = await getAccountUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "You must be logged in first." }, { status: 401 });
+    }
 
-    const notifications: SiteNotificationEntry[] = ((data ?? []) as Array<{
-      id?: number | string | null;
-      type?: "urgent" | null;
-      title?: string | null;
-      body?: string | null;
-      href?: string | null;
-      created_at?: string | null;
-    }>).map((item) => ({
-      id: String(item.id ?? ""),
-      type: item.type === "urgent" ? "urgent" : "urgent",
-      title: item.title ?? "Notification",
-      body: item.body ?? "",
-      href: item.href ?? "/notifications",
-      createdAt: item.created_at ?? new Date().toISOString(),
-      read: true,
-    }));
+    const body = (await req.json().catch(() => ({}))) as { action?: unknown };
+    if (body.action !== "mark_all_read") {
+      return NextResponse.json({ error: "Unsupported action." }, { status: 400 });
+    }
 
-    return NextResponse.json(notifications);
+    await markAllNotificationsReadForUser(userId);
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: messageFromError(error) }, { status: 500 });
   }

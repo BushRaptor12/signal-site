@@ -2,15 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import BackLink from "@/app/back-link";
 import { formatUpdatedAt } from "@/app/lib/dates";
 import type { NotificationPreferences, SiteNotificationEntry } from "@/app/lib/notification-store";
 import { getExistingPushSubscription, isPushSupported, registerPushServiceWorker, urlBase64ToUint8Array } from "@/app/lib/push-client";
-import {
-  NOTIFICATIONS_UPDATED_EVENT,
-  getNotificationPreferences,
-  markAllNotificationsRead,
-  setNotificationPreferences,
-} from "@/app/lib/notification-store";
+import { NOTIFICATIONS_UPDATED_EVENT, emitNotificationsUpdated } from "@/app/lib/notification-store";
 
 function readNotificationPermission(): NotificationPermission | "unsupported" {
   if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
@@ -18,7 +14,8 @@ function readNotificationPermission(): NotificationPermission | "unsupported" {
 }
 
 export default function NotificationsPageClient() {
-  const [preferences, setPreferences] = useState<NotificationPreferences>({ urgentNews: false });
+  const [authenticated, setAuthenticated] = useState(false);
+  const [preferences, setPreferences] = useState<NotificationPreferences>({ adminReviews: true, urgentNews: false });
   const [items, setItems] = useState<SiteNotificationEntry[]>([]);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("unsupported");
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -29,41 +26,36 @@ export default function NotificationsPageClient() {
   const [savingToggle, setSavingToggle] = useState(false);
 
   useEffect(() => {
-    const refresh = () => {
-      setPreferences(getNotificationPreferences());
-      setPermission(readNotificationPermission());
-    };
-
-    markAllNotificationsRead();
-    refresh();
-
-    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, refresh);
-    window.addEventListener("storage", refresh);
-
-    return () => {
-      window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, refresh);
-      window.removeEventListener("storage", refresh);
-    };
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
 
-    const loadNotifications = async () => {
+    const loadNotifications = async (markRead = false) => {
       try {
-        const [configRes, notificationsRes] = await Promise.all([
-          fetch("/api/notifications/config", { cache: "no-store" }),
-          fetch("/api/notifications?limit=20", { cache: "no-store" }),
-        ]);
-
+        const configRes = await fetch("/api/notifications/config", { cache: "no-store" });
         const configJson = (await configRes.json().catch(() => ({}))) as {
+          authenticated?: boolean;
           enabled?: boolean;
+          preferences?: NotificationPreferences | null;
           publicKey?: string | null;
         };
+
+        if (markRead && configJson.authenticated) {
+          await fetch("/api/notifications", {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ action: "mark_all_read" }),
+          });
+        }
+
+        const notificationsRes = await fetch("/api/notifications?limit=20", { cache: "no-store" });
         const notificationJson = (await notificationsRes.json().catch(() => [])) as unknown;
 
         if (cancelled) return;
 
+        setAuthenticated(Boolean(configJson.authenticated));
+        setPreferences(configJson.preferences ?? { adminReviews: true, urgentNews: false });
+        setPermission(readNotificationPermission());
         setPushConfig({
           enabled: Boolean(configJson.enabled),
           publicKey: typeof configJson.publicKey === "string" ? configJson.publicKey : null,
@@ -74,18 +66,34 @@ export default function NotificationsPageClient() {
           await registerPushServiceWorker();
           const existingSubscription = await getExistingPushSubscription();
           if (!cancelled) setPushEnabled(Boolean(existingSubscription));
+        } else if (!cancelled) {
+          setPushEnabled(false);
+        }
+
+        if (markRead && configJson.authenticated) {
+          emitNotificationsUpdated();
         }
       } catch {
         if (!cancelled) {
           setItems([]);
+          setAuthenticated(false);
         }
       }
     };
 
-    void loadNotifications();
+    void loadNotifications(true);
+
+    const refresh = () => {
+      void loadNotifications(false);
+    };
+
+    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, refresh);
+    window.addEventListener("storage", refresh);
 
     return () => {
       cancelled = true;
+      window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
     };
   }, []);
 
@@ -106,11 +114,11 @@ export default function NotificationsPageClient() {
           await existingSubscription.unsubscribe();
         }
 
-        const nextPreferences = { urgentNews: false };
-        setNotificationPreferences(nextPreferences);
+        const nextPreferences = { ...preferences, urgentNews: false };
         setPreferences(nextPreferences);
         setPushEnabled(false);
         setPermission(readNotificationPermission());
+        emitNotificationsUpdated();
         return;
       }
 
@@ -149,10 +157,10 @@ export default function NotificationsPageClient() {
       });
       if (!saveRes.ok) return;
 
-      const nextPreferences = { urgentNews: true };
-      setNotificationPreferences(nextPreferences);
+      const nextPreferences = { ...preferences, urgentNews: true };
       setPreferences(nextPreferences);
       setPushEnabled(true);
+      emitNotificationsUpdated();
     } finally {
       setSavingToggle(false);
     }
@@ -161,20 +169,23 @@ export default function NotificationsPageClient() {
   return (
     <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
       <div className="mx-auto max-w-4xl">
-        <Link href="/" className="text-neutral-300 transition hover:text-white">
-          {"<- Back"}
-        </Link>
+        <BackLink href="/" />
 
         <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Notifications</div>
           <h1 className="mt-3 text-4xl font-semibold text-neutral-100">Alerts and notification settings</h1>
           <p className="mt-6 text-base leading-7 text-neutral-300">
-            Recent alerts appear here, and notification settings are saved on this device for now.
+            Recent alerts and read state now follow your account, not just this browser.
           </p>
         </div>
 
         <section className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
           <h2 className="text-2xl font-semibold text-neutral-100">Preferences</h2>
+          {!authenticated ? (
+            <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#03101b] p-5 text-sm leading-7 text-neutral-400">
+              Sign in to sync notification history, unread counts, and alert preferences to your account.
+            </div>
+          ) : null}
           <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-[#13314b] bg-[#03101b] p-5 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="text-base font-semibold text-neutral-100">Urgent News</div>
@@ -190,14 +201,16 @@ export default function NotificationsPageClient() {
                 onChange={(e) => {
                   void handleUrgentToggle(e.target.checked);
                 }}
-                disabled={savingToggle || !pushConfig.enabled}
+                disabled={savingToggle || !pushConfig.enabled || !authenticated}
                 className="h-5 w-5 accent-[#d7e2ef]"
               />
             </label>
           </div>
 
           <p className="mt-4 text-sm text-neutral-500">
-            {!pushConfig.enabled
+            {!authenticated
+              ? "Notification syncing and push subscriptions are available once you are logged in."
+              : !pushConfig.enabled
               ? "Background push is not configured yet. Add the web-push environment keys to turn this on."
               : permission === "granted" && pushEnabled
                 ? "Browser notifications are enabled."
@@ -217,7 +230,14 @@ export default function NotificationsPageClient() {
             <span className="text-sm text-neutral-500">{items.length} saved</span>
           </div>
 
-          {items.length === 0 ? (
+          {!authenticated ? (
+            <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#03101b] p-5 text-sm leading-7 text-neutral-400">
+              <p>Log in to see notifications tied to your account.</p>
+              <Link href="/account/login" className="mt-4 inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]">
+                Log in
+              </Link>
+            </div>
+          ) : items.length === 0 ? (
             <p className="mt-6 text-base leading-7 text-neutral-400">No notifications yet.</p>
           ) : (
             <div className="mt-6 space-y-4">
@@ -228,7 +248,13 @@ export default function NotificationsPageClient() {
                   className="block rounded-2xl border border-[#13314b] bg-[#03101b] p-5 transition hover:border-[#21496b] hover:bg-[#041524]"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-sm font-semibold uppercase tracking-[0.16em] text-red-400">{item.title}</div>
+                    <div
+                      className={`text-sm font-semibold uppercase tracking-[0.16em] ${
+                        item.type === "username_review" ? "text-[#d7c08d]" : "text-red-400"
+                      }`}
+                    >
+                      {item.title}
+                    </div>
                     <div className="text-sm text-neutral-500">{formatUpdatedAt(item.createdAt)}</div>
                   </div>
                   <p className="mt-3 text-base leading-7 text-neutral-200">{item.body}</p>

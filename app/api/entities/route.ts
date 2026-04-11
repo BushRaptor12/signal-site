@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requestHasAdminAccess } from "@/app/lib/admin.server";
 
 type EntityRow = {
   name: string;
@@ -30,15 +31,9 @@ function supabaseAdmin() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-function requireAdmin(req: Request) {
-  const expected = process.env.ADMIN_TOKEN;
-  const got = req.headers.get("x-admin-token");
-  return Boolean(expected && got && got === expected);
-}
-
 export async function GET(req: Request) {
   try {
-    if (!requireAdmin(req)) {
+    if (!(await requestHasAdminAccess(req))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -57,7 +52,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    if (!requireAdmin(req)) {
+    if (!(await requestHasAdminAccess(req))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

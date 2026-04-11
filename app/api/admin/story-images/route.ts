@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
+import { requestHasAdminAccess } from "@/app/lib/admin.server";
 import {
   buildStoryImagePath,
   deleteStoryImage,
@@ -12,12 +13,6 @@ import {
 } from "@/app/lib/story-images";
 import { supabaseServer } from "@/app/lib/supabase.server";
 
-function requireAdmin(req: Request) {
-  const expected = process.env.ADMIN_TOKEN;
-  const got = req.headers.get("x-admin-token");
-  return Boolean(expected && got && got === expected);
-}
-
 function messageFromError(e: unknown) {
   if (e instanceof Error) return e.message;
   return String(e);
@@ -25,7 +20,7 @@ function messageFromError(e: unknown) {
 
 export async function POST(req: Request) {
   try {
-    if (!requireAdmin(req)) {
+    if (!(await requestHasAdminAccess(req))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -75,7 +70,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    if (!requireAdmin(req)) {
+    if (!(await requestHasAdminAccess(req))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

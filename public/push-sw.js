@@ -19,7 +19,7 @@ self.addEventListener("push", (event) => {
   const body = payload.body || "There is a new urgent update.";
   const href = payload.href || "/notifications";
   const createdAt = payload.createdAt || new Date().toISOString();
-  const notificationId = payload.storyId ? `urgent:${payload.storyId}` : `push:${createdAt}`;
+  const notificationId = payload.id || (payload.storyId ? `urgent:${payload.storyId}` : `push:${createdAt}`);
 
   event.waitUntil(
     (async () => {

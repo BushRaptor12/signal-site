@@ -4,11 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getExistingPushSubscription, isPushSupported, registerPushServiceWorker } from "@/app/lib/push-client";
-import {
-  NOTIFICATIONS_UPDATED_EVENT,
-  addStoredNotification,
-  getUnreadNotificationCount,
-} from "@/app/lib/notification-store";
+import { NOTIFICATIONS_UPDATED_EVENT, emitNotificationsUpdated } from "@/app/lib/notification-store";
 
 function BellIcon() {
   return (
@@ -29,10 +25,6 @@ function AccountIcon() {
   );
 }
 
-function updateUnreadCount(setUnreadCount: (value: number) => void) {
-  setUnreadCount(getUnreadNotificationCount());
-}
-
 export default function SiteUtilities() {
   const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -41,17 +33,33 @@ export default function SiteUtilities() {
   useEffect(() => {
     if (isAdminPage) return;
 
-    const refresh = () => updateUnreadCount(setUnreadCount);
-    refresh();
+    let cancelled = false;
+
+    const refresh = async () => {
+      try {
+        const response = await fetch("/api/notifications/config", { cache: "no-store" });
+        const data = (await response.json().catch(() => ({}))) as { unreadCount?: number };
+        if (!cancelled) {
+          setUnreadCount(Number(data.unreadCount ?? 0));
+        }
+      } catch {
+        if (!cancelled) {
+          setUnreadCount(0);
+        }
+      }
+    };
+
+    void refresh();
 
     window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, refresh);
     window.addEventListener("storage", refresh);
 
     return () => {
+      cancelled = true;
       window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, refresh);
       window.removeEventListener("storage", refresh);
     };
-  }, [isAdminPage]);
+  }, [isAdminPage, pathname]);
 
   useEffect(() => {
     if (isAdminPage) return;
@@ -75,16 +83,7 @@ export default function SiteUtilities() {
       };
 
       if (message.type !== "site-notification" || !message.notification?.id) return;
-
-      addStoredNotification({
-        id: message.notification.id,
-        type: message.notification.type === "urgent" ? "urgent" : "urgent",
-        title: message.notification.title ?? "Notification",
-        body: message.notification.body ?? "",
-        href: message.notification.href ?? "/notifications",
-        createdAt: message.notification.createdAt ?? new Date().toISOString(),
-        read: Boolean(message.notification.read),
-      });
+      emitNotificationsUpdated();
     };
 
     navigator.serviceWorker.addEventListener("message", onMessage);

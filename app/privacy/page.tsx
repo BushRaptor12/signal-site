@@ -1,5 +1,5 @@
-import Link from "next/link";
 import type { Metadata } from "next";
+import BackLink from "@/app/back-link";
 import { DEFAULT_OG_IMAGE, SITE_NAME } from "@/app/lib/seo";
 
 export const metadata: Metadata = {
@@ -130,9 +130,7 @@ export default function PrivacyPage() {
   return (
     <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
       <div className="mx-auto max-w-4xl">
-        <Link href="/" className="text-neutral-300 transition hover:text-white">
-          {"<- Back"}
-        </Link>
+        <BackLink href="/" />
 
         <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Privacy Policy</div>

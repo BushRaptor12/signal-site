@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import BackLink from "@/app/back-link";
 
 type Mode = "login" | "signup";
 
@@ -73,9 +73,7 @@ export default function AuthPageClient() {
   return (
     <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
       <div className="mx-auto max-w-4xl">
-        <Link href="/" className="text-neutral-300 transition hover:text-white">
-          {"<- Back"}
-        </Link>
+        <BackLink href="/" />
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
           <section className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
@@ -115,7 +113,7 @@ export default function AuthPageClient() {
                     maxLength={24}
                     name="username"
                     onChange={(event) => setUsername(event.target.value)}
-                    placeholder="brady_reader"
+                    placeholder="username"
                     required
                     value={username}
                   />

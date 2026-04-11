@@ -2,7 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
+import BackLink from "@/app/back-link";
 import { useAdminAuth } from "@/app/admin/admin-auth";
 import { DEFAULT_IMAGE_FOCUS, clampImageFocus, imageObjectPosition } from "@/app/lib/image-focus";
 import { STORY_IMAGE_ACCEPT } from "@/app/lib/story-images";
@@ -40,6 +42,7 @@ function blankSources() {
 }
 
 export default function EditorPage() {
+  const searchParams = useSearchParams();
   const { adminToken, clearToken } = useAdminAuth();
   const [entities, setEntities] = useState<Entity[]>([]);
   const [entitySearch, setEntitySearch] = useState("");
@@ -70,6 +73,7 @@ export default function EditorPage() {
   const [sources, setSources] = useState<SourceEditorRow[]>(blankSources());
   const [sourceUrlDraft, setSourceUrlDraft] = useState("");
   const [sourcePreviewLoading, setSourcePreviewLoading] = useState(false);
+  const requestedStoryId = searchParams.get("story");
 
   const generatedId = title ? slugify(title) : "new-story";
   const storyId = activeStoryId ?? generatedId;
@@ -132,7 +136,7 @@ export default function EditorPage() {
     setSources(blankSources());
   }
 
-  function loadStoryIntoForm(story: StoryWithViews) {
+  const loadStoryIntoForm = useCallback((story: StoryWithViews) => {
     setActiveStoryId(story.id);
     setTitle(story.title);
     setDate(story.date);
@@ -153,7 +157,7 @@ export default function EditorPage() {
     setRelatedStoryIds(story.related_story_ids);
     setRelatedStorySearch("");
     setSources(story.sources.length > 0 ? story.sources.map(toEditorSource) : blankSources());
-  }
+  }, []);
 
   useEffect(() => {
     void loadStories();
@@ -174,6 +178,16 @@ export default function EditorPage() {
       return headline.includes(query) || id.includes(query) || briefingHeadline.includes(query);
     });
   }, [stories, storySearch]);
+
+  useEffect(() => {
+    if (!requestedStoryId) return;
+
+    const matchingStory = stories.find((story) => story.id === requestedStoryId);
+    if (!matchingStory) return;
+    if (activeStoryId === matchingStory.id) return;
+
+    loadStoryIntoForm(matchingStory);
+  }, [activeStoryId, loadStoryIntoForm, requestedStoryId, stories]);
 
   const selectedRelatedStories = useMemo(
     () =>
@@ -617,9 +631,7 @@ export default function EditorPage() {
             <button onClick={clearToken} className="text-xs text-neutral-400 hover:text-neutral-200">
               Lock admin
             </button>
-            <Link href="/" className="text-neutral-300 hover:text-white">
-              {"<- Back"}
-            </Link>
+            <BackLink href="/" />
           </div>
         </div>
 

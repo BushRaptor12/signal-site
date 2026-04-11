@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import BackLink from "@/app/back-link";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { getAccountDashboard, getAccountUserId } from "@/app/lib/account.server";
 import { DEFAULT_OG_IMAGE, SITE_NAME } from "@/app/lib/seo";
@@ -51,9 +52,7 @@ export default async function AccountPage() {
     return (
       <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
         <div className="mx-auto max-w-4xl">
-          <Link href="/" className="text-neutral-300 transition hover:text-white">
-            {"<- Back"}
-          </Link>
+          <BackLink href="/" />
 
           <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
             <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Account</div>
@@ -74,9 +73,7 @@ export default async function AccountPage() {
   return (
     <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
       <div className="mx-auto max-w-5xl">
-        <Link href="/" className="text-neutral-300 transition hover:text-white">
-          {"<- Back"}
-        </Link>
+        <BackLink href="/" />
 
         <section className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
           <div className="flex flex-wrap items-start justify-between gap-5">
@@ -181,6 +178,38 @@ export default async function AccountPage() {
             )}
           </section>
         </div>
+
+        {account.profile.isAdmin ? (
+          <section className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Admin</div>
+                <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Admin tools</h2>
+                <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-400">
+                  This account has admin access. Use these shortcuts to open the story editor or manage The Briefing.
+                </p>
+              </div>
+              <div className="rounded-full border border-[#8f7740]/50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">
+                Enabled
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href="/admin/editor"
+                className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+              >
+                Open editor
+              </Link>
+              <Link
+                href="/admin/briefing"
+                className="inline-flex rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
+              >
+                Open briefing manager
+              </Link>
+            </div>
+          </section>
+        ) : null}
       </div>
     </main>
   );

@@ -1,8 +1,9 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
+import { requestHasAdminAccess } from "@/app/lib/admin.server";
+import { sendUrgentNotificationsForStory } from "@/app/lib/notifications.server";
 import { deleteStoryImage, isStoryImagePath, storyImagePublicUrl } from "@/app/lib/story-images";
-import { insertSiteNotification, sendUrgentPushForStory } from "@/app/lib/push";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { BriefingPosition, StoryImageDisplay, StoryWithViews } from "@/app/lib/types";
 import {
@@ -18,12 +19,6 @@ import {
 function messageFromError(e: unknown) {
   if (e instanceof Error) return e.message;
   return String(e);
-}
-
-function requireAdmin(req: Request) {
-  const expected = process.env.ADMIN_TOKEN;
-  const got = req.headers.get("x-admin-token");
-  return Boolean(expected && got && got === expected);
 }
 
 function toNullableBriefingPosition(value: unknown): BriefingPosition | null {
@@ -54,7 +49,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    if (!requireAdmin(req)) {
+    if (!(await requestHasAdminAccess(req))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -222,14 +217,7 @@ export async function POST(req: Request) {
       } as StoryDbRow);
 
       try {
-        await insertSiteNotification({
-          type: "urgent",
-          title: "Urgent News",
-          body: story.title,
-          href: `/story/${story.id}`,
-          story_id: story.id,
-        });
-        await sendUrgentPushForStory(pushedStory);
+        await sendUrgentNotificationsForStory(pushedStory);
       } catch {
         // story save should still succeed even if push fanout fails
       }

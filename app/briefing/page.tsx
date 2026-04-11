@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
+import BackLink from "@/app/back-link";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { buildBriefingLayout } from "@/app/lib/briefing-layout";
 import { imageObjectPosition } from "@/app/lib/image-focus";
@@ -141,12 +142,7 @@ export default async function BriefingPage() {
 
           <div className="mb-8">
             <div className="flex items-center justify-between gap-4">
-              <Link
-                href="/"
-                className="rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
-              >
-                Back to Home
-              </Link>
+              <BackLink href="/" />
               <div className="text-sm text-neutral-400">
                 Updated: {latestUpdatedAt ? formatUpdatedAt(latestUpdatedAt) : "--"}
               </div>
@@ -230,12 +226,9 @@ export default async function BriefingPage() {
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">The Briefing</div>
           <h1 className="mt-3 text-3xl font-semibold text-neutral-100">Could not load stories</h1>
           <p className="mt-3 text-neutral-400">{message}</p>
-          <Link
-            href="/"
-            className="mt-6 inline-block rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
-          >
-            Back to Signal
-          </Link>
+          <div className="mt-6">
+            <BackLink href="/" />
+          </div>
         </div>
       </main>
     );

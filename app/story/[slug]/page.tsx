@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
+import BackLink from "@/app/back-link";
+import { getAccountProfile } from "@/app/lib/account.server";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { SITE_NAME, absoluteUrl, buildStoryMetadata, storyDescription, storyKeywords, storyModifiedTime, storyPublishedTime } from "@/app/lib/seo";
 import { supabaseServer } from "@/app/lib/supabase.server";
@@ -117,12 +119,7 @@ export default async function StoryPage({
     return (
       <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
         <div className="max-w-3xl mx-auto">
-          <Link
-            href={backHref}
-            className="inline-flex w-fit rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
-          >
-            Back
-          </Link>
+          <BackLink href={backHref} />
           <div className="mt-10 rounded-2xl border border-[#15324d] bg-[#03101b] p-8 shadow-[0_18px_44px_rgba(0,0,0,0.22)]">
             <h1 className="text-2xl font-semibold">Story not found</h1>
             <p className="text-neutral-400 mt-2">
@@ -135,6 +132,8 @@ export default async function StoryPage({
   }
 
   const updatedAt = story.content_updated_at ?? story.created_at ?? null;
+  const accountProfile = await getAccountProfile();
+  const isAdmin = Boolean(accountProfile?.isAdmin);
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
@@ -174,12 +173,7 @@ export default async function StoryPage({
       <ViewTracker slug={slug} />
       <div className="mx-auto max-w-3xl">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-          <Link
-            href={backHref}
-            className="inline-flex w-fit justify-self-start rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
-          >
-            Back
-          </Link>
+          <BackLink href={backHref} className="justify-self-start" />
           <div className="justify-self-center text-center">
             <Link href="/" aria-label="Go to The Beacon home page" className="inline-block">
               <Image
@@ -193,8 +187,18 @@ export default async function StoryPage({
             </Link>
             <p className="mt-1 text-[11px] text-neutral-500 md:text-xs">Multi-source news. Clear perspective.</p>
           </div>
-          <div className="justify-self-end text-sm text-neutral-500">
-            {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
+          <div className="flex items-center justify-self-end gap-3 text-sm text-neutral-500">
+            {isAdmin ? (
+              <Link
+                href={`/admin/editor?story=${encodeURIComponent(story.id)}`}
+                className="rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+              >
+                Edit story
+              </Link>
+            ) : null}
+            <div>
+              {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
+            </div>
           </div>
         </div>
       </div>

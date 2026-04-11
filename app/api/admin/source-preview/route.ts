@@ -1,17 +1,12 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
+import { requestHasAdminAccess } from "@/app/lib/admin.server";
 import { guessSourceLabel } from "@/app/lib/source-lean";
 
 function messageFromError(error: unknown) {
   if (error instanceof Error) return error.message;
   return String(error);
-}
-
-function requireAdmin(req: Request) {
-  const expected = process.env.ADMIN_TOKEN;
-  const got = req.headers.get("x-admin-token");
-  return Boolean(expected && got && got === expected);
 }
 
 function normalizeUrl(value: string) {
@@ -104,7 +99,7 @@ function guessTitleFromPath(url: URL) {
 
 export async function POST(req: Request) {
   try {
-    if (!requireAdmin(req)) {
+    if (!(await requestHasAdminAccess(req))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
