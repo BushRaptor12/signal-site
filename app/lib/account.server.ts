@@ -522,6 +522,26 @@ export async function loginWithEmail(email: string, password: string) {
   return ensureUserProfile(data.user);
 }
 
+export async function requestPasswordReset(email: string, redirectTo: string) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    throw new Error("Email is required.");
+  }
+
+  if (!redirectTo.trim()) {
+    throw new Error("Missing password reset redirect URL.");
+  }
+
+  const supabase = supabasePasswordAuthClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+    redirectTo,
+  });
+
+  if (error) {
+    throw new Error(friendlyAuthError(error.message, "We couldn't send a password reset email."));
+  }
+}
+
 export async function signupWithEmail(email: string, password: string, username: string) {
   const normalizedEmail = normalizeEmail(email);
   const { displayUsername, usernameNormalized } = validateUsernameInput(username);

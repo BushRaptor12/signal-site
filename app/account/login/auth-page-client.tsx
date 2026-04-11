@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import PageBrandHeader from "@/app/page-brand-header";
@@ -148,6 +149,17 @@ export default function AuthPageClient() {
                   value={password}
                 />
               </label>
+
+              {mode === "login" ? (
+                <div className="-mt-1 flex justify-end">
+                  <Link
+                    href="/account/reset-password"
+                    className="text-sm text-neutral-400 underline decoration-[#8f7740]/45 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+              ) : null}
 
               {error ? (
                 <div className="rounded-2xl border border-red-500/60 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</div>
