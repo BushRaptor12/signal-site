@@ -1,6 +1,7 @@
 export type Lean = "Left" | "Center" | "Right";
 export type BriefingPosition = "lead" | "left" | "right";
 export type StoryImageDisplay = "cover" | "contain";
+export type StoryStatus = "draft" | "published" | "archived";
 
 export type Source = {
   name: string;
@@ -16,6 +17,7 @@ export type Entity = {
 
 export type Story = {
   id: string;
+  status: StoryStatus;
   title: string;
   summary: string[];
   sources: Source[];

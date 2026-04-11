@@ -231,12 +231,21 @@ function isBuiltinTabKey(tab: string) {
   return BUILTIN_TAB_KEYS.includes(tab as (typeof BUILTIN_TAB_KEYS)[number]);
 }
 
-export default function HomePageClient() {
+type HomePageClientProps = {
+  initialAccountAuthenticated: boolean;
+  initialFollowedStoryIds: string[];
+  initialStories: StoryWithViews[];
+};
+
+export default function HomePageClient({
+  initialAccountAuthenticated,
+  initialFollowedStoryIds,
+  initialStories,
+}: HomePageClientProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [stories, setStories] = useState<StoryWithViews[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const stories = initialStories;
   const [activeTab, setActiveTab] = useState<TabKey>(getInitialActiveTab);
   const [pinned, setPinned] = useState<string[]>(getInitialPinned);
   const [showManager, setShowManager] = useState(false);
@@ -245,9 +254,9 @@ export default function HomePageClient() {
   const [visibleCount, setVisibleCount] = useState(STORY_BATCH_SIZE);
   const [customSortMode, setCustomSortMode] = useState<CustomSortMode>(getInitialCustomSortMode);
   const [customTopRange, setCustomTopRange] = useState<TopRange>(getInitialCustomTopRange);
-  const [accountAuthenticated, setAccountAuthenticated] = useState(false);
-  const [followedStoryIds, setFollowedStoryIds] = useState<string[]>([]);
-  const [loadingFollowState, setLoadingFollowState] = useState(true);
+  const [accountAuthenticated, setAccountAuthenticated] = useState(initialAccountAuthenticated);
+  const [followedStoryIds, setFollowedStoryIds] = useState<string[]>(initialFollowedStoryIds);
+  const [loadingFollowState, setLoadingFollowState] = useState(false);
   const pendingScrollRestoreRef = useRef<{ tabKey: string; scrollY: number } | null>(null);
 
   useEffect(() => {
@@ -356,27 +365,8 @@ export default function HomePageClient() {
     router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
   }, [pathname, persistHomeState, router, searchParams]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/stories", { cache: "no-store" });
-        const data = (await res.json()) as unknown;
-        if (!cancelled && Array.isArray(data)) {
-          setStories(data as StoryWithViews[]);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const loadFollowState = useCallback(async () => {
+    setLoadingFollowState(true);
     try {
       const response = await fetch("/api/account/follows", { cache: "no-store" });
       const data = (await response.json().catch(() => ({}))) as {
@@ -513,8 +503,6 @@ export default function HomePageClient() {
   const canLoadMore = visibleCount < visible.length;
 
   useEffect(() => {
-    if (isLoading) return;
-
     const pending = pendingScrollRestoreRef.current;
     const currentTab = normalize(String(activeTab)) || "popular";
     if (!pending || pending.tabKey !== currentTab) return;
@@ -523,7 +511,7 @@ export default function HomePageClient() {
     window.requestAnimationFrame(() => {
       window.scrollTo({ top: pending.scrollY, behavior: "auto" });
     });
-  }, [activeTab, isLoading, visible, visibleCount]);
+  }, [activeTab, visible, visibleCount]);
 
   function togglePin(tag: string) {
     const t = normalize(tag);
@@ -769,7 +757,7 @@ export default function HomePageClient() {
       )}
 
       <div className="max-w-4xl mx-auto space-y-8">
-        {isLoading || (activeTab === "following" && loadingFollowState) ? (
+        {activeTab === "following" && loadingFollowState ? (
           <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
             <h2 className="text-2xl font-semibold text-neutral-100">Loading stories...</h2>
             <p className="mt-3 text-neutral-400">Pulling together the latest coverage.</p>
@@ -899,7 +887,7 @@ export default function HomePageClient() {
         )}
       </div>
 
-      {!isLoading && canLoadMore ? (
+      {canLoadMore ? (
         <div className="mx-auto mt-8 flex max-w-4xl justify-center">
           <button
             onClick={() => setVisibleCount((count) => count + STORY_BATCH_SIZE)}

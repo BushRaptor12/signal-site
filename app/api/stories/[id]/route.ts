@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requestHasAdminAccess } from "@/app/lib/admin.server";
 import { deleteStoryImage } from "@/app/lib/story-images";
 import { supabaseServer } from "@/app/lib/supabase.server";
@@ -11,12 +11,18 @@ function messageFromError(e: unknown) {
   return String(e);
 }
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const supabase = supabaseServer();
     const id = (await params).id;
+    const adminAccess = await requestHasAdminAccess(req);
 
-    const { data, error } = await supabase.from("stories").select("*").eq("id", id).maybeSingle();
+    let query = supabase.from("stories").select("*").eq("id", id);
+    if (!adminAccess) {
+      query = query.eq("status", "published");
+    }
+
+    const { data, error } = await query.maybeSingle();
     if (error) throw error;
     if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
 

@@ -124,6 +124,7 @@ export default async function BriefingPage() {
       supabase
         .from("stories")
         .select("*")
+        .eq("status", "published")
         .eq("beacon_include", true)
         .order("beacon_position", { ascending: true, nullsFirst: false })
         .order("beacon_order", { ascending: true, nullsFirst: false })

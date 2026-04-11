@@ -2,6 +2,7 @@ import type { Entity, Source, StoryWithViews } from "@/app/lib/types";
 
 export type StoryDbRow = {
   id: string;
+  status?: string | null;
   title: string;
   summary: unknown;
   sources: unknown;
@@ -100,6 +101,7 @@ export function toNullableString(value: unknown): string | null {
 export function coerceStory(row: StoryDbRow): StoryWithViews {
   return {
     id: row.id,
+    status: row.status === "draft" || row.status === "archived" ? row.status : "published",
     title: row.title,
     summary: toStringArray(row.summary),
     sources: toSources(row.sources),

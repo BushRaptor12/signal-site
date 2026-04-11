@@ -31,20 +31,28 @@ function storyHref(id: string, from?: string) {
   return from ? `/story/${id}?from=${encodeURIComponent(from)}` : `/story/${id}`;
 }
 
-async function loadStory(slug: string) {
+async function loadStory(slug: string, includeUnpublished = false) {
   const supabase = supabaseServer();
-  const { data, error } = await supabase.from("stories").select("*").eq("id", slug).maybeSingle();
+  let query = supabase.from("stories").select("*").eq("id", slug);
+  if (!includeUnpublished) {
+    query = query.eq("status", "published");
+  }
+  const { data, error } = await query.maybeSingle();
   if (error) throw error;
   if (!data) return null;
   return coerceStory(data as StoryDbRow);
 }
 
-async function loadManualRelatedStories(currentStory: StoryWithViews) {
+async function loadManualRelatedStories(currentStory: StoryWithViews, includeUnpublished = false) {
   const supabase = supabaseServer();
   const manualIds = currentStory.related_story_ids.filter((id) => id && id !== currentStory.id);
   if (manualIds.length === 0) return [];
 
-  const { data, error } = await supabase.from("stories").select("*").in("id", manualIds);
+  let query = supabase.from("stories").select("*").in("id", manualIds);
+  if (!includeUnpublished) {
+    query = query.eq("status", "published");
+  }
+  const { data, error } = await query;
   if (error) throw error;
 
   const byId = new Map(
@@ -111,11 +119,13 @@ export default async function StoryPage({
 
   let story: StoryWithViews | null = null;
   let relatedStories: StoryWithViews[] = [];
+  const accountProfile = await getAccountProfile();
+  const isAdmin = Boolean(accountProfile?.isAdmin);
 
   try {
-    story = await loadStory(slug);
+    story = await loadStory(slug, isAdmin);
     if (story) {
-      relatedStories = await loadManualRelatedStories(story);
+      relatedStories = await loadManualRelatedStories(story, isAdmin);
     }
   } catch {
     story = null;
@@ -139,8 +149,6 @@ export default async function StoryPage({
   }
 
   const updatedAt = story.content_updated_at ?? story.created_at ?? null;
-  const accountProfile = await getAccountProfile();
-  const isAdmin = Boolean(accountProfile?.isAdmin);
   const storyState = accountProfile ? await getAccountStoryState(accountProfile.userId, story.id) : null;
   const jsonLd = {
     "@context": "https://schema.org",
@@ -306,7 +314,7 @@ export default async function StoryPage({
 
           <div className="mt-10 rounded-2xl border border-[#13314b] bg-[#03101b] p-8 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
             <h2 className="text-lg font-semibold">Comments</h2>
-            <p className="text-neutral-400 mt-2">Coming next.</p>
+            <p className="text-neutral-400 mt-2">Coming Soon.</p>
           </div>
         </div>
 

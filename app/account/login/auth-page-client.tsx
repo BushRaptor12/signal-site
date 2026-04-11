@@ -171,7 +171,7 @@ export default function AuthPageClient() {
             <h2 className="mt-3 text-2xl font-semibold text-neutral-100">What you get</h2>
             <div className="mt-6 space-y-4 text-sm leading-7 text-neutral-300">
               <p>Your account page will show the stories you follow and the comment history tied to your username.</p>
-              <p>Comments are coming next, so the history section will be ready for that rollout instead of needing another redesign later.</p>
+              <p>Comments are coming soon, so the history section will be ready for that rollout instead of needing another redesign later.</p>
               <p>Account settings are also in place so we can expand into profile editing and reader preferences cleanly.</p>
             </div>
           </aside>

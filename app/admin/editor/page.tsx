@@ -8,13 +8,15 @@ import BackLink from "@/app/back-link";
 import { useAdminAuth } from "@/app/admin/admin-auth";
 import { DEFAULT_IMAGE_FOCUS, clampImageFocus, imageObjectPosition } from "@/app/lib/image-focus";
 import { STORY_IMAGE_ACCEPT } from "@/app/lib/story-images";
-import type { Lean, Story, StoryImageDisplay, StoryWithViews } from "@/app/lib/types";
+import type { Lean, Story, StoryImageDisplay, StoryStatus, StoryWithViews } from "@/app/lib/types";
 import { detectSourceLean, guessSourceLabel } from "@/app/lib/source-lean";
 import { TOPICS, normalize, slugify } from "@/app/lib/vocab";
 
 type Entity = { name: string; aliases: string[] };
 type SourceEditorRow = { name: string; title: string; url: string; lean: Lean; leanMode: "auto" | "manual" };
 type SourcePreview = { name: string; title: string; url: string };
+type EditorNotice = { tone: "error" | "info" | "success"; text: string } | null;
+type PendingEditorAction = { action: () => void; description: string } | null;
 
 function createSourceRow(): SourceEditorRow {
   return { name: "", title: "", url: "", lean: "Center", leanMode: "auto" };
@@ -41,6 +43,10 @@ function blankSources() {
   return [createSourceRow(), createSourceRow(), createSourceRow()];
 }
 
+function normalizeStoryIdInput(value: string) {
+  return slugify(value).slice(0, 80);
+}
+
 export default function EditorPage() {
   const searchParams = useSearchParams();
   const { adminToken, clearToken } = useAdminAuth();
@@ -49,10 +55,13 @@ export default function EditorPage() {
   const [aliasDraft, setAliasDraft] = useState<Record<string, string>>({});
   const [storySearch, setStorySearch] = useState("");
   const [stories, setStories] = useState<StoryWithViews[]>([]);
+  const [searchedStories, setSearchedStories] = useState<StoryWithViews[]>([]);
   const [loadingStories, setLoadingStories] = useState(false);
   const [activeStoryId, setActiveStoryId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
+  const [slugInput, setSlugInput] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [status, setStatus] = useState<StoryStatus>("draft");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imagePath, setImagePath] = useState<string | null>(null);
   const [imageFocusX, setImageFocusX] = useState(DEFAULT_IMAGE_FOCUS);
@@ -73,22 +82,81 @@ export default function EditorPage() {
   const [sources, setSources] = useState<SourceEditorRow[]>(blankSources());
   const [sourceUrlDraft, setSourceUrlDraft] = useState("");
   const [sourcePreviewLoading, setSourcePreviewLoading] = useState(false);
+  const [notice, setNotice] = useState<EditorNotice>(null);
+  const [pendingDelete, setPendingDelete] = useState(false);
+  const [pendingEditorAction, setPendingEditorAction] = useState<PendingEditorAction>(null);
+  const [savedSnapshot, setSavedSnapshot] = useState("");
+  const [pendingBaselineSync, setPendingBaselineSync] = useState(true);
   const requestedStoryId = searchParams.get("story");
 
-  const generatedId = title ? slugify(title) : "new-story";
-  const storyId = activeStoryId ?? generatedId;
+  const generatedId = title ? normalizeStoryIdInput(title) : "";
+  const storyId = activeStoryId ?? normalizeStoryIdInput(slugInput || generatedId || "new-story");
 
   const loadStories = useCallback(async () => {
-    setLoadingStories(true);
+    if (!adminToken) {
+      setStories([]);
+      return;
+    }
 
     try {
-      const res = await fetch("/api/stories", { cache: "no-store" });
+      const query = new URLSearchParams();
+      query.set("statuses", "draft,published,archived");
+      query.set("limit", "250");
+
+      const res = await fetch(`/api/stories?${query.toString()}`, {
+        cache: "no-store",
+        headers: { "x-admin-token": adminToken },
+      });
+      if (res.status === 401) {
+        clearToken();
+        return;
+      }
+
       const data = (await res.json().catch(() => [])) as StoryWithViews[];
       if (Array.isArray(data)) setStories(data);
     } finally {
+      // no-op
+    }
+  }, [adminToken, clearToken]);
+
+  const searchStories = useCallback(async (search: string) => {
+    if (!adminToken) {
+      setSearchedStories([]);
+      return;
+    }
+
+    const trimmedSearch = search.trim();
+    if (!trimmedSearch) {
+      setSearchedStories([]);
+      return;
+    }
+
+    setLoadingStories(true);
+    try {
+      const query = new URLSearchParams();
+      query.set("statuses", "draft,published,archived");
+      query.set("limit", "120");
+      query.set("search", trimmedSearch);
+
+      const res = await fetch(`/api/stories?${query.toString()}`, {
+        cache: "no-store",
+        headers: { "x-admin-token": adminToken },
+      });
+      if (res.status === 401) {
+        clearToken();
+        return;
+      }
+
+      const data = (await res.json().catch(() => [])) as StoryWithViews[];
+      setSearchedStories(Array.isArray(data) ? data : []);
+    } finally {
       setLoadingStories(false);
     }
-  }, []);
+  }, [adminToken, clearToken]);
+
+  function showNotice(text: string, tone: NonNullable<EditorNotice>["tone"] = "info") {
+    setNotice({ text, tone });
+  }
 
   const loadEntities = useCallback(async (token = adminToken) => {
     if (!token) {
@@ -116,7 +184,9 @@ export default function EditorPage() {
   function resetForm() {
     setActiveStoryId(null);
     setTitle("");
+    setSlugInput("");
     setDate(new Date().toISOString().slice(0, 10));
+    setStatus("draft");
     setImageUrl(null);
     setImagePath(null);
     setImageFocusX(DEFAULT_IMAGE_FOCUS);
@@ -134,12 +204,17 @@ export default function EditorPage() {
     setRelatedStoryIds([]);
     setRelatedStorySearch("");
     setSources(blankSources());
+    setPendingDelete(false);
+    setPendingEditorAction(null);
+    setPendingBaselineSync(true);
   }
 
   const loadStoryIntoForm = useCallback((story: StoryWithViews) => {
     setActiveStoryId(story.id);
     setTitle(story.title);
+    setSlugInput(story.id);
     setDate(story.date);
+    setStatus(story.status);
     setImageUrl(story.image_url ?? null);
     setImagePath(story.image_path ?? null);
     setImageFocusX(clampImageFocus(story.image_focus_x));
@@ -157,6 +232,9 @@ export default function EditorPage() {
     setRelatedStoryIds(story.related_story_ids);
     setRelatedStorySearch("");
     setSources(story.sources.length > 0 ? story.sources.map(toEditorSource) : blankSources());
+    setPendingDelete(false);
+    setPendingEditorAction(null);
+    setPendingBaselineSync(true);
   }, []);
 
   useEffect(() => {
@@ -164,20 +242,18 @@ export default function EditorPage() {
   }, [loadStories]);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void searchStories(storySearch);
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [searchStories, storySearch]);
+
+  useEffect(() => {
     void loadEntities();
   }, [loadEntities]);
 
-  const filteredStories = useMemo(() => {
-    const query = storySearch.trim().toLowerCase();
-    if (!query) return stories;
-
-    return stories.filter((story) => {
-      const headline = story.title.toLowerCase();
-      const id = story.id.toLowerCase();
-      const briefingHeadline = (story.beacon_headline ?? "").toLowerCase();
-      return headline.includes(query) || id.includes(query) || briefingHeadline.includes(query);
-    });
-  }, [stories, storySearch]);
+  const filteredStories = storySearch.trim() ? searchedStories : stories;
 
   useEffect(() => {
     if (!requestedStoryId) return;
@@ -207,6 +283,82 @@ export default function EditorPage() {
       })
       .slice(0, 12);
   }, [relatedStoryIds, relatedStorySearch, stories, storyId]);
+
+  const editorSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        activeStoryId,
+        beaconHeadline,
+        beaconInclude,
+        date,
+        imageDisplay,
+        imageFocusX,
+        imageFocusY,
+        imagePath,
+        imageUrl,
+        pinnedStory,
+        primaryEntities,
+        relatedStoryIds,
+        selectedEntities,
+        slugInput,
+        sources,
+        status,
+        summary,
+        title,
+        topics,
+        urgent,
+      }),
+    [
+      activeStoryId,
+      beaconHeadline,
+      beaconInclude,
+      date,
+      imageDisplay,
+      imageFocusX,
+      imageFocusY,
+      imagePath,
+      imageUrl,
+      pinnedStory,
+      primaryEntities,
+      relatedStoryIds,
+      selectedEntities,
+      slugInput,
+      sources,
+      status,
+      summary,
+      title,
+      topics,
+      urgent,
+    ]
+  );
+  const isDirty = Boolean(savedSnapshot) && savedSnapshot !== editorSnapshot;
+
+  useEffect(() => {
+    if (!pendingBaselineSync) return;
+    setSavedSnapshot(editorSnapshot);
+    setPendingBaselineSync(false);
+  }, [editorSnapshot, pendingBaselineSync]);
+
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!isDirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
+
+  function requestEditorTransition(action: () => void, description: string) {
+    if (!isDirty) {
+      action();
+      return;
+    }
+
+    setPendingEditorAction({ action, description });
+    showNotice("You have unsaved changes.", "info");
+  }
 
   function toggleTopic(topic: string) {
     const key = normalize(topic);
@@ -288,7 +440,7 @@ export default function EditorPage() {
 
     const url = rawUrl.trim();
     if (!url) {
-      alert("Paste a source URL first.");
+      showNotice("Paste a source URL first.", "error");
       return;
     }
 
@@ -315,12 +467,13 @@ export default function EditorPage() {
       }
 
       if (!res.ok || !json.source) {
-        alert(`Could not fill source: ${json.error ?? res.statusText}`);
+        showNotice(`Could not fill source: ${json.error ?? res.statusText}`, "error");
         return;
       }
 
       applySourceSuggestion(json.source, preferredIndex);
       if (preferredIndex == null) setSourceUrlDraft("");
+      showNotice("Source details filled from the article link.", "success");
     } finally {
       setSourcePreviewLoading(false);
     }
@@ -395,7 +548,7 @@ export default function EditorPage() {
       }
 
       if (!res.ok || !json.imagePath || !json.imageUrl) {
-        alert(`Upload failed: ${json.error ?? res.statusText}`);
+        showNotice(`Upload failed: ${json.error ?? res.statusText}`, "error");
         return;
       }
 
@@ -404,6 +557,7 @@ export default function EditorPage() {
       setImageFocusX(DEFAULT_IMAGE_FOCUS);
       setImageFocusY(DEFAULT_IMAGE_FOCUS);
       setImageDisplay("cover");
+      showNotice("Image uploaded.", "success");
     } finally {
       setUploadingImage(false);
     }
@@ -434,7 +588,7 @@ export default function EditorPage() {
 
       if (!res.ok) {
         const json = (await res.json().catch(() => ({}))) as { error?: string };
-        alert(`Image removal failed: ${json.error ?? res.statusText}`);
+        showNotice(`Image removal failed: ${json.error ?? res.statusText}`, "error");
         return;
       }
     }
@@ -444,6 +598,7 @@ export default function EditorPage() {
     setImageFocusX(DEFAULT_IMAGE_FOCUS);
     setImageFocusY(DEFAULT_IMAGE_FOCUS);
     setImageDisplay("cover");
+    showNotice("Image removed. Save the story to make that change permanent.", "info");
   }
 
   function updateImageFocusFromClick(event: MouseEvent<HTMLButtonElement>) {
@@ -471,10 +626,24 @@ export default function EditorPage() {
       }))
       .filter((source) => source.name && source.url);
     const trimmedBeaconHeadline = beaconHeadline.trim();
+    const nextStoryId = activeStoryId ?? normalizeStoryIdInput(slugInput || generatedId);
 
-    if (!title.trim()) return alert("Title is required.");
-    if (cleanedSummary.length === 0) return alert("Add at least 1 summary line.");
-    if (cleanedSources.length === 0) return alert("Add at least 1 source.");
+    if (!title.trim()) {
+      showNotice("Title is required.", "error");
+      return;
+    }
+    if (!nextStoryId) {
+      showNotice("Story slug is required.", "error");
+      return;
+    }
+    if (cleanedSummary.length === 0) {
+      showNotice("Add at least 1 summary line.", "error");
+      return;
+    }
+    if (cleanedSources.length === 0) {
+      showNotice("Add at least 1 source.", "error");
+      return;
+    }
 
     const storyEntities = selectedEntities
   .map((name) => entities.find((e) => e.name === name))
@@ -482,7 +651,8 @@ export default function EditorPage() {
   .map((e) => ({ name: e!.name, aliases: e!.aliases }));
 
     const story: Story = {
-      id: storyId,
+      id: nextStoryId,
+      status,
       title: title.trim(),
       summary: cleanedSummary,
       sources: cleanedSources,
@@ -519,19 +689,23 @@ export default function EditorPage() {
       return;
     }
     if (!res.ok) {
-      alert(`Save failed: ${json.error ?? res.statusText}`);
+      showNotice(`Save failed: ${json.error ?? res.statusText}`, "error");
       return;
     }
 
     await loadStories();
+    await searchStories(storySearch);
     setActiveStoryId(story.id);
+    setSlugInput(story.id);
     setImageUrl(json.story?.image_url ?? imageUrl);
     setImagePath(json.story?.image_path ?? imagePath ?? null);
     setSavedImagePath(json.story?.image_path ?? imagePath ?? null);
-    alert(`Saved! id: ${story.id}`);
+    setPendingDelete(false);
+    setPendingBaselineSync(true);
+    showNotice(`Saved ${story.status === "published" ? "published" : story.status} story: ${story.id}`, "success");
   }
 
-  async function onDelete() {
+  async function onDeleteConfirmed() {
     if (!adminToken) {
       clearToken();
       return;
@@ -539,11 +713,9 @@ export default function EditorPage() {
 
     const id = storyId;
     if (!id || id === "new-story") {
-      alert("Enter a title first so the story ID exists.");
+      showNotice("Save the story before trying to delete it.", "error");
       return;
     }
-
-    if (!confirm(`Delete story "${id}"? This cannot be undone.`)) return;
 
     const res = await fetch(`/api/stories/${encodeURIComponent(id)}`, {
       method: "DELETE",
@@ -557,13 +729,15 @@ export default function EditorPage() {
 
     if (!res.ok) {
       const err = (await res.json().catch(() => ({}))) as { error?: string };
-      alert(`Delete failed: ${err.error ?? res.statusText}`);
+      showNotice(`Delete failed: ${err.error ?? res.statusText}`, "error");
       return;
     }
 
     await loadStories();
+    await searchStories(storySearch);
     resetForm();
-    alert(`Deleted: ${id}`);
+    setPendingBaselineSync(true);
+    showNotice(`Deleted: ${id}`, "success");
   }
   async function createEntity(name: string) {
     if (!adminToken) {
@@ -586,7 +760,7 @@ export default function EditorPage() {
       return null;
     }
     if (!res.ok) {
-      alert(`Create entity failed: ${json?.error ?? res.statusText}`);
+      showNotice(`Create entity failed: ${json?.error ?? res.statusText}`, "error");
       return null;
     }
 
@@ -621,12 +795,13 @@ export default function EditorPage() {
       return;
     }
     if (!res.ok) {
-      alert(`Update aliases failed: ${json?.error ?? res.statusText}`);
+      showNotice(`Update aliases failed: ${json?.error ?? res.statusText}`, "error");
       return;
     }
 
     const updated = json.entity as Entity;
     setEntities((prev) => prev.map((e) => (e.name === updated.name ? updated : e)));
+    showNotice(`Updated aliases for ${updated.name}.`, "success");
   }
   return (
     <main className="min-h-screen bg-neutral-900 text-neutral-100 p-8">
@@ -634,7 +809,10 @@ export default function EditorPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Story Editor</h1>
           <div className="flex items-center gap-4">
-            <button onClick={resetForm} className="text-xs text-neutral-400 hover:text-neutral-200">
+            <button
+              onClick={() => requestEditorTransition(resetForm, "start a new story")}
+              className="text-xs text-neutral-400 hover:text-neutral-200"
+            >
               New story
             </button>
             <Link href="/admin/briefing" className="text-xs text-neutral-400 hover:text-neutral-200">
@@ -646,6 +824,53 @@ export default function EditorPage() {
             <BackLink href="/" />
           </div>
         </div>
+
+        {notice ? (
+          <div
+            className={`mt-6 rounded-2xl border px-5 py-4 text-sm shadow-[0_18px_45px_rgba(0,0,0,0.25)] ${
+              notice.tone === "error"
+                ? "border-red-500/60 bg-red-500/10 text-red-100"
+                : notice.tone === "success"
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+                  : "border-[#8f7740]/50 bg-[#07101a] text-[#e6d3a6]"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>{notice.text}</div>
+              <button type="button" onClick={() => setNotice(null)} className="text-xs uppercase tracking-[0.18em] opacity-80 hover:opacity-100">
+                Dismiss
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {pendingEditorAction ? (
+          <div className="mt-6 rounded-2xl border border-[#8f7740]/50 bg-[#07101a] px-5 py-4 text-sm text-[#e6d3a6] shadow-[0_18px_45px_rgba(0,0,0,0.25)]">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>You have unsaved changes. Leave them behind and {pendingEditorAction.description}?</div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPendingEditorAction(null)}
+                  className="rounded-full border border-neutral-700 px-4 py-2 text-xs text-neutral-200 hover:bg-neutral-800"
+                >
+                  Stay here
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const action = pendingEditorAction.action;
+                    setPendingEditorAction(null);
+                    action();
+                  }}
+                  className="rounded-full border border-[#8f7740]/70 bg-[#0a1724] px-4 py-2 text-xs font-semibold text-neutral-100 hover:border-[#b89a55]"
+                >
+                  Discard changes
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-8 grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="rounded-2xl border border-neutral-700 bg-neutral-900 p-5 h-fit xl:sticky xl:top-8">
@@ -675,7 +900,7 @@ export default function EditorPage() {
                   <button
                     key={story.id}
                     type="button"
-                    onClick={() => loadStoryIntoForm(story)}
+                    onClick={() => requestEditorTransition(() => loadStoryIntoForm(story), `open "${story.title}"`)}
                     className={`w-full rounded-xl border p-4 text-left transition ${
                       active
                         ? "border-neutral-300 bg-neutral-100/10"
@@ -685,6 +910,7 @@ export default function EditorPage() {
                     <div className="text-xs uppercase tracking-[0.18em] text-neutral-500">{story.date}</div>
                     <div className="mt-2 text-sm font-semibold text-neutral-100">{story.title}</div>
                     <div className="mt-2 text-xs text-neutral-500">{story.id}</div>
+                    <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-neutral-400">{story.status}</div>
                     {story.beacon_include ? (
                       <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-red-300">In briefing</div>
                     ) : null}
@@ -703,13 +929,27 @@ export default function EditorPage() {
                 {activeStoryId ? "Editing Existing Story" : "Creating New Story"}
               </div>
               <div className="mt-3 text-sm text-neutral-500">
-                Story ID: <span className="text-neutral-300">{storyId}</span>
+                Story slug: <span className="text-neutral-300">{storyId}</span>
               </div>
               {activeStoryId ? (
                 <p className="mt-2 text-xs text-neutral-500">
-                  Changing the title will not change this story&apos;s ID. Use `New story` if you want to create a separate item.
+                  Existing stories keep their saved slug here so links stay stable.
                 </p>
               ) : null}
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                <span
+                  className={`rounded-full border px-3 py-1 uppercase tracking-[0.18em] ${
+                    status === "published"
+                      ? "border-emerald-500/40 text-emerald-300"
+                      : status === "archived"
+                        ? "border-neutral-600 text-neutral-400"
+                        : "border-amber-500/40 text-amber-300"
+                  }`}
+                >
+                  {status}
+                </span>
+                {isDirty ? <span className="text-amber-300">Unsaved changes</span> : <span className="text-neutral-500">All changes saved</span>}
+              </div>
             </div>
 
             <div className="space-y-6">
@@ -721,8 +961,20 @@ export default function EditorPage() {
               className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg"
               placeholder="Headline..."
             />
-            <div className="mt-3 text-sm text-neutral-500">
-              ID preview: <span className="text-neutral-300">{generatedId}</span>
+            <div className="mt-4">
+              <label className="block text-sm text-neutral-300 mb-2">Story slug</label>
+              <input
+                value={activeStoryId ? storyId : slugInput || generatedId}
+                onChange={(e) => setSlugInput(normalizeStoryIdInput(e.target.value))}
+                readOnly={Boolean(activeStoryId)}
+                className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg read-only:opacity-70"
+                placeholder="story-slug"
+              />
+              <div className="mt-2 text-xs text-neutral-500">
+                {activeStoryId
+                  ? "Saved stories keep the same slug so existing links do not break."
+                  : "This auto-fills from the title until you edit it manually."}
+              </div>
             </div>
             <div className="mt-4">
               <label className="block text-sm text-neutral-300 mb-2">Date</label>
@@ -732,6 +984,32 @@ export default function EditorPage() {
                 onChange={(e) => setDate(e.target.value)}
                 className="px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg"
               />
+            </div>
+            <div className="mt-4">
+              <div className="block text-sm text-neutral-300 mb-2">Status</div>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { value: "draft" as StoryStatus, label: "Draft" },
+                  { value: "published" as StoryStatus, label: "Published" },
+                  { value: "archived" as StoryStatus, label: "Archived" },
+                ]).map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setStatus(option.value)}
+                    className={`rounded-full border px-3 py-2 text-sm transition ${
+                      status === option.value
+                        ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                        : "border-neutral-700 text-neutral-300 hover:bg-neutral-800"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-neutral-500">
+                Drafts stay out of public feeds and story pages. Publish when you want the story to go live.
+              </p>
             </div>
           </div>
 
@@ -1298,16 +1576,47 @@ export default function EditorPage() {
             </div>
           </div>
 
-          <button onClick={onSave} className="w-full py-3 rounded-xl bg-neutral-100 text-neutral-900 font-semibold">
-            Save story
+          <button onClick={() => void onSave()} className="w-full py-3 rounded-xl bg-neutral-100 text-neutral-900 font-semibold">
+            {status === "published" ? "Save and publish" : status === "archived" ? "Save as archived" : "Save draft"}
           </button>
 
-          <button
-            onClick={onDelete}
-            className="w-full py-3 rounded-xl border border-red-400 text-red-300 hover:bg-red-950/30 font-semibold"
-          >
-            Delete story
-          </button>
+          {pendingDelete ? (
+            <div className="rounded-2xl border border-red-500/50 bg-red-950/20 p-5">
+              <div className="text-sm font-semibold text-red-100">Delete this story?</div>
+              <p className="mt-2 text-sm leading-6 text-red-100/80">
+                This will permanently remove <span className="font-semibold">{storyId}</span>.
+              </p>
+              <div className="mt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPendingDelete(false)}
+                  className="rounded-full border border-neutral-700 px-4 py-2 text-xs text-neutral-200 hover:bg-neutral-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onDeleteConfirmed()}
+                  className="rounded-full border border-red-400 px-4 py-2 text-xs font-semibold text-red-200 hover:bg-red-950/30"
+                >
+                  Confirm delete
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                if (!activeStoryId) {
+                  showNotice("Save the story before trying to delete it.", "error");
+                  return;
+                }
+                setPendingDelete(true);
+              }}
+              className="w-full py-3 rounded-xl border border-red-400 text-red-300 hover:bg-red-950/30 font-semibold"
+            >
+              Delete story
+            </button>
+          )}
             </div>
           </div>
         </div>

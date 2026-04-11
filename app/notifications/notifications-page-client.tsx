@@ -24,11 +24,12 @@ export default function NotificationsPageClient() {
     publicKey: null,
   });
   const [savingToggle, setSavingToggle] = useState(false);
+  const [markingRead, setMarkingRead] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadNotifications = async (markRead = false) => {
+    const loadNotifications = async () => {
       try {
         const configRes = await fetch("/api/notifications/config", { cache: "no-store" });
         const configJson = (await configRes.json().catch(() => ({}))) as {
@@ -37,16 +38,6 @@ export default function NotificationsPageClient() {
           preferences?: NotificationPreferences | null;
           publicKey?: string | null;
         };
-
-        if (markRead && configJson.authenticated) {
-          await fetch("/api/notifications", {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ action: "mark_all_read" }),
-          });
-        }
 
         const notificationsRes = await fetch("/api/notifications?limit=20", { cache: "no-store" });
         const notificationJson = (await notificationsRes.json().catch(() => [])) as unknown;
@@ -69,10 +60,6 @@ export default function NotificationsPageClient() {
         } else if (!cancelled) {
           setPushEnabled(false);
         }
-
-        if (markRead && configJson.authenticated) {
-          emitNotificationsUpdated();
-        }
       } catch {
         if (!cancelled) {
           setItems([]);
@@ -81,10 +68,10 @@ export default function NotificationsPageClient() {
       }
     };
 
-    void loadNotifications(true);
+    void loadNotifications();
 
     const refresh = () => {
-      void loadNotifications(false);
+      void loadNotifications();
     };
 
     window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, refresh);
@@ -166,6 +153,28 @@ export default function NotificationsPageClient() {
     }
   }
 
+  async function markAllRead() {
+    if (!authenticated || items.length === 0 || markingRead) return;
+
+    setMarkingRead(true);
+    try {
+      const response = await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "mark_all_read" }),
+      });
+
+      if (!response.ok) return;
+
+      setItems([]);
+      emitNotificationsUpdated();
+    } finally {
+      setMarkingRead(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
       <div className="mx-auto max-w-4xl">
@@ -227,7 +236,19 @@ export default function NotificationsPageClient() {
         <section className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-2xl font-semibold text-neutral-100">Recent notifications</h2>
-            <span className="text-sm text-neutral-500">{items.length} saved</span>
+            <div className="flex items-center gap-3">
+              {authenticated && items.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => void markAllRead()}
+                  disabled={markingRead}
+                  className="rounded-full border border-[#0d2438] bg-[#020b14] px-4 py-2 text-xs font-semibold text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {markingRead ? "Marking..." : "Mark all read"}
+                </button>
+              ) : null}
+              <span className="text-sm text-neutral-500">{items.length} saved</span>
+            </div>
           </div>
 
           {!authenticated ? (

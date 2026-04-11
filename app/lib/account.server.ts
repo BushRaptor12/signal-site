@@ -437,11 +437,23 @@ export async function getSeenStoryIds(userId: string, storyIds?: string[]) {
 }
 
 export async function getAccountStoryState(userId: string, storyId: string): Promise<AccountStoryState> {
-  const [followedIds, seenIds] = await Promise.all([getFollowedStoryIds(userId), getSeenStoryIds(userId, [storyId])]);
+  const supabase = supabaseServer();
+  const [{ data: followRow, error: followError }, { data: seenRow, error: seenError }] = await Promise.all([
+    supabase.from("user_story_follows").select("story_id").eq("user_id", userId).eq("story_id", storyId).maybeSingle(),
+    supabase.from("user_story_seen").select("story_id").eq("user_id", userId).eq("story_id", storyId).maybeSingle(),
+  ]);
+
+  if (followError) {
+    throw new Error(friendlyAuthError(followError.message, "We couldn't load followed stories."));
+  }
+
+  if (seenError && !/relation .* does not exist/i.test(seenError.message)) {
+    throw new Error(friendlyAuthError(seenError.message, "We couldn't load seen-story history."));
+  }
 
   return {
-    following: followedIds.includes(storyId),
-    seen: seenIds.includes(storyId),
+    following: Boolean(followRow),
+    seen: Boolean(seenRow),
   };
 }
 

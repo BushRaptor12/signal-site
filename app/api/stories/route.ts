@@ -1,11 +1,11 @@
 export const runtime = "nodejs";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requestHasAdminAccess } from "@/app/lib/admin.server";
 import { sendUrgentNotificationsForStory } from "@/app/lib/notifications.server";
 import { deleteStoryImage, isStoryImagePath, storyImagePublicUrl } from "@/app/lib/story-images";
 import { supabaseServer } from "@/app/lib/supabase.server";
-import type { BriefingPosition, StoryImageDisplay, StoryWithViews } from "@/app/lib/types";
+import type { BriefingPosition, StoryImageDisplay, StoryStatus, StoryWithViews } from "@/app/lib/types";
 import {
   coerceStory,
   toEntities,
@@ -31,13 +31,50 @@ function toNullableImageDisplay(value: unknown): StoryImageDisplay | null {
   return null;
 }
 
-export async function GET() {
+function toStoryStatus(value: unknown): StoryStatus {
+  return value === "draft" || value === "archived" ? value : "published";
+}
+
+function toStatusFilterList(rawValue: string | null, adminAccess: boolean): StoryStatus[] {
+  if (!adminAccess) return ["published"];
+
+  const parsed = (rawValue ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value): value is StoryStatus => value === "draft" || value === "published" || value === "archived");
+
+  return parsed.length > 0 ? parsed : ["draft", "published", "archived"];
+}
+
+function sanitizeSearchTerm(value: string | null) {
+  return (value ?? "").replace(/[,%]/g, " ").trim();
+}
+
+export async function GET(request: NextRequest) {
   try {
     const supabase = supabaseServer();
+    const adminAccess = await requestHasAdminAccess(request);
+    const searchTerm = sanitizeSearchTerm(request.nextUrl.searchParams.get("search"));
+    const statuses = toStatusFilterList(request.nextUrl.searchParams.get("statuses"), adminAccess);
+    const limitRaw = Number(request.nextUrl.searchParams.get("limit") ?? "");
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 250) : null;
 
-    const { data: stories, error: storiesError } = await supabase.from("stories").select("*").order("created_at", {
+    let query = supabase.from("stories").select("*").in("status", statuses);
+
+    if (searchTerm) {
+      query = query.or(`title.ilike.%${searchTerm}%,id.ilike.%${searchTerm}%,beacon_headline.ilike.%${searchTerm}%`);
+    }
+
+    query = query.order("updated_at", { ascending: false, nullsFirst: false }).order("created_at", {
       ascending: false,
+      nullsFirst: false,
     });
+
+    if (limit) {
+      query = query.limit(limit);
+    }
+
+    const { data: stories, error: storiesError } = await query;
     if (storiesError) throw storiesError;
 
     const merged = ((stories ?? []) as StoryDbRow[]).map((story) => coerceStory(story));
@@ -88,6 +125,7 @@ export async function POST(req: Request) {
     let beaconRank = toNullableNumber(incoming.beacon_rank);
     let beaconPosition = toNullableBriefingPosition(incoming.beacon_position);
     let beaconOrder = toNullableNumber(incoming.beacon_order);
+    const storyStatus = toStoryStatus(incoming.status);
     const normalizedSummary = toStringArray(incoming.summary);
     const normalizedSources = toSources(incoming.sources);
     const normalizedImagePath = toNullableString(incoming.image_path);
@@ -172,6 +210,7 @@ export async function POST(req: Request) {
 
     const story = {
       id: String(incoming.id),
+      status: storyStatus,
       title: String(incoming.title),
       summary: normalizedSummary,
       sources: normalizedSources,
