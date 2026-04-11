@@ -138,6 +138,14 @@ function friendlyAuthError(message: string, fallback: string) {
     return "An account with that email already exists.";
   }
 
+  if (/duplicate key value violates unique constraint/i.test(message) && /username/i.test(message)) {
+    return "That username is already taken.";
+  }
+
+  if (/duplicate key value violates unique constraint/i.test(message) && /email/i.test(message)) {
+    return "That email is already in use.";
+  }
+
   if (/password/i.test(message) || /email/i.test(message)) {
     return message;
   }
@@ -164,6 +172,40 @@ export function normalizeUsername(username: string) {
 
 export function isValidUsername(username: string) {
   return USERNAME_PATTERN.test(username.trim());
+}
+
+function validateUsernameInput(username: string) {
+  const displayUsername = username.trim();
+  if (!displayUsername) {
+    throw new Error("Username is required.");
+  }
+
+  if (!isValidUsername(displayUsername)) {
+    throw new Error("Username must be 3-24 characters and use only letters, numbers, or underscores.");
+  }
+
+  const moderationError = getUsernameModerationError(displayUsername);
+  if (moderationError) {
+    throw new Error(moderationError);
+  }
+
+  return {
+    displayUsername,
+    usernameNormalized: normalizeUsername(displayUsername),
+  };
+}
+
+function validatePasswordInput(password: string) {
+  const trimmed = password.trim();
+  if (!trimmed) {
+    throw new Error("Password is required.");
+  }
+
+  if (trimmed.length < 8) {
+    throw new Error("Password must be at least 8 characters.");
+  }
+
+  return trimmed;
 }
 
 function readCookieValue(cookieHeader: string | null | undefined, key: string) {
@@ -274,6 +316,32 @@ async function ensureUserProfile(user: User) {
   return toAccountProfile(inserted as UserProfileRow);
 }
 
+async function requireAccountProfileByUserId(userId: string) {
+  const profile = await getAccountProfileByUserId(userId);
+  if (!profile) {
+    throw new Error("This account profile could not be found.");
+  }
+
+  return profile;
+}
+
+async function verifyCurrentPassword(email: string, password: string) {
+  const currentPassword = password.trim();
+  if (!currentPassword) {
+    throw new Error("Current password is required.");
+  }
+
+  const supabase = supabasePasswordAuthClient();
+  const { error } = await supabase.auth.signInWithPassword({
+    email: normalizeEmail(email),
+    password: currentPassword,
+  });
+
+  if (error) {
+    throw new Error("Current password is incorrect.");
+  }
+}
+
 export function accountSessionCookie(userId: string) {
   return {
     httpOnly: true,
@@ -347,20 +415,10 @@ export async function loginWithEmail(email: string, password: string) {
 
 export async function signupWithEmail(email: string, password: string, username: string) {
   const normalizedEmail = normalizeEmail(email);
-  const displayUsername = username.trim();
-  const usernameNormalized = normalizeUsername(displayUsername);
+  const { displayUsername, usernameNormalized } = validateUsernameInput(username);
 
   if (!normalizedEmail || !password.trim() || !displayUsername) {
     throw new Error("Email, password, and username are required.");
-  }
-
-  if (!isValidUsername(displayUsername)) {
-    throw new Error("Username must be 3-24 characters and use only letters, numbers, or underscores.");
-  }
-
-  const moderationError = getUsernameModerationError(displayUsername);
-  if (moderationError) {
-    throw new Error(moderationError);
   }
 
   const supabase = supabaseServer();
@@ -423,6 +481,105 @@ export async function signupWithEmail(email: string, password: string, username:
   }
 
   return toAccountProfile(insertedProfile as UserProfileRow);
+}
+
+export async function updateAccountUsername(userId: string, username: string) {
+  const { displayUsername, usernameNormalized } = validateUsernameInput(username);
+  const supabase = supabaseServer();
+
+  const { data: existingUsername, error: existingUsernameError } = await supabase
+    .from("user_profiles")
+    .select("user_id")
+    .eq("username_normalized", usernameNormalized)
+    .maybeSingle();
+
+  if (existingUsernameError) {
+    throw new Error(friendlyAuthError(existingUsernameError.message, "We couldn't update your username."));
+  }
+
+  if (existingUsername && existingUsername.user_id !== userId) {
+    throw new Error("That username is already taken.");
+  }
+
+  const { data, error } = await supabase
+    .from("user_profiles")
+    .update({
+      username: displayUsername,
+      username_normalized: usernameNormalized,
+    })
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(friendlyAuthError(error.message, "We couldn't update your username."));
+  }
+
+  return toAccountProfile(data as UserProfileRow);
+}
+
+export async function updateAccountEmail(userId: string, email: string, currentPassword: string) {
+  const profile = await requireAccountProfileByUserId(userId);
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    throw new Error("Email is required.");
+  }
+
+  await verifyCurrentPassword(profile.email, currentPassword);
+
+  const supabase = supabaseServer();
+  const { data: existingEmail, error: existingEmailError } = await supabase
+    .from("user_profiles")
+    .select("user_id")
+    .eq("email", normalizedEmail)
+    .maybeSingle();
+
+  if (existingEmailError) {
+    throw new Error(friendlyAuthError(existingEmailError.message, "We couldn't update your email."));
+  }
+
+  if (existingEmail && existingEmail.user_id !== userId) {
+    throw new Error("That email is already in use.");
+  }
+
+  const { error: authError } = await supabase.auth.admin.updateUserById(userId, {
+    email: normalizedEmail,
+    email_confirm: true,
+  });
+
+  if (authError) {
+    throw new Error(friendlyAuthError(authError.message, "We couldn't update your email."));
+  }
+
+  const { data, error } = await supabase
+    .from("user_profiles")
+    .update({
+      email: normalizedEmail,
+    })
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(friendlyAuthError(error.message, "We couldn't update your email."));
+  }
+
+  return toAccountProfile(data as UserProfileRow);
+}
+
+export async function updateAccountPassword(userId: string, currentPassword: string, nextPassword: string) {
+  const profile = await requireAccountProfileByUserId(userId);
+  await verifyCurrentPassword(profile.email, currentPassword);
+  const validatedPassword = validatePasswordInput(nextPassword);
+
+  const supabase = supabaseServer();
+  const { error } = await supabase.auth.admin.updateUserById(userId, {
+    password: validatedPassword,
+  });
+
+  if (error) {
+    throw new Error(friendlyAuthError(error.message, "We couldn't update your password."));
+  }
 }
 
 export async function getAccountDashboard(userId: string): Promise<AccountDashboard> {
