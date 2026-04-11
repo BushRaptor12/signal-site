@@ -611,23 +611,37 @@ export default function HomePageClient() {
       <div className="max-w-4xl mx-auto mb-6 min-h-[44px]">
         {activeTab === "following" ? (
           <div className="flex min-h-[44px] items-center justify-between gap-4">
-            <div className="text-sm text-neutral-500">
-              {accountAuthenticated
-                ? `${followedStoryIds.length} followed stor${followedStoryIds.length === 1 ? "y" : "ies"}`
-                : "Log in to save stories to your Following tab."}
-            </div>
-          </div>
-        ) : activeTab === "popular" || activeTab === "recent" ? (
-          <div className="flex min-h-[44px] items-center justify-between gap-4">
-            {trackingStories.length > 0 ? (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[15px]">
+            {!accountAuthenticated ? (
+              <div className="text-sm text-neutral-500">Log in to save stories to your Following tab.</div>
+            ) : trackingStories.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
                 {trackingStories.map((story) => (
                   <Link
                     key={story.id}
                     href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
                     onClick={() => persistHomeState()}
-                    className="min-w-0 text-[15px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
+                    className="min-w-0 text-[17px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
+                  >
+                    {story.title}
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div />
+            )}
+          </div>
+        ) : activeTab === "popular" || activeTab === "recent" ? (
+          <div className="flex min-h-[44px] items-center justify-between gap-4">
+            {trackingStories.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
+                {trackingStories.map((story) => (
+                  <Link
+                    key={story.id}
+                    href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
+                    onClick={() => persistHomeState()}
+                    className="min-w-0 text-[17px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
                   >
                     {story.title}
                   </Link>

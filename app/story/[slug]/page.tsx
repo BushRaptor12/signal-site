@@ -195,22 +195,26 @@ export default async function StoryPage({
             </Link>
             <p className="mt-1 text-[11px] text-neutral-500 md:text-xs">Multi-source news. Clear perspective.</p>
           </div>
-          <div className="flex items-center justify-self-end gap-3 text-sm text-neutral-500">
-            <StoryReaderActions
-              authenticated={Boolean(accountProfile)}
-              initialFollowing={Boolean(storyState?.following)}
-              storyId={story.id}
-            />
-            {isAdmin ? (
-              <Link
-                href={`/admin/editor?story=${encodeURIComponent(story.id)}`}
-                className="rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
-              >
-                Edit story
-              </Link>
-            ) : null}
-            <div>
-              {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
+          <div className="flex justify-self-end">
+            <div className="flex flex-col items-end gap-2 text-sm text-neutral-500">
+              <div className="flex items-center gap-3">
+                {isAdmin ? (
+                  <Link
+                    href={`/admin/editor?story=${encodeURIComponent(story.id)}`}
+                    className="rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+                  >
+                    Edit story
+                  </Link>
+                ) : null}
+                <div>
+                  {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
+                </div>
+              </div>
+              <StoryReaderActions
+                authenticated={Boolean(accountProfile)}
+                initialFollowing={Boolean(storyState?.following)}
+                storyId={story.id}
+              />
             </div>
           </div>
         </div>

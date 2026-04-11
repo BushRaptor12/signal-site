@@ -50,7 +50,7 @@ type BriefingMetaRow = {
 
 function SeenBadge() {
   return (
-    <div className="pointer-events-none absolute bottom-4 right-5 inline-flex items-center gap-2 rounded-full border border-[#13314b] bg-[#04111b]/95 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d]">
+    <div className="pointer-events-none absolute bottom-4 right-5 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d]">
       <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-none stroke-current stroke-[1.8]">
         <path d="M1.5 12s3.75-6 10.5-6 10.5 6 10.5 6-3.75 6-10.5 6S1.5 12 1.5 12Z" />
         <circle cx="12" cy="12" r="3.25" />

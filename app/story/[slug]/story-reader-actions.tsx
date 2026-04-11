@@ -105,7 +105,7 @@ export default function StoryReaderActions({
           : "border border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:border-[#163754] hover:bg-[#03101b]"
       }`}
     >
-      {pending ? "Saving..." : following ? "Following" : "Follow story"}
+      {pending ? "Saving..." : following ? "Following" : "Follow Story"}
     </button>
   );
 }
