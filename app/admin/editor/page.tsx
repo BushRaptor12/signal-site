@@ -246,6 +246,18 @@ export default function EditorPage() {
     setSources((prev) => [...prev, createSourceRow()]);
   }
 
+  function moveSourceRow(index: number, direction: "up" | "down") {
+    setSources((prev) => {
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+
+      const next = [...prev];
+      const [row] = next.splice(index, 1);
+      next.splice(targetIndex, 0, row);
+      return next;
+    });
+  }
+
   function applySourceSuggestion(suggested: SourcePreview, preferredIndex?: number) {
     setSources((prev) => {
       const next = [...prev];
@@ -1256,12 +1268,28 @@ export default function EditorPage() {
                          ? `Auto-detected lean: ${source.lean}`
                         : `Manual override: ${source.lean}`}
                     </span>
-                    <button
+                   <button
                       type="button"
                       onClick={() => setSourceLeanMode(index, "auto")}
                       className="rounded-full border border-neutral-700 px-3 py-1 text-neutral-300 hover:bg-neutral-800"
                     >
                       Use auto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveSourceRow(index, "up")}
+                      disabled={index === 0}
+                      className="rounded-full border border-neutral-700 px-3 py-1 text-neutral-300 hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Move up
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveSourceRow(index, "down")}
+                      disabled={index === sources.length - 1}
+                      className="rounded-full border border-neutral-700 px-3 py-1 text-neutral-300 hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Move down
                     </button>
                     <span>Edit the dropdown anytime to override.</span>
                   </div>

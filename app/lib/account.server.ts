@@ -40,6 +40,10 @@ type UserCommentRow = {
   story_id: string;
 };
 
+type UserStorySeenRow = {
+  story_id: string;
+};
+
 export type AccountProfile = {
   adminGrantedAt: string | null;
   createdAt: string;
@@ -67,6 +71,11 @@ export type AccountDashboard = {
   comments: AccountComment[];
   followedStories: FollowedStory[];
   profile: AccountProfile;
+};
+
+export type AccountStoryState = {
+  following: boolean;
+  seen: boolean;
 };
 
 function cookieSecret() {
@@ -392,6 +401,94 @@ export async function getAccountProfile() {
   const userId = await getAccountUserId();
   if (!userId) return null;
   return getAccountProfileByUserId(userId);
+}
+
+export async function getFollowedStoryIds(userId: string) {
+  const supabase = supabaseServer();
+  const { data, error } = await supabase.from("user_story_follows").select("story_id").eq("user_id", userId);
+
+  if (error) {
+    throw new Error(friendlyAuthError(error.message, "We couldn't load followed stories."));
+  }
+
+  return ((data ?? []) as UserStoryFollowRow[]).map((row) => row.story_id);
+}
+
+export async function getSeenStoryIds(userId: string, storyIds?: string[]) {
+  if (!userId) return [];
+  if (storyIds && storyIds.length === 0) return [];
+
+  const supabase = supabaseServer();
+  let query = supabase.from("user_story_seen").select("story_id").eq("user_id", userId);
+  if (storyIds && storyIds.length > 0) {
+    query = query.in("story_id", storyIds);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    if (/relation .* does not exist/i.test(error.message)) {
+      return [];
+    }
+
+    throw new Error(friendlyAuthError(error.message, "We couldn't load seen-story history."));
+  }
+
+  return ((data ?? []) as UserStorySeenRow[]).map((row) => row.story_id);
+}
+
+export async function getAccountStoryState(userId: string, storyId: string): Promise<AccountStoryState> {
+  const [followedIds, seenIds] = await Promise.all([getFollowedStoryIds(userId), getSeenStoryIds(userId, [storyId])]);
+
+  return {
+    following: followedIds.includes(storyId),
+    seen: seenIds.includes(storyId),
+  };
+}
+
+export async function setStoryFollow(userId: string, storyId: string, following: boolean) {
+  const supabase = supabaseServer();
+
+  if (following) {
+    const { error } = await supabase.from("user_story_follows").upsert(
+      {
+        story_id: storyId,
+        user_id: userId,
+      },
+      { onConflict: "user_id,story_id", ignoreDuplicates: false }
+    );
+
+    if (error) {
+      throw new Error(friendlyAuthError(error.message, "We couldn't follow this story."));
+    }
+
+    return;
+  }
+
+  const { error } = await supabase.from("user_story_follows").delete().eq("user_id", userId).eq("story_id", storyId);
+  if (error) {
+    throw new Error(friendlyAuthError(error.message, "We couldn't update this follow."));
+  }
+}
+
+export async function markStorySeen(userId: string, storyId: string) {
+  const supabase = supabaseServer();
+  const nowIso = new Date().toISOString();
+  const { error } = await supabase.from("user_story_seen").upsert(
+    {
+      story_id: storyId,
+      updated_at: nowIso,
+      user_id: userId,
+    },
+    { onConflict: "user_id,story_id", ignoreDuplicates: false }
+  );
+
+  if (error) {
+    if (/relation .* does not exist/i.test(error.message)) {
+      return;
+    }
+
+    throw new Error(friendlyAuthError(error.message, "We couldn't save your story history."));
+  }
 }
 
 export async function loginWithEmail(email: string, password: string) {

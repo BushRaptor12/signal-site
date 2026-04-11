@@ -1,10 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import BackLink from "@/app/back-link";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { getAccountDashboard, getAccountUserId } from "@/app/lib/account.server";
 import { DEFAULT_OG_IMAGE, SITE_NAME } from "@/app/lib/seo";
+import PageBrandHeader from "@/app/page-brand-header";
 
 export const metadata: Metadata = {
   title: "Account",
@@ -52,7 +52,7 @@ export default async function AccountPage() {
     return (
       <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
         <div className="mx-auto max-w-4xl">
-          <BackLink href="/" />
+          <PageBrandHeader backHref="/" />
 
           <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
             <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Account</div>
@@ -73,7 +73,7 @@ export default async function AccountPage() {
   return (
     <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
       <div className="mx-auto max-w-5xl">
-        <BackLink href="/" />
+        <PageBrandHeader backHref="/" />
 
         <section className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
           <div className="flex flex-wrap items-start justify-between gap-5">
@@ -119,7 +119,7 @@ export default async function AccountPage() {
 
             {account.followedStories.length === 0 ? (
               <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-5 text-sm leading-7 text-neutral-400">
-                You are not following any stories yet. Once follow controls are wired into story pages, the stories you save will appear here.
+                You are not following any stories yet. Follow stories from their story pages and they will appear here.
               </div>
             ) : (
               <div className="mt-6 space-y-4">

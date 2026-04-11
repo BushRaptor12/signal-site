@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import BackLink from "@/app/back-link";
 import { formatUpdatedAt } from "@/app/lib/dates";
 import type { NotificationPreferences, SiteNotificationEntry } from "@/app/lib/notification-store";
 import { getExistingPushSubscription, isPushSupported, registerPushServiceWorker, urlBase64ToUint8Array } from "@/app/lib/push-client";
 import { NOTIFICATIONS_UPDATED_EVENT, emitNotificationsUpdated } from "@/app/lib/notification-store";
+import PageBrandHeader from "@/app/page-brand-header";
 
 function readNotificationPermission(): NotificationPermission | "unsupported" {
   if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
@@ -169,7 +169,7 @@ export default function NotificationsPageClient() {
   return (
     <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
       <div className="mx-auto max-w-4xl">
-        <BackLink href="/" />
+        <PageBrandHeader backHref="/" />
 
         <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Notifications</div>

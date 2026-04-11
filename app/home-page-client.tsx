@@ -4,12 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ACCOUNT_FOLLOWS_UPDATED_EVENT } from "./lib/account-events";
 import { formatStoryDate } from "./lib/dates";
 import { imageObjectPosition } from "./lib/image-focus";
 import type { StoryWithViews } from "./lib/types";
 import { TOPICS, normalize, toTitleCase } from "./lib/vocab";
 
-type TabKey = "popular" | "recent" | string;
+type TabKey = "following" | "popular" | "recent" | string;
 type TopRange = "day" | "week" | "month";
 type CustomSortMode = "top" | "new";
 
@@ -34,6 +35,7 @@ const TOP_RANGE_DESCRIPTIONS: Record<TopRange, string> = {
   week: "last 7 days",
   month: "last 30 days",
 };
+const BUILTIN_TAB_KEYS = ["following", "popular", "recent"] as const;
 
 type SavedHomeState = {
   customSortMode?: CustomSortMode;
@@ -225,6 +227,10 @@ function textMatchesKeyword(haystack: string, keyword: string) {
   return re.test(h);
 }
 
+function isBuiltinTabKey(tab: string) {
+  return BUILTIN_TAB_KEYS.includes(tab as (typeof BUILTIN_TAB_KEYS)[number]);
+}
+
 export default function HomePageClient() {
   const router = useRouter();
   const pathname = usePathname();
@@ -239,6 +245,9 @@ export default function HomePageClient() {
   const [visibleCount, setVisibleCount] = useState(STORY_BATCH_SIZE);
   const [customSortMode, setCustomSortMode] = useState<CustomSortMode>(getInitialCustomSortMode);
   const [customTopRange, setCustomTopRange] = useState<TopRange>(getInitialCustomTopRange);
+  const [accountAuthenticated, setAccountAuthenticated] = useState(false);
+  const [followedStoryIds, setFollowedStoryIds] = useState<string[]>([]);
+  const [loadingFollowState, setLoadingFollowState] = useState(true);
   const pendingScrollRestoreRef = useRef<{ tabKey: string; scrollY: number } | null>(null);
 
   useEffect(() => {
@@ -319,7 +328,7 @@ export default function HomePageClient() {
 
   useEffect(() => {
     const key = normalize(String(activeTab));
-    if (!key || key === "popular" || key === "recent" || pinned.includes(key)) {
+    if (!key || isBuiltinTabKey(key) || pinned.includes(key)) {
       setGhostTab(null);
       return;
     }
@@ -367,9 +376,46 @@ export default function HomePageClient() {
     };
   }, []);
 
+  const loadFollowState = useCallback(async () => {
+    try {
+      const response = await fetch("/api/account/follows", { cache: "no-store" });
+      const data = (await response.json().catch(() => ({}))) as {
+        authenticated?: boolean;
+        storyIds?: string[];
+      };
+
+      setAccountAuthenticated(Boolean(data.authenticated));
+      setFollowedStoryIds(Array.isArray(data.storyIds) ? data.storyIds.map((value) => String(value)) : []);
+    } catch {
+      setAccountAuthenticated(false);
+      setFollowedStoryIds([]);
+    } finally {
+      setLoadingFollowState(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadFollowState();
+
+    const refresh = () => {
+      void loadFollowState();
+    };
+
+    window.addEventListener(ACCOUNT_FOLLOWS_UPDATED_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    window.addEventListener("focus", refresh);
+
+    return () => {
+      window.removeEventListener(ACCOUNT_FOLLOWS_UPDATED_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [loadFollowState]);
+
   const suggestedTopics = useMemo(() => TOPICS.map((t) => normalize(t)), []);
   const topicSet = useMemo(() => new Set(suggestedTopics), [suggestedTopics]);
   const customPinned = useMemo(() => pinned.filter((tag) => !topicSet.has(tag)), [pinned, topicSet]);
+  const followedStoryIdSet = useMemo(() => new Set(followedStoryIds), [followedStoryIds]);
 
   const storyMatchesTab = useCallback((story: StoryWithViews, tab: string) => {
     const t = normalize(tab);
@@ -395,6 +441,7 @@ export default function HomePageClient() {
 
   const tabs = useMemo(() => {
     const baseTabs = [
+      { key: "following" as TabKey, label: "Following" },
       { key: "popular" as TabKey, label: "Popular" },
       { key: "recent" as TabKey, label: "Recent" },
     ];
@@ -416,6 +463,10 @@ export default function HomePageClient() {
     () => [...stories].filter((story) => !story.pinned).sort((a, b) => publishedAtMs(b) - publishedAtMs(a)),
     [stories]
   );
+  const followingStories = useMemo(
+    () => recentStories.filter((story) => followedStoryIdSet.has(story.id)),
+    [followedStoryIdSet, recentStories]
+  );
 
   const topStories = useCallback((pool: StoryWithViews[], range: TopRange) => {
     const nowMs = INITIAL_NOW_MS;
@@ -425,7 +476,7 @@ export default function HomePageClient() {
   }, []);
 
   const customTabStories = useMemo(() => {
-    if (activeTab === "popular" || activeTab === "recent") return [];
+    if (isBuiltinTabKey(normalize(String(activeTab)))) return [];
     return recentStories.filter((story) => storyMatchesTab(story, String(activeTab)));
   }, [recentStories, activeTab, storyMatchesTab]);
 
@@ -440,6 +491,8 @@ export default function HomePageClient() {
     shouldFallbackToCustomNew ? "new" : customSortMode;
 
   const visible = useMemo(() => {
+    if (activeTab === "following") return followingStories;
+
     if (activeTab === "recent") return recentStories;
 
     if (activeTab === "popular") {
@@ -453,6 +506,7 @@ export default function HomePageClient() {
     effectiveCustomSortMode,
     customTabStories,
     customTopStories,
+    followingStories,
   ]);
 
   const visibleStories = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
@@ -517,7 +571,7 @@ export default function HomePageClient() {
         <div className="flex space-x-3 overflow-x-auto pb-2">
           {tabs.map((tab) => {
             const key = normalize(String(tab.key));
-            const isBuiltinTab = key === "popular" || key === "recent";
+            const isBuiltinTab = isBuiltinTabKey(key);
             const isGhostTab = ghostTab === key && !pinned.includes(key);
 
             return (
@@ -555,7 +609,15 @@ export default function HomePageClient() {
       </div>
 
       <div className="max-w-4xl mx-auto mb-6 min-h-[44px]">
-        {activeTab === "popular" || activeTab === "recent" ? (
+        {activeTab === "following" ? (
+          <div className="flex min-h-[44px] items-center justify-between gap-4">
+            <div className="text-sm text-neutral-500">
+              {accountAuthenticated
+                ? `${followedStoryIds.length} followed stor${followedStoryIds.length === 1 ? "y" : "ies"}`
+                : "Log in to save stories to your Following tab."}
+            </div>
+          </div>
+        ) : activeTab === "popular" || activeTab === "recent" ? (
           <div className="flex min-h-[44px] items-center justify-between gap-4">
             {trackingStories.length > 0 ? (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[15px]">
@@ -693,10 +755,28 @@ export default function HomePageClient() {
       )}
 
       <div className="max-w-4xl mx-auto space-y-8">
-        {isLoading ? (
+        {isLoading || (activeTab === "following" && loadingFollowState) ? (
           <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
             <h2 className="text-2xl font-semibold text-neutral-100">Loading stories...</h2>
             <p className="mt-3 text-neutral-400">Pulling together the latest coverage.</p>
+          </div>
+        ) : activeTab === "following" && !accountAuthenticated ? (
+          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+            <h2 className="text-2xl font-semibold text-neutral-100">Log in to use Following</h2>
+            <p className="mt-3 text-neutral-400">
+              Follow stories from their story pages and they will appear here in newest-first order.
+            </p>
+            <Link
+              href="/account/login"
+              className="mt-6 inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+            >
+              Log in
+            </Link>
+          </div>
+        ) : activeTab === "following" && followingStories.length === 0 ? (
+          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+            <h2 className="text-2xl font-semibold text-neutral-100">Nothing followed yet</h2>
+            <p className="mt-3 text-neutral-400">Follow stories to populate this tab.</p>
           </div>
         ) : visible.length === 0 ? (
           <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">

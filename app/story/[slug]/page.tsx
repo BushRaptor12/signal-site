@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
-import { getAccountProfile } from "@/app/lib/account.server";
+import { getAccountProfile, getAccountStoryState } from "@/app/lib/account.server";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { SITE_NAME, absoluteUrl, buildStoryMetadata, storyDescription, storyKeywords, storyModifiedTime, storyPublishedTime } from "@/app/lib/seo";
 import { supabaseServer } from "@/app/lib/supabase.server";
@@ -12,6 +12,7 @@ import ViewTracker from "./view-tracker";
 import ReactionBar from "./reaction-bar";
 import SourceTitle from "./source-title";
 import ShareButton from "@/app/share-button";
+import StoryReaderActions from "./story-reader-actions";
 
 function leanBadgeClasses(lean: "Left" | "Center" | "Right") {
   switch (lean) {
@@ -100,7 +101,13 @@ export default async function StoryPage({
   const from = Array.isArray(rawFrom) ? rawFrom[0] : rawFrom;
 
   const backHref =
-    from === "briefing" || from === "beacon" ? "/briefing" : from ? `/?tab=${encodeURIComponent(from)}` : "/";
+    from === "briefing" || from === "beacon"
+      ? "/briefing"
+      : from === "account"
+        ? "/account"
+        : from
+          ? `/?tab=${encodeURIComponent(from)}`
+          : "/";
 
   let story: StoryWithViews | null = null;
   let relatedStories: StoryWithViews[] = [];
@@ -134,6 +141,7 @@ export default async function StoryPage({
   const updatedAt = story.content_updated_at ?? story.created_at ?? null;
   const accountProfile = await getAccountProfile();
   const isAdmin = Boolean(accountProfile?.isAdmin);
+  const storyState = accountProfile ? await getAccountStoryState(accountProfile.userId, story.id) : null;
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
@@ -188,6 +196,11 @@ export default async function StoryPage({
             <p className="mt-1 text-[11px] text-neutral-500 md:text-xs">Multi-source news. Clear perspective.</p>
           </div>
           <div className="flex items-center justify-self-end gap-3 text-sm text-neutral-500">
+            <StoryReaderActions
+              authenticated={Boolean(accountProfile)}
+              initialFollowing={Boolean(storyState?.following)}
+              storyId={story.id}
+            />
             {isAdmin ? (
               <Link
                 href={`/admin/editor?story=${encodeURIComponent(story.id)}`}

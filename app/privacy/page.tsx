@@ -44,7 +44,7 @@ const sections = [
     paragraphs: [
       "We collect a small amount of information automatically to operate the site, understand usage, and prevent abuse.",
       "Browser storage. The site saves your pinned tabs and active tab in your browser's local storage so your preferences persist between visits. The site also uses session storage to avoid sending repeated view-count requests for the same story during a single browsing session.",
-      "Account information. If you create an account, the site stores the email address you provide, your chosen username, and related account records such as followed stories and comment history tied to that account.",
+      "Account information. If you create an account, the site stores the email address you provide, your chosen username, and related account records such as followed stories, seen-story history, and comment history tied to that account.",
       "Account session cookie. When you log in, the site sets a first-party cookie so it can recognize your authenticated session and keep your account page available between page loads.",
       "Site cookie for engagement controls. When you view a story or use reactions, the site may set a first-party cookie named `signal_vid`. That cookie stores a random viewer identifier so the site can reduce duplicate counts and remember whether a reaction appears to come from the same browser over time.",
       "Basic request data. When a view or reaction request reaches the server, the app reads limited request metadata such as a truncated IP-address bucket and a shortened user-agent string. The app hashes this information before using it to create abuse-prevention and counting keys.",
@@ -55,7 +55,7 @@ const sections = [
   {
     title: "How We Use Information",
     paragraphs: [
-      "We use information to operate the site, render stories, remember your tab preferences, authenticate account holders, show followed stories and account history, count story views more accurately, power reactions, detect suspicious or automated traffic, understand which pages are being used, and improve the editorial product over time.",
+      "We use information to operate the site, render stories, remember your tab preferences, authenticate account holders, show followed stories and account history, remember which briefing stories a signed-in reader has already seen, count story views more accurately, power reactions, detect suspicious or automated traffic, understand which pages are being used, and improve the editorial product over time.",
       "We do not use the current public site to build advertising audiences or sell subscriber lists.",
     ],
   },
