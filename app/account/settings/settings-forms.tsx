@@ -203,7 +203,7 @@ export default function SettingsForms({ email, username }: SettingsFormsProps) {
 
       <SettingsCard
         title="Username"
-        description='Usernames stay unique regardless of letter case, so if "brady" is taken, "bRady" is taken too.'
+        description='Usernames stay unique regardless of letter case.'
       >
         <form className="space-y-3" onSubmit={(event) => void saveUsername(event)}>
           <input
@@ -226,7 +226,7 @@ export default function SettingsForms({ email, username }: SettingsFormsProps) {
 
       <SettingsCard
         title="Email"
-        description="Email changes require your current password. For now, the update applies immediately to keep the account flow simple."
+        description="Email changes require your current password."
       >
         <form className="space-y-3" onSubmit={(event) => void saveEmail(event)}>
           <input

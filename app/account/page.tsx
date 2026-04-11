@@ -81,7 +81,7 @@ export default async function AccountPage() {
               <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Account</div>
               <h1 className="mt-3 text-4xl font-semibold text-neutral-100">{account.profile.username}</h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-neutral-300">
-                Reader profile for saved follows, comment history, and the next round of account features.
+                Reader profile for followed stories, comment history, and settings.
               </p>
               <div className="mt-4 text-sm text-neutral-500">Joined: {formatUpdatedAt(account.profile.createdAt)}</div>
             </div>
