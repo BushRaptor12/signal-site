@@ -29,14 +29,14 @@ export const metadata: Metadata = {
   },
 };
 
-const LAST_UPDATED = "April 7, 2026";
+const LAST_UPDATED = "April 11, 2026";
 
 const sections = [
   {
     title: "Overview",
     paragraphs: [
-      "The Beacon is a news site. This Privacy Policy explains what information may be collected when you visit the site, read stories, use reactions, or interact with site features.",
-      "This policy applies to the public-facing pages of The Beacon. The site does not currently require public user accounts, public comment submissions, or newsletter signups.",
+      "The Beacon is a news site. This Privacy Policy explains what information may be collected when you visit the site, read stories, use reactions, create an account, or interact with site features.",
+      "This policy applies to the public-facing pages of The Beacon, including optional reader accounts and related account-management pages.",
     ],
   },
   {
@@ -44,6 +44,8 @@ const sections = [
     paragraphs: [
       "We collect a small amount of information automatically to operate the site, understand usage, and prevent abuse.",
       "Browser storage. The site saves your pinned tabs and active tab in your browser's local storage so your preferences persist between visits. The site also uses session storage to avoid sending repeated view-count requests for the same story during a single browsing session.",
+      "Account information. If you create an account, the site stores the email address you provide, your chosen username, and related account records such as followed stories and comment history tied to that account.",
+      "Account session cookie. When you log in, the site sets a first-party cookie so it can recognize your authenticated session and keep your account page available between page loads.",
       "Site cookie for engagement controls. When you view a story or use reactions, the site may set a first-party cookie named `signal_vid`. That cookie stores a random viewer identifier so the site can reduce duplicate counts and remember whether a reaction appears to come from the same browser over time.",
       "Basic request data. When a view or reaction request reaches the server, the app reads limited request metadata such as a truncated IP-address bucket and a shortened user-agent string. The app hashes this information before using it to create abuse-prevention and counting keys.",
       "Reaction data. If you tap a reaction on a story, the selected reaction and the hashed viewer key associated with it are stored so the site can show totals and your current selection.",
@@ -53,8 +55,8 @@ const sections = [
   {
     title: "How We Use Information",
     paragraphs: [
-      "We use information to operate the site, render stories, remember your tab preferences, count story views more accurately, power reactions, detect suspicious or automated traffic, understand which pages are being used, and improve the editorial product over time.",
-      "We do not use the current public site to build advertising audiences, sell subscriber lists, or run a public account system.",
+      "We use information to operate the site, render stories, remember your tab preferences, authenticate account holders, show followed stories and account history, count story views more accurately, power reactions, detect suspicious or automated traffic, understand which pages are being used, and improve the editorial product over time.",
+      "We do not use the current public site to build advertising audiences or sell subscriber lists.",
     ],
   },
   {
@@ -68,8 +70,8 @@ const sections = [
   {
     title: "Cookies, Local Storage, and Similar Tools",
     paragraphs: [
-      "The Beacon currently uses a mix of first-party browser storage and service-provider analytics.",
-      "Local storage keys are used for saved tab preferences. Session storage is used for temporary per-session view tracking in your browser. The `signal_vid` cookie is used by the site to help manage view and reaction integrity. Vercel Web Analytics is also enabled at the app level.",
+      "The Beacon currently uses a mix of first-party browser storage, first-party cookies, and service-provider analytics.",
+      "Local storage keys are used for saved tab preferences. Session storage is used for temporary per-session view tracking in your browser. The `beacon_account` cookie is used to maintain signed-in account sessions, and the `signal_vid` cookie is used by the site to help manage view and reaction integrity. Vercel Web Analytics is also enabled at the app level.",
       "You can usually remove or block cookies and local storage through your browser settings. If you do, some site behavior, such as saved tabs or engagement counting, may stop working as intended.",
     ],
   },
@@ -77,6 +79,7 @@ const sections = [
     title: "Retention",
     paragraphs: [
       "Local storage remains in your browser until you clear it. Session storage normally lasts until that browser tab or session ends.",
+      "The `beacon_account` cookie can remain active for up to 30 days unless you log out or clear it sooner.",
       "The `signal_vid` cookie is configured to last up to one year unless you delete it sooner.",
       "The current codebase does not publish a fixed public deletion schedule for server-side engagement data such as hashed viewer keys or reaction records. Unless a shorter internal retention period is adopted later, that data may be retained for operational, editorial, analytics, and abuse-prevention purposes.",
     ],
@@ -86,7 +89,7 @@ const sections = [
     paragraphs: [
       "You can browse much of the site without creating an account or directly submitting identifying information.",
       "You can avoid using reaction features, clear cookies and browser storage, or use browser privacy controls to limit certain types of tracking.",
-      "Depending on where you live, you may have privacy rights under applicable law, such as rights to request access to or deletion of certain information. Because the public site does not currently include a dedicated account portal or request form, privacy requests may be sent to contact@readthebeacon.news.",
+      "Depending on where you live, you may have privacy rights under applicable law, such as rights to request access to or deletion of certain information. Account holders can manage some information through the account area, and privacy requests may also be sent to contact@readthebeacon.news.",
     ],
   },
   {
@@ -111,7 +114,7 @@ const sections = [
   {
     title: "Changes to This Policy",
     paragraphs: [
-      "We may update this Privacy Policy from time to time as the site changes, including if we add accounts, comments, newsletters, advertising, or new analytics or community features.",
+      "We may update this Privacy Policy from time to time as the site changes, including as we expand accounts, comments, newsletters, advertising, or other analytics or community features.",
       "When we make material changes, we will update the \"Last updated\" date on this page and post the revised version here.",
     ],
   },
