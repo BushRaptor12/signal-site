@@ -184,7 +184,7 @@ export default function NotificationsPageClient() {
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Notifications</div>
           <h1 className="mt-3 text-4xl font-semibold text-neutral-100">Alerts and notification settings</h1>
           <p className="mt-6 text-base leading-7 text-neutral-300">
-            Recent alerts and read state now follow your account, not just this browser.
+            Change your notification preferences and see recent alerts.
           </p>
         </div>
 
