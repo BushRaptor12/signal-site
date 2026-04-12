@@ -72,6 +72,40 @@ const SORT_OPTIONS: Array<{ label: string; value: CommentSort }> = [
   { label: "Old", value: "old" },
 ];
 
+function ThumbUpIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 22H5.5A1.5 1.5 0 0 1 4 20.5v-8A1.5 1.5 0 0 1 5.5 11H9m0 11V11m0 11h7.165a2 2 0 0 0 1.942-1.52l1.286-5.5A2 2 0 0 0 17.445 11H14V7.5c0-1.933-1.567-3.5-3.5-3.5L9 11"
+      />
+    </svg>
+  );
+}
+
+function ThumbDownIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15 2h3.5A1.5 1.5 0 0 1 20 3.5v8A1.5 1.5 0 0 1 18.5 13H15M15 2v11m0-11H7.835a2 2 0 0 0-1.942 1.52l-1.286 5.5A2 2 0 0 0 6.555 13H10v3.5c0 1.933 1.567 3.5 3.5 3.5L15 13"
+      />
+    </svg>
+  );
+}
+
+function CollapseToggleIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+      <rect x="2.5" y="2.5" width="15" height="15" rx="3" />
+      <path strokeLinecap="round" d="M6 10h8" />
+      {collapsed ? <path strokeLinecap="round" d="M10 6v8" /> : null}
+    </svg>
+  );
+}
+
 function AuthRequiredDialog({
   actionLabel,
   onClose,
@@ -217,51 +251,88 @@ function CommentCard({
   const deleteBusy = busyAction === `delete:${comment.id}`;
   const replyBusy = busyAction === `reply:${comment.id}`;
   const editBusy = busyAction === `edit:${comment.id}`;
-  const [showAllReplies, setShowAllReplies] = useState(comment.children.length <= 3);
-  const visibleChildren = showAllReplies ? comment.children : comment.children.slice(0, 3);
+  const [collapsed, setCollapsed] = useState(false);
+  const [showReplies, setShowReplies] = useState(false);
+
+  function handleCollapseToggle() {
+    if (!collapsed) {
+      if (showingReplyBox) {
+        onReplyToggle(comment.id);
+      }
+      if (editing) {
+        onEditCancel();
+      }
+    }
+
+    setCollapsed((current) => !current);
+  }
 
   return (
     <div className={`${comment.depth > 0 ? "mt-4 border-l border-[#163754] pl-5" : ""}`}>
-      <article id={`comment-${comment.id}`} className="rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
+      <article
+        id={`comment-${comment.id}`}
+        className={`rounded-2xl border border-[#13314b] bg-[#04111b] ${collapsed ? "p-3.5" : "p-5"}`}
+      >
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-neutral-100">{comment.username}</div>
-            <div className="mt-1 text-xs uppercase tracking-[0.16em] text-neutral-500" title={formatUpdatedAt(comment.createdAt)}>
-              {formatUpdatedAgo(comment.createdAt)}
+          <div className="flex items-start gap-3">
+            <button
+              type="button"
+              onClick={handleCollapseToggle}
+              className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#163754] bg-[#020b14] text-neutral-300 transition hover:border-[#8f7740]/50 hover:text-neutral-100"
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? "Expand comment" : "Collapse comment"}
+              title={collapsed ? "Expand comment" : "Collapse comment"}
+            >
+              <CollapseToggleIcon collapsed={collapsed} />
+            </button>
+            <div>
+              <div className="text-sm font-semibold text-neutral-100">{comment.username}</div>
+              <div
+                className="mt-1 text-xs uppercase tracking-[0.16em] text-neutral-500"
+                title={formatUpdatedAt(comment.createdAt)}
+              >
+                {formatUpdatedAgo(comment.createdAt)}
+              </div>
             </div>
           </div>
 
-          {!comment.deleted ? (
-            <div className="flex flex-wrap items-center gap-2">
+          {!comment.deleted && !collapsed ? (
+            <div className="flex items-start gap-4">
               <button
                 type="button"
                 onClick={() => void onVote(comment.id, 1, comment.viewerVote)}
                 disabled={voteBusy}
-                className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                aria-label={`Thumbs up comment by ${comment.username}`}
+                title="Thumbs up"
+                className={`flex flex-col items-center gap-1 text-xs transition ${
                   comment.viewerVote === 1
-                    ? "border-[#8f7740]/80 bg-[#8f7740]/15 text-[#e3cca0]"
-                    : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
+                    ? "text-[#d9bf82]"
+                    : "text-[#7fa8c9] hover:text-[#9fc0d9]"
                 } disabled:cursor-not-allowed disabled:opacity-60`}
               >
-                Thumbs up {comment.upvotes}
+                <ThumbUpIcon className="h-6 w-6" />
+                <span className="text-[11px] font-semibold text-[#78c892]">{comment.upvotes}</span>
               </button>
               <button
                 type="button"
                 onClick={() => void onVote(comment.id, -1, comment.viewerVote)}
                 disabled={voteBusy}
-                className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                aria-label={`Thumbs down comment by ${comment.username}`}
+                title="Thumbs down"
+                className={`flex flex-col items-center gap-1 text-xs transition ${
                   comment.viewerVote === -1
-                    ? "border-[#7d2a2a]/80 bg-[#7d2a2a]/15 text-[#f1b6b6]"
-                    : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
+                    ? "text-[#d9bf82]"
+                    : "text-[#7fa8c9] hover:text-[#9fc0d9]"
                 } disabled:cursor-not-allowed disabled:opacity-60`}
               >
-                Thumbs down {comment.downvotes}
+                <ThumbDownIcon className="h-6 w-6" />
+                <span className="text-[11px] font-semibold text-[#d98a8a]">{comment.downvotes}</span>
               </button>
             </div>
           ) : null}
         </div>
 
-        {comment.deleted ? (
+        {collapsed ? null : comment.deleted ? (
           <p className="mt-4 text-sm italic leading-7 text-neutral-500">{comment.removedMessage ?? "Comment removed."}</p>
         ) : editing ? (
           <div className="mt-4">
@@ -296,7 +367,7 @@ function CommentCard({
           </div>
         )}
 
-        {!comment.deleted ? (
+        {!comment.deleted && !collapsed ? (
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {comment.canEdit ? (
               <button
@@ -331,10 +402,14 @@ function CommentCard({
               </button>
             ) : null}
 
-            {comment.totalReplies > 0 ? (
-              <div className="text-xs uppercase tracking-[0.16em] text-neutral-500">
-                {comment.totalReplies} {comment.totalReplies === 1 ? "reply" : "replies"}
-              </div>
+            {comment.children.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowReplies((current) => !current)}
+                className="text-sm font-medium text-[#d9bf82] transition hover:text-[#edd7a8]"
+              >
+                {showReplies ? "Hide Replies" : `View Replies (${comment.totalReplies})`}
+              </button>
             ) : null}
 
             {isAdmin ? (
@@ -350,7 +425,19 @@ function CommentCard({
           </div>
         ) : null}
 
-        {showingReplyBox ? (
+        {comment.deleted && !collapsed && comment.children.length > 0 ? (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setShowReplies((current) => !current)}
+              className="text-sm font-medium text-[#d9bf82] transition hover:text-[#edd7a8]"
+            >
+              {showReplies ? "Hide Replies" : `View Replies (${comment.totalReplies})`}
+            </button>
+          </div>
+        ) : null}
+
+        {showingReplyBox && !collapsed ? (
           <div className="mt-5 rounded-2xl border border-[#163754] bg-[#03101b] p-4">
             <textarea
               value={replyDraft}
@@ -380,9 +467,9 @@ function CommentCard({
         ) : null}
       </article>
 
-      {comment.children.length > 0 ? (
+      {comment.children.length > 0 && showReplies && !collapsed ? (
         <div className="space-y-0">
-          {visibleChildren.map((child) => (
+          {comment.children.map((child) => (
             <CommentCard
               key={child.id}
               activeReplyParentId={activeReplyParentId}
@@ -406,24 +493,6 @@ function CommentCard({
               setReplyDraft={setReplyDraft}
             />
           ))}
-          {!showAllReplies && comment.children.length > 3 ? (
-            <button
-              type="button"
-              onClick={() => setShowAllReplies(true)}
-              className="mt-4 text-sm font-medium text-[#d9bf82] transition hover:text-[#edd7a8]"
-            >
-              Show {comment.children.length - 3} more {comment.children.length - 3 === 1 ? "reply" : "replies"}
-            </button>
-          ) : null}
-          {showAllReplies && comment.children.length > 3 ? (
-            <button
-              type="button"
-              onClick={() => setShowAllReplies(false)}
-              className="mt-4 text-sm font-medium text-neutral-400 transition hover:text-neutral-200"
-            >
-              Collapse replies
-            </button>
-          ) : null}
         </div>
       ) : null}
     </div>
