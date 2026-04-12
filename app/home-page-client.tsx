@@ -5,6 +5,11 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ACCOUNT_FOLLOWS_UPDATED_EVENT } from "./lib/account-events";
+import {
+  STORY_COMMENT_COUNT_UPDATED_EVENT,
+  readStoredStoryCommentCountUpdate,
+  readStoryCommentCountUpdate,
+} from "./lib/comment-events";
 import { formatStoryDate } from "./lib/dates";
 import { imageObjectPosition } from "./lib/image-focus";
 import type { StoryWithViews } from "./lib/types";
@@ -245,7 +250,7 @@ export default function HomePageClient({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const stories = initialStories;
+  const [stories, setStories] = useState(initialStories);
   const [activeTab, setActiveTab] = useState<TabKey>(getInitialActiveTab);
   const [pinned, setPinned] = useState<string[]>(getInitialPinned);
   const [showManager, setShowManager] = useState(false);
@@ -275,6 +280,41 @@ export default function HomePageClient({
       // ignore
     }
   }, [customSortMode, customTopRange]);
+
+  useEffect(() => {
+    setStories(initialStories);
+  }, [initialStories]);
+
+  useEffect(() => {
+    const applyUpdate = (payload: { commentCount: number; storyId: string } | null) => {
+      if (!payload) return;
+
+      setStories((current) =>
+        current.map((story) =>
+          story.id === payload.storyId
+            ? {
+                ...story,
+                comments: payload.commentCount,
+              }
+            : story
+        )
+      );
+    };
+
+    const onWindowEvent = (event: Event) => {
+      applyUpdate(readStoryCommentCountUpdate((event as CustomEvent).detail));
+    };
+    const onStorage = () => {
+      applyUpdate(readStoredStoryCommentCountUpdate());
+    };
+
+    window.addEventListener(STORY_COMMENT_COUNT_UPDATED_EVENT, onWindowEvent);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(STORY_COMMENT_COUNT_UPDATED_EVENT, onWindowEvent);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   useEffect(() => {
     const requestedTab = normalize(searchParams.get("tab") ?? "");

@@ -14,6 +14,7 @@ import SourceTitle from "./source-title";
 import ShareButton from "@/app/share-button";
 import StoryReaderActions from "./story-reader-actions";
 import CommentsSection from "./comments-section";
+import StoryEngagementSummary from "./story-engagement-summary";
 
 function leanBadgeClasses(lean: "Left" | "Center" | "Right") {
   switch (lean) {
@@ -215,9 +216,7 @@ export default async function StoryPage({
                     Edit story
                   </Link>
                 ) : null}
-                <div>
-                  {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
-                </div>
+                <StoryEngagementSummary key={story.id} initialCommentCount={story.comments} storyId={story.id} views={story.views} />
               </div>
               <StoryReaderActions
                 authenticated={Boolean(accountProfile)}

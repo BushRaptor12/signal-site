@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { emitStoryCommentCountUpdated } from "@/app/lib/comment-events";
 import { formatUpdatedAgo, formatUpdatedAt } from "@/app/lib/dates";
 
 type CommentSort = "controversial" | "most-liked" | "new" | "old" | "top";
@@ -475,6 +476,10 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
     void loadComments("top");
   }, [loadComments, storyId]);
 
+  useEffect(() => {
+    emitStoryCommentCountUpdated(storyId, totalCount);
+  }, [storyId, totalCount]);
+
   async function changeSort(nextSort: CommentSort) {
     if (nextSort === sort) return;
     setSort(nextSort);
@@ -677,42 +682,35 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
   }
 
   return (
-    <section className="mt-10 rounded-2xl border border-[#13314b] bg-[#03101b] p-8 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
+    <section className="mt-10 rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold">Comments</h2>
-          <p className="mt-2 text-sm leading-7 text-neutral-400">
-            Community voting does most of the policing here. Automatic moderation only blocks clear slurs and a small set of extreme abuse.
-          </p>
-          <p className="mt-2 text-xs uppercase tracking-[0.16em] text-neutral-500">
-            Limits: 6 comments per 10 minutes, 20 per day. Edits are allowed for 15 minutes.
-          </p>
-        </div>
-        <div className="rounded-full border border-[#13314b] px-3 py-1 text-xs text-neutral-400">
-          {totalCount} {totalCount === 1 ? "comment" : "comments"}
-        </div>
+        <h2 className="text-lg font-semibold">Comments</h2>
+        <label className="flex items-center gap-3 text-sm text-neutral-400">
+          <span>Sort</span>
+          <select
+            value={sort}
+            onChange={(event) => void changeSort(event.target.value as CommentSort)}
+            disabled={loading}
+            className="rounded-full border border-[#0d2438] bg-[#020b14] px-4 py-2 text-sm text-[#d7e2ef] outline-none transition hover:bg-[#03101b] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
-      {!authenticated ? (
-        <div className="mt-5 rounded-2xl border border-[#163754] bg-[#04111b] p-4 text-sm leading-7 text-neutral-300">
-          Reading comments is open to everyone. Posting, replying, and voting require a{" "}
-          <Link href="/account/login" className="text-[#d9bf82] underline decoration-[#8f7740]/60 underline-offset-4">
-            signed-in account
-          </Link>
-          .
-        </div>
-      ) : null}
-
-      <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
+      <div className="mt-4 rounded-xl border border-[#13314b] bg-[#04111b] p-3">
         <textarea
           value={composerDraft}
           onChange={(event) => setComposerDraft(event.target.value)}
-          rows={5}
-          className="w-full resize-y rounded-2xl border border-[#163754] bg-[#020b14] px-4 py-3 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/60"
-          placeholder={authenticated ? "Share your take on this story..." : "Write your comment. You will be asked to sign in when you post."}
+          rows={2}
+          className="w-full resize-y rounded-xl border border-[#163754] bg-[#020b14] px-4 py-2.5 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/60"
+          placeholder="Add a comment..."
         />
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-xs uppercase tracking-[0.16em] text-neutral-500">Default sort: Top</div>
+        <div className="mt-2 flex justify-end">
           <button
             type="button"
             onClick={() => void submitComment(null)}
@@ -722,25 +720,6 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
             {busyAction === "post" ? "Posting..." : "Post"}
           </button>
         </div>
-      </div>
-
-      <div className="mt-6 flex flex-wrap items-center gap-2">
-        <div className="mr-1 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Sort by</div>
-        {SORT_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => void changeSort(option.value)}
-            disabled={loading}
-            className={`rounded-full border px-3 py-1.5 text-xs transition ${
-              sort === option.value
-                ? "border-neutral-100 bg-neutral-100 text-neutral-900"
-                : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
-            } disabled:cursor-not-allowed disabled:opacity-60`}
-          >
-            {option.label}
-          </button>
-        ))}
       </div>
 
       {error ? <div className="mt-5 text-sm text-[#f0b7b7]">{error}</div> : null}
