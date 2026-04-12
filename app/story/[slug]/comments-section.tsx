@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { emitStoryCommentCountUpdated } from "@/app/lib/comment-events";
 import { formatUpdatedAgo, formatUpdatedAt } from "@/app/lib/dates";
+import { supabaseBrowser } from "@/app/lib/supabase-browser";
 
 type CommentSort = "controversial" | "most-liked" | "new" | "old" | "top";
 
@@ -46,9 +47,12 @@ type CommentCardProps = {
   activeReplyParentId: string | null;
   authenticated: boolean;
   busyAction: string | null;
+  collapsed: boolean;
   comment: StoryComment;
+  collapsedCommentIds: Record<string, boolean>;
   editingCommentId: string | null;
   editDraft: string;
+  expandedReplyIds: Record<string, boolean>;
   isAdmin: boolean;
   onDelete: (commentId: string) => Promise<void>;
   onEditCancel: () => void;
@@ -59,8 +63,11 @@ type CommentCardProps = {
   onReplyToggle: (commentId: string) => void;
   onReplySubmit: (commentId: string) => Promise<void>;
   onShowAuthDialog: (actionLabel: string) => void;
+  onToggleCollapsed: (commentId: string) => void;
+  onToggleReplies: (commentId: string) => void;
   onVote: (commentId: string, nextVote: -1 | 1, currentVote: -1 | 0 | 1) => Promise<void>;
   replyDraft: string;
+  repliesExpanded: boolean;
   setReplyDraft: (value: string) => void;
 };
 
@@ -118,6 +125,55 @@ function CollapseToggleIcon({ collapsed }: { collapsed: boolean }) {
       {collapsed ? <path strokeLinecap="round" d="M10 6v8" /> : null}
     </svg>
   );
+}
+
+function collectCommentIds(commentTree: StoryComment[], ids = new Set<string>()) {
+  for (const comment of commentTree) {
+    ids.add(comment.id);
+    collectCommentIds(comment.children, ids);
+  }
+
+  return ids;
+}
+
+function pruneCommentUiState(state: Record<string, boolean>, commentTree: StoryComment[]) {
+  const validIds = collectCommentIds(commentTree);
+  const nextState: Record<string, boolean> = {};
+
+  for (const [commentId, value] of Object.entries(state)) {
+    if (value && validIds.has(commentId)) {
+      nextState[commentId] = true;
+    }
+  }
+
+  return nextState;
+}
+
+function updateCommentTree(
+  commentTree: StoryComment[],
+  commentId: string,
+  updater: (comment: StoryComment) => StoryComment
+): StoryComment[] {
+  let changed = false;
+
+  const nextTree = commentTree.map((comment) => {
+    let nextComment = comment;
+
+    if (comment.id === commentId) {
+      nextComment = updater(comment);
+      changed = true;
+    }
+
+    const nextChildren = updateCommentTree(comment.children, commentId, updater);
+    if (nextChildren !== comment.children) {
+      nextComment = { ...nextComment, children: nextChildren };
+      changed = true;
+    }
+
+    return nextComment;
+  });
+
+  return changed ? nextTree : commentTree;
 }
 
 function AuthRequiredDialog({
@@ -242,9 +298,12 @@ function CommentCard({
   activeReplyParentId,
   authenticated,
   busyAction,
+  collapsed,
   comment,
+  collapsedCommentIds,
   editingCommentId,
   editDraft,
+  expandedReplyIds,
   isAdmin,
   onDelete,
   onEditCancel,
@@ -255,8 +314,11 @@ function CommentCard({
   onReplyToggle,
   onReplySubmit,
   onShowAuthDialog,
+  onToggleCollapsed,
+  onToggleReplies,
   onVote,
   replyDraft,
+  repliesExpanded,
   setReplyDraft,
 }: CommentCardProps) {
   const showingReplyBox = activeReplyParentId === comment.id;
@@ -265,8 +327,6 @@ function CommentCard({
   const deleteBusy = busyAction === `delete:${comment.id}`;
   const replyBusy = busyAction === `reply:${comment.id}`;
   const editBusy = busyAction === `edit:${comment.id}`;
-  const [collapsed, setCollapsed] = useState(false);
-  const [showReplies, setShowReplies] = useState(false);
 
   function handleCollapseToggle() {
     if (!collapsed) {
@@ -278,7 +338,7 @@ function CommentCard({
       }
     }
 
-    setCollapsed((current) => !current);
+    onToggleCollapsed(comment.id);
   }
 
   return (
@@ -421,10 +481,10 @@ function CommentCard({
             {comment.children.length > 0 ? (
               <button
                 type="button"
-                onClick={() => setShowReplies((current) => !current)}
+                onClick={() => onToggleReplies(comment.id)}
                 className="text-sm font-medium text-[#d9bf82] transition hover:text-[#edd7a8]"
               >
-                {showReplies ? "Hide Replies" : `View Replies (${comment.totalReplies})`}
+                {repliesExpanded ? "Hide Replies" : `View Replies (${comment.totalReplies})`}
               </button>
             ) : null}
 
@@ -445,10 +505,10 @@ function CommentCard({
           <div className="mt-4">
             <button
               type="button"
-              onClick={() => setShowReplies((current) => !current)}
+              onClick={() => onToggleReplies(comment.id)}
               className="text-sm font-medium text-[#d9bf82] transition hover:text-[#edd7a8]"
             >
-              {showReplies ? "Hide Replies" : `View Replies (${comment.totalReplies})`}
+              {repliesExpanded ? "Hide Replies" : `View Replies (${comment.totalReplies})`}
             </button>
           </div>
         ) : null}
@@ -483,7 +543,7 @@ function CommentCard({
         ) : null}
       </article>
 
-      {comment.children.length > 0 && showReplies && !collapsed ? (
+      {comment.children.length > 0 && repliesExpanded && !collapsed ? (
         <div className="space-y-0">
           {comment.children.map((child) => (
             <CommentCard
@@ -491,9 +551,12 @@ function CommentCard({
               activeReplyParentId={activeReplyParentId}
               authenticated={authenticated}
               busyAction={busyAction}
+              collapsed={Boolean(collapsedCommentIds[child.id])}
               comment={child}
+              collapsedCommentIds={collapsedCommentIds}
               editingCommentId={editingCommentId}
               editDraft={editDraft}
+              expandedReplyIds={expandedReplyIds}
               isAdmin={isAdmin}
               onDelete={onDelete}
               onEditCancel={onEditCancel}
@@ -504,8 +567,11 @@ function CommentCard({
               onReplyToggle={onReplyToggle}
               onReplySubmit={onReplySubmit}
               onShowAuthDialog={onShowAuthDialog}
+              onToggleCollapsed={onToggleCollapsed}
+              onToggleReplies={onToggleReplies}
               onVote={onVote}
               replyDraft={replyDraft}
+              repliesExpanded={Boolean(expandedReplyIds[child.id])}
               setReplyDraft={setReplyDraft}
             />
           ))}
@@ -517,8 +583,10 @@ function CommentCard({
 
 export default function CommentsSection({ authenticated, currentUserId, isAdmin, storyId }: CommentsSectionProps) {
   const [comments, setComments] = useState<StoryComment[]>([]);
+  const [collapsedCommentIds, setCollapsedCommentIds] = useState<Record<string, boolean>>({});
   const [composerDraft, setComposerDraft] = useState("");
   const [editDraft, setEditDraft] = useState("");
+  const [expandedReplyIds, setExpandedReplyIds] = useState<Record<string, boolean>>({});
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [replyDraft, setReplyDraft] = useState("");
   const [replyParentId, setReplyParentId] = useState<string | null>(null);
@@ -531,10 +599,18 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [authDialogAction, setAuthDialogAction] = useState<string | null>(null);
+  const loadRequestRef = useRef(0);
+  const pendingRealtimeRefreshRef = useRef(false);
+  const realtimeRefreshTimerRef = useRef<number | null>(null);
 
-  const loadComments = useCallback(async (nextSort: CommentSort) => {
-    setLoading(true);
-    setError(null);
+  const loadComments = useCallback(async (nextSort: CommentSort, options?: { background?: boolean }) => {
+    const requestId = loadRequestRef.current + 1;
+    loadRequestRef.current = requestId;
+
+    if (!options?.background) {
+      setLoading(true);
+      setError(null);
+    }
 
     try {
       const response = await fetch(`/api/comments/stories/${encodeURIComponent(storyId)}?sort=${encodeURIComponent(nextSort)}`, {
@@ -545,14 +621,31 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
         throw new Error(data.error ?? "We couldn't load comments.");
       }
 
-      setComments(Array.isArray(data.comments) ? data.comments : []);
+      if (loadRequestRef.current !== requestId) {
+        return;
+      }
+
+      const nextComments = Array.isArray(data.comments) ? data.comments : [];
+      setComments(nextComments);
+      setCollapsedCommentIds((current) => pruneCommentUiState(current, nextComments));
+      setExpandedReplyIds((current) => pruneCommentUiState(current, nextComments));
       setTotalCount(Number(data.totalCount ?? 0));
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "We couldn't load comments.");
-      setComments([]);
-      setTotalCount(0);
+      if (loadRequestRef.current !== requestId) {
+        return;
+      }
+
+      if (!options?.background) {
+        setError(loadError instanceof Error ? loadError.message : "We couldn't load comments.");
+        setComments([]);
+        setCollapsedCommentIds({});
+        setExpandedReplyIds({});
+        setTotalCount(0);
+      }
     } finally {
-      setLoading(false);
+      if (!options?.background && loadRequestRef.current === requestId) {
+        setLoading(false);
+      }
     }
   }, [storyId]);
 
@@ -564,6 +657,93 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
   useEffect(() => {
     emitStoryCommentCountUpdated(storyId, totalCount);
   }, [storyId, totalCount]);
+
+  useEffect(() => {
+    const flushRealtimeRefresh = () => {
+      if (document.visibilityState !== "visible") return;
+      if (loading || busyAction || editingCommentId || replyParentId || reportingComment) {
+        pendingRealtimeRefreshRef.current = true;
+        return;
+      }
+
+      pendingRealtimeRefreshRef.current = false;
+      void loadComments(sort, { background: true });
+    };
+
+    const scheduleRealtimeRefresh = () => {
+      if (realtimeRefreshTimerRef.current) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+      }
+
+      realtimeRefreshTimerRef.current = window.setTimeout(() => {
+        realtimeRefreshTimerRef.current = null;
+        flushRealtimeRefresh();
+      }, 250);
+    };
+
+    let channel: ReturnType<ReturnType<typeof supabaseBrowser>["channel"]> | null = null;
+
+    try {
+      const supabase = supabaseBrowser();
+      channel = supabase
+        .channel(`story-comments:${storyId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            filter: `story_id=eq.${storyId}`,
+            schema: "public",
+            table: "user_comments",
+          },
+          scheduleRealtimeRefresh
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            filter: `story_id=eq.${storyId}`,
+            schema: "public",
+            table: "comment_vote_totals",
+          },
+          scheduleRealtimeRefresh
+        )
+        .subscribe();
+    } catch {
+      channel = null;
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        if (pendingRealtimeRefreshRef.current) {
+          flushRealtimeRefresh();
+        }
+      }
+    };
+
+    const handleWindowFocus = () => {
+      if (pendingRealtimeRefreshRef.current) {
+        flushRealtimeRefresh();
+      }
+    };
+
+    if (!busyAction && !editingCommentId && !replyParentId && !reportingComment && pendingRealtimeRefreshRef.current) {
+      flushRealtimeRefresh();
+    }
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      if (realtimeRefreshTimerRef.current) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+        realtimeRefreshTimerRef.current = null;
+      }
+      if (channel) {
+        void channel.unsubscribe();
+      }
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [busyAction, editingCommentId, loadComments, loading, replyParentId, reportingComment, sort, storyId]);
 
   async function changeSort(nextSort: CommentSort) {
     if (nextSort === sort) return;
@@ -602,6 +782,7 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
       }
 
       if (parentCommentId) {
+        setExpandedReplyIds((current) => ({ ...current, [parentCommentId]: true }));
         setReplyDraft("");
         setReplyParentId(null);
       } else {
@@ -625,20 +806,71 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
     setBusyAction(`vote:${commentId}`);
     setError(null);
 
+    const finalVote = currentVote === nextVote ? 0 : nextVote;
+    setComments((current) =>
+      updateCommentTree(current, commentId, (comment) => {
+        let upvotes = comment.upvotes;
+        let downvotes = comment.downvotes;
+
+        if (currentVote === 1) {
+          upvotes = Math.max(0, upvotes - 1);
+        } else if (currentVote === -1) {
+          downvotes = Math.max(0, downvotes - 1);
+        }
+
+        if (finalVote === 1) {
+          upvotes += 1;
+        } else if (finalVote === -1) {
+          downvotes += 1;
+        }
+
+        return {
+          ...comment,
+          downvotes,
+          upvotes,
+          viewerVote: finalVote,
+        };
+      })
+    );
+
     try {
       const response = await fetch(`/api/comments/${encodeURIComponent(commentId)}/vote`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ vote: currentVote === nextVote ? 0 : nextVote }),
+        body: JSON.stringify({ vote: finalVote }),
       });
 
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
         throw new Error(data.error ?? "We couldn't update your vote.");
       }
-
-      await loadComments(sort);
+      void loadComments(sort, { background: true });
     } catch (voteError) {
+      setComments((current) =>
+        updateCommentTree(current, commentId, (comment) => {
+          let upvotes = comment.upvotes;
+          let downvotes = comment.downvotes;
+
+          if (finalVote === 1) {
+            upvotes = Math.max(0, upvotes - 1);
+          } else if (finalVote === -1) {
+            downvotes = Math.max(0, downvotes - 1);
+          }
+
+          if (currentVote === 1) {
+            upvotes += 1;
+          } else if (currentVote === -1) {
+            downvotes += 1;
+          }
+
+          return {
+            ...comment,
+            downvotes,
+            upvotes,
+            viewerVote: currentVote,
+          };
+        })
+      );
       setError(voteError instanceof Error ? voteError.message : "We couldn't update your vote.");
     } finally {
       setBusyAction(null);
@@ -762,8 +994,33 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
 
     setEditingCommentId(null);
     setReportingComment(null);
+    setExpandedReplyIds((current) => ({ ...current, [commentId]: true }));
     setReplyParentId(commentId);
     setReplyDraft("");
+  }
+
+  function toggleCollapsed(commentId: string) {
+    setCollapsedCommentIds((current) => {
+      const next = { ...current };
+      if (next[commentId]) {
+        delete next[commentId];
+      } else {
+        next[commentId] = true;
+      }
+      return next;
+    });
+  }
+
+  function toggleReplies(commentId: string) {
+    setExpandedReplyIds((current) => {
+      const next = { ...current };
+      if (next[commentId]) {
+        delete next[commentId];
+      } else {
+        next[commentId] = true;
+      }
+      return next;
+    });
   }
 
   return (
@@ -823,9 +1080,12 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
               activeReplyParentId={replyParentId}
               authenticated={authenticated}
               busyAction={busyAction}
+              collapsed={Boolean(collapsedCommentIds[comment.id])}
               comment={comment}
+              collapsedCommentIds={collapsedCommentIds}
               editingCommentId={editingCommentId}
               editDraft={editDraft}
+              expandedReplyIds={expandedReplyIds}
               isAdmin={isAdmin}
               onDelete={handleDelete}
               onEditCancel={() => {
@@ -839,8 +1099,11 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
               onReplyToggle={toggleReply}
               onReplySubmit={async (commentId) => submitComment(commentId)}
               onShowAuthDialog={setAuthDialogAction}
+              onToggleCollapsed={toggleCollapsed}
+              onToggleReplies={toggleReplies}
               onVote={handleVote}
               replyDraft={replyDraft}
+              repliesExpanded={Boolean(expandedReplyIds[comment.id])}
               setReplyDraft={setReplyDraft}
             />
           ))}
