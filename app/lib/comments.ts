@@ -436,10 +436,6 @@ function buildStoryCommentTree(
       viewerVote: 0 as const,
     };
 
-    if (row.deleted_at && childNodes.length === 0) {
-      return null;
-    }
-
     return {
       body: row.deleted_at ? null : row.body,
       canEdit: isCommentEditableByUser(row, viewerUserId, nowMs),
@@ -451,7 +447,7 @@ function buildStoryCommentTree(
       editedAt: row.edited_at,
       id: row.id,
       parentCommentId: row.parent_comment_id,
-      removedMessage: row.deleted_at ? (row.deleted_by ? "Removed by admin." : "Comment removed.") : null,
+      removedMessage: row.deleted_at ? (row.deleted_by ? "Removed by admin." : "<deleted>") : null,
       storyId: row.story_id,
       topScore: topCommentScore(voteSummary.upvotes, voteSummary.downvotes, totalReplies, row.created_at, nowMs),
       totalReplies,
@@ -818,6 +814,72 @@ export async function removeCommentAsAdmin(commentId: string, adminUserId: strin
 
   if (error) {
     throw new Error(messageFromDatabaseError(error, "We couldn't remove that comment."));
+  }
+}
+
+export async function removeOwnComment(commentId: string, userId: string) {
+  const normalizedCommentId = commentId.trim();
+  const normalizedUserId = userId.trim();
+
+  if (!normalizedCommentId) {
+    throw new Error("Comment id is required.");
+  }
+
+  if (!normalizedUserId) {
+    throw new Error("You must be signed in to delete comments.");
+  }
+
+  const existingComment = await getCommentRowById(normalizedCommentId);
+  if (!existingComment) {
+    throw new Error("That comment no longer exists.");
+  }
+
+  if (existingComment.user_id !== normalizedUserId) {
+    throw new Error("You can only delete your own comments.");
+  }
+
+  if (existingComment.deleted_at) {
+    return;
+  }
+
+  const supabase = supabaseServer();
+  const { error } = await supabase
+    .from("user_comments")
+    .update({
+      body: "",
+      deleted_at: new Date().toISOString(),
+      deleted_by: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", normalizedCommentId);
+
+  if (error) {
+    throw new Error(messageFromDatabaseError(error, "We couldn't delete that comment."));
+  }
+}
+
+export async function hardDeleteCommentThreadAsAdmin(commentId: string, adminUserId: string) {
+  const normalizedCommentId = commentId.trim();
+  const normalizedAdminUserId = adminUserId.trim();
+
+  if (!normalizedCommentId) {
+    throw new Error("Comment id is required.");
+  }
+
+  if (!normalizedAdminUserId) {
+    throw new Error("Admin account is required.");
+  }
+
+  const existingComment = await getCommentRowById(normalizedCommentId);
+  if (!existingComment) {
+    throw new Error("That comment no longer exists.");
+  }
+
+  const supabase = supabaseServer();
+  const { error } = await supabase.from("user_comments").delete().eq("id", normalizedCommentId);
+
+  if (error) {
+    throw new Error(messageFromDatabaseError(error, "We couldn't fully delete that comment thread."));
   }
 }
 

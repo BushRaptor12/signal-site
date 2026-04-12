@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAccountProfileByUserId, getAccountUserIdFromCookieHeader } from "@/app/lib/account.server";
-import { removeCommentAsAdmin, updateComment } from "@/app/lib/comments";
+import { hardDeleteCommentThreadAsAdmin, removeOwnComment, updateComment } from "@/app/lib/comments";
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -46,15 +46,22 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
 
     const profile = await getAccountProfileByUserId(userId);
-    if (!profile?.isAdmin) {
-      return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
+    const mode = request.nextUrl.searchParams.get("mode") === "purge" ? "purge" : "soft";
+
+    if (mode === "purge") {
+      if (!profile?.isAdmin) {
+        return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
+      }
+
+      await hardDeleteCommentThreadAsAdmin(commentId, userId);
+      return NextResponse.json({ ok: true });
     }
 
-    await removeCommentAsAdmin(commentId, userId);
+    await removeOwnComment(commentId, userId);
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = errorMessage(error, "We couldn't remove that comment.");
-    const status = /required|no longer exists/i.test(message) ? 400 : 500;
+    const status = /required|no longer exists|only delete your own/i.test(message) ? 400 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }

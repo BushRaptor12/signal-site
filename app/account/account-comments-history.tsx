@@ -76,7 +76,10 @@ export default function AccountCommentsHistory({
           {comment.storyTitle ? (
             <div className="mt-2 text-sm text-neutral-400">
               On{" "}
-              <Link href={`/story/${comment.storyId}?from=account`} className="text-neutral-200 transition hover:text-white">
+              <Link
+                href={`/story/${comment.storyId}?from=account&comment=${encodeURIComponent(comment.id)}#comment-${comment.id}`}
+                className="text-neutral-200 transition hover:text-white"
+              >
                 {comment.storyTitle}
               </Link>
             </div>

@@ -119,7 +119,7 @@ export default function AdminModerationPage() {
   }
 
   async function deleteComment(commentId: string) {
-    if (typeof window !== "undefined" && !window.confirm("Remove this comment from public view?")) {
+    if (typeof window !== "undefined" && !window.confirm("Permanently delete this comment and all of its replies?")) {
       return;
     }
 
@@ -128,7 +128,7 @@ export default function AdminModerationPage() {
     setStatus("");
 
     try {
-      const response = await fetch(`/api/comments/${encodeURIComponent(commentId)}`, {
+      const response = await fetch(`/api/comments/${encodeURIComponent(commentId)}?mode=purge`, {
         method: "DELETE",
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
@@ -136,7 +136,7 @@ export default function AdminModerationPage() {
         throw new Error(data.error ?? "We couldn't remove that comment.");
       }
 
-      setStatus("Comment removed.");
+      setStatus("Comment thread deleted.");
       await loadReports(adminToken, statusFilter);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "We couldn't remove that comment.");
@@ -264,7 +264,7 @@ export default function AdminModerationPage() {
 
                   <div className="mt-5 flex flex-wrap items-center gap-3">
                     <Link
-                      href={`/story/${report.comment.storyId}#comment-${report.comment.id}`}
+                      href={`/story/${report.comment.storyId}?comment=${encodeURIComponent(report.comment.id)}#comment-${report.comment.id}`}
                       className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white"
                     >
                       Open story
@@ -276,7 +276,7 @@ export default function AdminModerationPage() {
                         disabled={busyAction === `delete:${report.comment.id}`}
                         className="rounded-full border border-red-400/50 px-4 py-2 text-sm text-red-200 transition hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {busyAction === `delete:${report.comment.id}` ? "Removing..." : "Remove comment"}
+                        {busyAction === `delete:${report.comment.id}` ? "Deleting..." : "Delete thread"}
                       </button>
                     ) : null}
                     {report.status === "open" ? (

@@ -54,7 +54,7 @@ type CommentCardProps = {
   editDraft: string;
   expandedReplyIds: Record<string, boolean>;
   isAdmin: boolean;
-  onDelete: (commentId: string) => Promise<void>;
+  onDelete: (comment: StoryComment, mode: "purge" | "soft") => Promise<void>;
   onEditCancel: () => void;
   onEditDraftChange: (value: string) => void;
   onEditSave: (commentId: string) => Promise<void>;
@@ -174,6 +174,22 @@ function updateCommentTree(
   });
 
   return changed ? nextTree : commentTree;
+}
+
+function findCommentPath(commentTree: StoryComment[], targetCommentId: string, path: string[] = []): string[] | null {
+  for (const comment of commentTree) {
+    const nextPath = [...path, comment.id];
+    if (comment.id === targetCommentId) {
+      return nextPath;
+    }
+
+    const childPath = findCommentPath(comment.children, targetCommentId, nextPath);
+    if (childPath) {
+      return childPath;
+    }
+  }
+
+  return null;
 }
 
 function AuthRequiredDialog({
@@ -488,14 +504,25 @@ function CommentCard({
               </button>
             ) : null}
 
-            {isAdmin ? (
+            {comment.viewerOwns ? (
               <button
                 type="button"
-                onClick={() => void onDelete(comment.id)}
+                onClick={() => void onDelete(comment, "soft")}
                 disabled={deleteBusy}
                 className="text-sm font-medium text-[#f0b7b7] transition hover:text-[#ffd2d2] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {deleteBusy ? "Removing..." : "Delete"}
+                {deleteBusy ? "Deleting..." : "Delete"}
+              </button>
+            ) : null}
+
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={() => void onDelete(comment, "purge")}
+                disabled={deleteBusy}
+                className="text-sm font-medium text-[#f0b7b7] transition hover:text-[#ffd2d2] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deleteBusy ? "Deleting..." : "Delete thread"}
               </button>
             ) : null}
           </div>
@@ -600,6 +627,7 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
   const [error, setError] = useState<string | null>(null);
   const [authDialogAction, setAuthDialogAction] = useState<string | null>(null);
   const loadRequestRef = useRef(0);
+  const historyFocusCommentRef = useRef<string | null>(null);
   const pendingRealtimeRefreshRef = useRef(false);
   const realtimeRefreshTimerRef = useRef<number | null>(null);
 
@@ -657,6 +685,10 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
   useEffect(() => {
     emitStoryCommentCountUpdated(storyId, totalCount);
   }, [storyId, totalCount]);
+
+  useEffect(() => {
+    historyFocusCommentRef.current = null;
+  }, [storyId]);
 
   useEffect(() => {
     const flushRealtimeRefresh = () => {
@@ -744,6 +776,50 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [busyAction, editingCommentId, loadComments, loading, replyParentId, reportingComment, sort, storyId]);
+
+  useEffect(() => {
+    if (loading || comments.length === 0 || typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const commentFromQuery = params.get("comment")?.trim() ?? "";
+    const hash = window.location.hash.startsWith("#comment-") ? window.location.hash.slice("#comment-".length).trim() : "";
+    const targetCommentId = commentFromQuery || hash;
+
+    if (!targetCommentId || historyFocusCommentRef.current === targetCommentId) {
+      return;
+    }
+
+    const path = findCommentPath(comments, targetCommentId);
+    if (!path) {
+      return;
+    }
+
+    historyFocusCommentRef.current = targetCommentId;
+
+    setCollapsedCommentIds((current) => {
+      const next = { ...current };
+      for (const commentId of path) {
+        delete next[commentId];
+      }
+      return next;
+    });
+
+    setExpandedReplyIds((current) => {
+      const next = { ...current };
+      for (const commentId of path) {
+        next[commentId] = true;
+      }
+      return next;
+    });
+
+    window.setTimeout(() => {
+      const element = document.getElementById(`comment-${targetCommentId}`);
+      if (!element) return;
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 120);
+  }, [comments, loading]);
 
   async function changeSort(nextSort: CommentSort) {
     if (nextSort === sort) return;
@@ -877,9 +953,14 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
     }
   }
 
-  async function handleDelete(commentId: string) {
-    if (!isAdmin) return;
-    if (typeof window !== "undefined" && !window.confirm("Delete this comment? Replies will stay attached to a removed placeholder.")) {
+  async function handleDelete(comment: StoryComment, mode: "purge" | "soft") {
+    const commentId = comment.id;
+    const confirmationMessage =
+      mode === "purge"
+        ? "Permanently delete this comment and all of its replies?"
+        : "Delete this comment? It will display as <deleted> and any replies will stay visible.";
+
+    if (typeof window !== "undefined" && !window.confirm(confirmationMessage)) {
       return;
     }
 
@@ -887,13 +968,22 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
     setError(null);
 
     try {
-      const response = await fetch(`/api/comments/${encodeURIComponent(commentId)}`, {
+      const response = await fetch(`/api/comments/${encodeURIComponent(commentId)}?mode=${mode}`, {
         method: "DELETE",
       });
 
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
         throw new Error(data.error ?? "We couldn't remove that comment.");
+      }
+
+      if (replyParentId === commentId) {
+        setReplyParentId(null);
+        setReplyDraft("");
+      }
+      if (editingCommentId === commentId) {
+        setEditingCommentId(null);
+        setEditDraft("");
       }
 
       await loadComments(sort);
