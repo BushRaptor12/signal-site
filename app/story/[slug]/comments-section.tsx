@@ -74,10 +74,17 @@ const SORT_OPTIONS: Array<{ label: string; value: CommentSort }> = [
 
 function ThumbUpIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
       <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
         d="M9 22H5.5A1.5 1.5 0 0 1 4 20.5v-8A1.5 1.5 0 0 1 5.5 11H9m0 11V11m0 11h7.165a2 2 0 0 0 1.942-1.52l1.286-5.5A2 2 0 0 0 17.445 11H14V7.5c0-1.933-1.567-3.5-3.5-3.5L9 11"
       />
     </svg>
@@ -86,10 +93,17 @@ function ThumbUpIcon({ className }: { className?: string }) {
 
 function ThumbDownIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
       <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
         d="M15 2h3.5A1.5 1.5 0 0 1 20 3.5v8A1.5 1.5 0 0 1 18.5 13H15M15 2v11m0-11H7.835a2 2 0 0 0-1.942 1.52l-1.286 5.5A2 2 0 0 0 6.555 13H10v3.5c0 1.933 1.567 3.5 3.5 3.5L15 13"
       />
     </svg>
@@ -274,11 +288,11 @@ function CommentCard({
         className={`rounded-2xl border border-[#13314b] bg-[#04111b] ${collapsed ? "p-3.5" : "p-5"}`}
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
+          <div>
             <button
               type="button"
               onClick={handleCollapseToggle}
-              className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#163754] bg-[#020b14] text-neutral-300 transition hover:border-[#8f7740]/50 hover:text-neutral-100"
+              className="inline-flex h-5 w-5 items-center justify-center text-neutral-400 transition hover:text-neutral-100"
               aria-expanded={!collapsed}
               aria-label={collapsed ? "Expand comment" : "Collapse comment"}
               title={collapsed ? "Expand comment" : "Collapse comment"}
@@ -286,12 +300,14 @@ function CommentCard({
               <CollapseToggleIcon collapsed={collapsed} />
             </button>
             <div>
-              <div className="text-sm font-semibold text-neutral-100">{comment.username}</div>
-              <div
-                className="mt-1 text-xs uppercase tracking-[0.16em] text-neutral-500"
-                title={formatUpdatedAt(comment.createdAt)}
-              >
-                {formatUpdatedAgo(comment.createdAt)}
+              <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <div className="text-sm font-semibold text-neutral-100">{comment.username}</div>
+                <div
+                  className="text-[11px] uppercase tracking-[0.16em] text-neutral-500"
+                  title={formatUpdatedAt(comment.createdAt)}
+                >
+                  {formatUpdatedAgo(comment.createdAt)}
+                </div>
               </div>
             </div>
           </div>
@@ -310,7 +326,7 @@ function CommentCard({
                     : "text-[#7fa8c9] hover:text-[#9fc0d9]"
                 } disabled:cursor-not-allowed disabled:opacity-60`}
               >
-                <ThumbUpIcon className="h-6 w-6" />
+                <ThumbUpIcon className="block h-6 w-6" />
                 <span className="text-[11px] font-semibold text-[#78c892]">{comment.upvotes}</span>
               </button>
               <button
@@ -325,7 +341,7 @@ function CommentCard({
                     : "text-[#7fa8c9] hover:text-[#9fc0d9]"
                 } disabled:cursor-not-allowed disabled:opacity-60`}
               >
-                <ThumbDownIcon className="h-6 w-6" />
+                <ThumbDownIcon className="block h-6 w-6" />
                 <span className="text-[11px] font-semibold text-[#d98a8a]">{comment.downvotes}</span>
               </button>
             </div>
@@ -362,7 +378,7 @@ function CommentCard({
           </div>
         ) : (
           <div className="mt-4">
-            <p className="whitespace-pre-wrap text-sm leading-7 text-neutral-300">{comment.body}</p>
+            <p className="whitespace-pre-wrap text-[15px] leading-7 text-neutral-300">{comment.body}</p>
             {comment.editedAt ? <div className="mt-2 text-xs uppercase tracking-[0.16em] text-neutral-500">Edited</div> : null}
           </div>
         )}
