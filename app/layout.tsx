@@ -9,6 +9,11 @@ import SiteUtilities from "@/app/site-utilities";
 export const metadata: Metadata = {
   metadataBase: getSiteUrl(),
   applicationName: SITE_NAME,
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.ico",
+  },
   title: {
     default: SITE_NAME,
     template: `%s | ${SITE_NAME}`,
