@@ -6,6 +6,7 @@ import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { StoryWithViews } from "@/app/lib/types";
 import { getUsernameModerationError, getUsernameReviewReason } from "@/app/lib/username-moderation";
+import { listAccountCommentHistory } from "@/app/lib/comments";
 
 const ACCOUNT_SESSION_COOKIE = "beacon_account";
 const ACCOUNT_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
@@ -30,13 +31,6 @@ type UserProfileRow = {
 
 type UserStoryFollowRow = {
   created_at: string;
-  story_id: string;
-};
-
-type UserCommentRow = {
-  body: string;
-  created_at: string;
-  id: string;
   story_id: string;
 };
 
@@ -68,6 +62,7 @@ export type AccountComment = {
 };
 
 export type AccountDashboard = {
+  commentCount: number;
   comments: AccountComment[];
   followedStories: FollowedStory[];
   profile: AccountProfile;
@@ -716,11 +711,11 @@ export async function getAccountDashboard(userId: string): Promise<AccountDashbo
   const [
     { data: profileData, error: profileError },
     { data: followRows, error: followError },
-    { data: commentRows, error: commentError },
+    commentHistory,
   ] = await Promise.all([
     supabase.from("user_profiles").select("*").eq("user_id", userId).maybeSingle(),
     supabase.from("user_story_follows").select("story_id, created_at").eq("user_id", userId).order("created_at", { ascending: false }),
-    supabase.from("user_comments").select("id, story_id, body, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(20),
+    listAccountCommentHistory(userId, { limit: 5, offset: 0 }),
   ]);
 
   if (profileError) {
@@ -731,10 +726,6 @@ export async function getAccountDashboard(userId: string): Promise<AccountDashbo
     throw new Error(friendlyAuthError(followError.message, "We couldn't load followed stories."));
   }
 
-  if (commentError) {
-    throw new Error(friendlyAuthError(commentError.message, "We couldn't load comment history."));
-  }
-
   if (!profileData) {
     throw new Error("This account profile could not be found.");
   }
@@ -743,8 +734,8 @@ export async function getAccountDashboard(userId: string): Promise<AccountDashbo
   for (const row of (followRows ?? []) as UserStoryFollowRow[]) {
     storyIds.add(row.story_id);
   }
-  for (const row of (commentRows ?? []) as UserCommentRow[]) {
-    storyIds.add(row.story_id);
+  for (const comment of commentHistory.comments) {
+    storyIds.add(comment.storyId);
   }
 
   const storiesById = new Map<string, StoryWithViews>();
@@ -761,12 +752,13 @@ export async function getAccountDashboard(userId: string): Promise<AccountDashbo
   }
 
   return {
-    comments: ((commentRows ?? []) as UserCommentRow[]).map((row) => ({
-      body: row.body,
-      createdAt: row.created_at,
-      id: row.id,
-      storyId: row.story_id,
-      storyTitle: storiesById.get(row.story_id)?.title ?? null,
+    commentCount: commentHistory.totalCount,
+    comments: commentHistory.comments.map((comment) => ({
+      body: comment.body,
+      createdAt: comment.createdAt,
+      id: comment.id,
+      storyId: comment.storyId,
+      storyTitle: comment.storyTitle ?? storiesById.get(comment.storyId)?.title ?? null,
     })),
     followedStories: ((followRows ?? []) as UserStoryFollowRow[])
       .map((row) => {

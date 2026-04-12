@@ -5,6 +5,7 @@ import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { getAccountDashboard, getAccountUserId } from "@/app/lib/account.server";
 import { DEFAULT_OG_IMAGE, SITE_NAME } from "@/app/lib/seo";
 import PageBrandHeader from "@/app/page-brand-header";
+import AccountCommentsHistory from "./account-comments-history";
 
 export const metadata: Metadata = {
   title: "Account",
@@ -148,34 +149,11 @@ export default async function AccountPage() {
                 <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Comment history</h2>
               </div>
               <div className="rounded-full border border-[#13314b] px-3 py-1 text-xs text-neutral-400">
-                {account.comments.length}
+                {account.commentCount}
               </div>
             </div>
 
-            {account.comments.length === 0 ? (
-              <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-5 text-sm leading-7 text-neutral-400">
-                Your comment history will appear here as soon as commenting is enabled on the site.
-              </div>
-            ) : (
-              <div className="mt-6 space-y-4">
-                {account.comments.map((comment) => (
-                  <div key={comment.id} className="rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                      {formatUpdatedAt(comment.createdAt)}
-                    </div>
-                    {comment.storyTitle ? (
-                      <div className="mt-2 text-sm text-neutral-400">
-                        On{" "}
-                        <Link href={`/story/${comment.storyId}?from=account`} className="text-neutral-200 transition hover:text-white">
-                          {comment.storyTitle}
-                        </Link>
-                      </div>
-                    ) : null}
-                    <p className="mt-3 text-sm leading-7 text-neutral-300">{comment.body}</p>
-                  </div>
-                ))}
-              </div>
-            )}
+            <AccountCommentsHistory initialComments={account.comments} totalCount={account.commentCount} />
           </section>
         </div>
 
@@ -186,7 +164,7 @@ export default async function AccountPage() {
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Admin</div>
                 <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Admin tools</h2>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-400">
-                  This account has admin access. Use these shortcuts to open the story editor or manage The Briefing.
+                  This account has admin access. Use these shortcuts to open the story editor, review comment reports, or manage The Briefing.
                 </p>
               </div>
               <div className="rounded-full border border-[#8f7740]/50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">
@@ -206,6 +184,12 @@ export default async function AccountPage() {
                 className="inline-flex rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
               >
                 Open briefing manager
+              </Link>
+              <Link
+                href="/admin/moderation"
+                className="inline-flex rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
+              >
+                Open moderation
               </Link>
             </div>
           </section>

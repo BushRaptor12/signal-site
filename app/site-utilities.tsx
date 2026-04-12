@@ -69,14 +69,14 @@ export default function SiteUtilities() {
     void getExistingPushSubscription().catch(() => null);
 
     const onMessage = (event: MessageEvent) => {
-      const message = event.data as {
-        type?: string;
-        notification?: {
-          id?: string;
-          type?: "urgent";
-          title?: string;
-          body?: string;
-          href?: string;
+        const message = event.data as {
+          type?: string;
+          notification?: {
+            id?: string;
+            type?: "comment_reply" | "comment_report" | "urgent" | "username_review";
+            title?: string;
+            body?: string;
+            href?: string;
           createdAt?: string;
           read?: boolean;
         };

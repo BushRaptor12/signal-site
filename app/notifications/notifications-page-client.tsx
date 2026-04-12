@@ -271,7 +271,13 @@ export default function NotificationsPageClient() {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div
                       className={`text-sm font-semibold uppercase tracking-[0.16em] ${
-                        item.type === "username_review" ? "text-[#d7c08d]" : "text-red-400"
+                        item.type === "username_review"
+                          ? "text-[#d7c08d]"
+                          : item.type === "comment_reply"
+                            ? "text-[#8fc6ff]"
+                            : item.type === "comment_report"
+                              ? "text-[#f0b7b7]"
+                              : "text-red-400"
                       }`}
                     >
                       {item.title}

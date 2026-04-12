@@ -818,6 +818,9 @@ export default function EditorPage() {
             <Link href="/admin/briefing" className="text-xs text-neutral-400 hover:text-neutral-200">
               Manage briefing order
             </Link>
+            <Link href="/admin/moderation" className="text-xs text-neutral-400 hover:text-neutral-200">
+              Moderation
+            </Link>
             <button onClick={clearToken} className="text-xs text-neutral-400 hover:text-neutral-200">
               Lock admin
             </button>

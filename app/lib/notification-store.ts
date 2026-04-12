@@ -1,4 +1,4 @@
-export type SiteNotificationType = "urgent" | "username_review";
+export type SiteNotificationType = "comment_reply" | "comment_report" | "urgent" | "username_review";
 
 export type SiteNotificationEntry = {
   body: string;

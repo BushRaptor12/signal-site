@@ -13,6 +13,7 @@ import ReactionBar from "./reaction-bar";
 import SourceTitle from "./source-title";
 import ShareButton from "@/app/share-button";
 import StoryReaderActions from "./story-reader-actions";
+import CommentsSection from "./comments-section";
 
 function leanBadgeClasses(lean: "Left" | "Center" | "Right") {
   switch (lean) {
@@ -312,10 +313,12 @@ export default async function StoryPage({
             </div>
           </div>
 
-          <div className="mt-10 rounded-2xl border border-[#13314b] bg-[#03101b] p-8 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
-            <h2 className="text-lg font-semibold">Comments</h2>
-            <p className="text-neutral-400 mt-2">Coming Soon.</p>
-          </div>
+          <CommentsSection
+            authenticated={Boolean(accountProfile)}
+            currentUserId={accountProfile?.userId ?? null}
+            isAdmin={isAdmin}
+            storyId={story.id}
+          />
         </div>
 
         {relatedStories.length > 0 ? (

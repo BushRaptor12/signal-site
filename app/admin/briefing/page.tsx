@@ -338,6 +338,12 @@ export default function AdminBriefingPage() {
               Story editor
             </Link>
             <Link
+              href="/admin/moderation"
+              className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white"
+            >
+              Moderation
+            </Link>
+            <Link
               href="/briefing"
               className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white"
             >

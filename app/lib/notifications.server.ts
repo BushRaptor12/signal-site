@@ -2,7 +2,7 @@ import webpush, { type PushSubscription as WebPushSubscription } from "web-push"
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { StoryWithViews } from "@/app/lib/types";
 
-export type SiteNotificationType = "urgent" | "username_review";
+export type SiteNotificationType = "comment_reply" | "comment_report" | "urgent" | "username_review";
 
 export type AccountNotification = {
   body: string;
@@ -177,7 +177,14 @@ export async function listNotificationsForUser(userId: string, limit = 20): Prom
     read: Boolean(item.read_at),
     storyId: item.story_id ?? null,
     title: item.title ?? "Notification",
-    type: item.type === "username_review" ? "username_review" : "urgent",
+    type:
+      item.type === "username_review"
+        ? "username_review"
+        : item.type === "comment_reply"
+          ? "comment_reply"
+          : item.type === "comment_report"
+            ? "comment_report"
+            : "urgent",
   }));
 }
 
@@ -368,6 +375,88 @@ export async function notifyAdminsAboutUsernameReview(review: {
       href: "/notifications",
       title: "Username Review",
       type: "username_review",
+      user_id: adminId,
+    }))
+  );
+
+  const notificationsByUserId = new Map(
+    inserted.map((item) => [
+      item.user_id,
+      {
+        body: item.body,
+        created_at: item.created_at,
+        href: item.href,
+        id: item.id,
+        title: item.title,
+        type: item.type,
+      },
+    ])
+  );
+
+  const subscriptions = await listPushSubscriptionsForUsers(adminIds);
+  await notifyPushRecipients(subscriptions, notificationsByUserId);
+}
+
+export async function notifyUserAboutCommentReply(input: {
+  actorUsername: string;
+  recipientUserId: string;
+  replyBody: string;
+  storyId: string;
+  commentId: string;
+}) {
+  if (!input.recipientUserId.trim()) return;
+
+  const inserted = await insertAccountNotifications([
+    {
+      body: `${input.actorUsername} replied: ${input.replyBody.slice(0, 180)}`,
+      href: `/story/${input.storyId}#comment-${input.commentId}`,
+      story_id: input.storyId,
+      title: "New Reply",
+      type: "comment_reply",
+      user_id: input.recipientUserId,
+    },
+  ]);
+
+  const notificationsByUserId = new Map(
+    inserted.map((item) => [
+      item.user_id,
+      {
+        body: item.body,
+        created_at: item.created_at,
+        href: item.href,
+        id: item.id,
+        title: item.title,
+        type: item.type,
+      },
+    ])
+  );
+
+  const subscriptions = await listPushSubscriptionsForUsers([input.recipientUserId]);
+  await notifyPushRecipients(subscriptions, notificationsByUserId);
+}
+
+export async function notifyAdminsAboutCommentReport(input: {
+  commentId: string;
+  details: string | null;
+  reason: string;
+  reporterUsername: string;
+  storyId: string;
+}) {
+  const supabase = supabaseServer();
+  const { data, error } = await supabase.from("user_profiles").select("user_id").eq("is_admin", true);
+  if (error) throw error;
+
+  const adminIds = Array.from(new Set(((data ?? []) as Array<{ user_id?: string | null }>).map((row) => row.user_id).filter(Boolean) as string[]));
+  if (adminIds.length === 0) return;
+
+  const detailSuffix = input.details?.trim() ? ` Details: ${input.details.trim().slice(0, 220)}` : "";
+  const inserted = await insertAccountNotifications(
+    adminIds.map((adminId) => ({
+      body: `${input.reporterUsername} reported comment ${input.commentId} for "${input.reason}".${detailSuffix}`,
+      href: `/story/${input.storyId}#comment-${input.commentId}`,
+      story_id: input.storyId,
+      title: "Comment Report",
+      type: "comment_report",
       user_id: adminId,
     }))
   );
