@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { createHash, randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { getAccountUserIdFromCookieHeader } from "@/app/lib/account.server";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import {
   emptyReactionCounts,
@@ -15,8 +16,15 @@ const VIEWER_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365; // 1 year
 const USER_AGENT_MAX_CHARS = 200;
 
 type ReactionRow = {
+  id: number;
   reaction: StoryReactionKey;
+  user_id: string | null;
+  viewer_key: string | null;
 };
+
+function readReaction(row: Partial<ReactionRow> | null | undefined) {
+  return row && isStoryReactionKey(row.reaction ?? "") ? (row.reaction as StoryReactionKey) : null;
+}
 
 function messageFromError(e: unknown) {
   if (e instanceof Error) return e.message;
@@ -80,25 +88,28 @@ function resolveViewer(req: NextRequest) {
   return { viewerId, viewerKey, shouldSetViewerCookie };
 }
 
-async function loadReactionSummary(storyId: string, viewerKey: string): Promise<StoryReactionSummary> {
+async function loadReactionSummary(storyId: string, viewerKey: string, accountUserId: string | null): Promise<StoryReactionSummary> {
   const supabase = supabaseServer();
-  const [{ data: rows, error: rowsError }, { data: ownRow, error: ownError }] = await Promise.all([
+  const ownAccountPromise = accountUserId
+    ? supabase.from("story_reactions").select("reaction").eq("story_id", storyId).eq("user_id", accountUserId).maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+
+  const [{ data: rows, error: rowsError }, { data: ownAccountRow, error: ownAccountError }, { data: ownViewerRow, error: ownViewerError }] = await Promise.all([
     supabase.from("story_reactions").select("reaction").eq("story_id", storyId),
-    supabase.from("story_reactions").select("reaction").eq("story_id", storyId).eq("viewer_key", viewerKey).maybeSingle(),
+    ownAccountPromise,
+    supabase.from("story_reactions").select("reaction").eq("story_id", storyId).is("user_id", null).eq("viewer_key", viewerKey).maybeSingle(),
   ]);
 
   if (rowsError) throw rowsError;
-  if (ownError) throw ownError;
+  if (ownAccountError) throw ownAccountError;
+  if (ownViewerError) throw ownViewerError;
 
   const counts = emptyReactionCounts();
   for (const row of (rows ?? []) as ReactionRow[]) {
     if (isStoryReactionKey(row.reaction)) counts[row.reaction] += 1;
   }
 
-  const selectedReaction =
-    ownRow && isStoryReactionKey((ownRow as Partial<ReactionRow>).reaction ?? "")
-      ? ((ownRow as ReactionRow).reaction as StoryReactionKey)
-      : null;
+  const selectedReaction = readReaction(ownAccountRow as Partial<ReactionRow> | null) ?? readReaction(ownViewerRow as Partial<ReactionRow> | null);
 
   return { counts, selectedReaction };
 }
@@ -131,7 +142,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const { viewerId, viewerKey, shouldSetViewerCookie } = resolveViewer(req);
-    const summary = await loadReactionSummary(storyId, viewerKey);
+    const accountUserId = getAccountUserIdFromCookieHeader(req.headers.get("cookie"));
+    const summary = await loadReactionSummary(storyId, viewerKey, accountUserId);
     const res = NextResponse.json(summary);
     return withViewerCookie(res, viewerId, shouldSetViewerCookie);
   } catch (e: unknown) {
@@ -154,48 +166,110 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const supabase = supabaseServer();
     const { viewerId, viewerKey, shouldSetViewerCookie } = resolveViewer(req);
+    const accountUserId = getAccountUserIdFromCookieHeader(req.headers.get("cookie"));
 
-    const { data: existing, error: existingError } = await supabase
-      .from("story_reactions")
-      .select("reaction")
-      .eq("story_id", storyId)
-      .eq("viewer_key", viewerKey)
-      .maybeSingle();
+    if (accountUserId) {
+      const [{ data: accountRow, error: accountError }, { data: viewerRow, error: viewerError }] = await Promise.all([
+        supabase.from("story_reactions").select("id, reaction, user_id, viewer_key").eq("story_id", storyId).eq("user_id", accountUserId).maybeSingle(),
+        supabase.from("story_reactions").select("id, reaction, user_id, viewer_key").eq("story_id", storyId).is("user_id", null).eq("viewer_key", viewerKey).maybeSingle(),
+      ]);
 
-    if (existingError) throw existingError;
+      if (accountError) throw accountError;
+      if (viewerError) throw viewerError;
 
-    const existingReaction =
-      existing && isStoryReactionKey((existing as Partial<ReactionRow>).reaction ?? "")
-        ? ((existing as ReactionRow).reaction as StoryReactionKey)
-        : null;
+      const existingAccountReaction = readReaction(accountRow as Partial<ReactionRow> | null);
+      let migratedViewerRowToAccount = false;
 
-    if (existingReaction === reaction) {
-      const { error: deleteError } = await supabase
-        .from("story_reactions")
-        .delete()
-        .eq("story_id", storyId)
-        .eq("viewer_key", viewerKey);
+      if (existingAccountReaction === reaction) {
+        const { error: deleteAccountError } = await supabase
+          .from("story_reactions")
+          .delete()
+          .eq("story_id", storyId)
+          .eq("user_id", accountUserId);
 
-      if (deleteError) throw deleteError;
-    } else {
-      const { error: upsertError } = await supabase.from("story_reactions").upsert(
-        {
+        if (deleteAccountError) throw deleteAccountError;
+      } else if (accountRow) {
+        const { error: updateAccountError } = await supabase
+          .from("story_reactions")
+          .update({
+            reaction,
+            updated_at: new Date().toISOString(),
+            viewer_key: null,
+          })
+          .eq("id", (accountRow as ReactionRow).id);
+
+        if (updateAccountError) throw updateAccountError;
+      } else if (viewerRow) {
+        const { error: migrateViewerError } = await supabase
+          .from("story_reactions")
+          .update({
+            reaction,
+            updated_at: new Date().toISOString(),
+            user_id: accountUserId,
+            viewer_key: null,
+          })
+          .eq("id", (viewerRow as ReactionRow).id);
+
+        if (migrateViewerError) throw migrateViewerError;
+        migratedViewerRowToAccount = true;
+      } else {
+        const { error: insertAccountError } = await supabase.from("story_reactions").insert({
           story_id: storyId,
-          viewer_key: viewerKey,
           reaction,
           updated_at: new Date().toISOString(),
-        },
-        { onConflict: "story_id,viewer_key" }
-      );
+          user_id: accountUserId,
+          viewer_key: null,
+        });
 
-      if (upsertError) throw upsertError;
+        if (insertAccountError) throw insertAccountError;
+      }
+
+      if (viewerRow && accountRow && !migratedViewerRowToAccount && (accountRow as ReactionRow).id !== (viewerRow as ReactionRow).id) {
+        const { error: cleanupViewerError } = await supabase.from("story_reactions").delete().eq("id", (viewerRow as ReactionRow).id);
+        if (cleanupViewerError) throw cleanupViewerError;
+      }
+    } else {
+      const { data: existingViewerRow, error: existingViewerError } = await supabase
+        .from("story_reactions")
+        .select("id, reaction, user_id, viewer_key")
+        .eq("story_id", storyId)
+        .is("user_id", null)
+        .eq("viewer_key", viewerKey)
+        .maybeSingle();
+
+      if (existingViewerError) throw existingViewerError;
+
+      const existingViewerReaction = readReaction(existingViewerRow as Partial<ReactionRow> | null);
+
+      if (existingViewerReaction === reaction) {
+        const { error: deleteViewerError } = await supabase.from("story_reactions").delete().eq("id", (existingViewerRow as ReactionRow).id);
+        if (deleteViewerError) throw deleteViewerError;
+      } else if (existingViewerRow) {
+        const { error: updateViewerError } = await supabase
+          .from("story_reactions")
+          .update({
+            reaction,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", (existingViewerRow as ReactionRow).id);
+
+        if (updateViewerError) throw updateViewerError;
+      } else {
+        const { error: insertViewerError } = await supabase.from("story_reactions").insert({
+          story_id: storyId,
+          reaction,
+          updated_at: new Date().toISOString(),
+          viewer_key: viewerKey,
+        });
+
+        if (insertViewerError) throw insertViewerError;
+      }
     }
 
-    const summary = await loadReactionSummary(storyId, viewerKey);
+    const summary = await loadReactionSummary(storyId, viewerKey, accountUserId);
     const res = NextResponse.json(summary);
     return withViewerCookie(res, viewerId, shouldSetViewerCookie);
   } catch (e: unknown) {
     return NextResponse.json({ error: messageFromError(e) }, { status: 500 });
   }
 }
-
