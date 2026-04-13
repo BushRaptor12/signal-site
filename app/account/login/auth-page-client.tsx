@@ -20,7 +20,7 @@ const MODE_COPY: Record<Mode, { blurb: string; cta: string; eyebrow: string; hel
     helper: "Use the email and password you signed up with.",
   },
   signup: {
-    blurb: "Create a Beacon account to save your reader identity for follows, comments, and future account tools.",
+    blurb: "Create a Beacon account to save your reader identity for follows, comments, votes, and account history.",
     cta: "Create account",
     eyebrow: "Join The Beacon",
     helper: "Usernames can use letters, numbers, and underscores.",

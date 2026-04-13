@@ -3,7 +3,7 @@ import BackLink from "@/app/back-link";
 import { DEFAULT_OG_IMAGE, SITE_NAME, trimDescription } from "@/app/lib/seo";
 
 const aboutDescription = trimDescription(
-  "Learn how The Beacon uses ranked briefings, social reading features, and personalized tabs to make staying informed easier."
+  "Learn how The Beacon uses ranked briefings, live discussion, and personalized tabs to make staying informed easier."
 );
 
 const pillars = [
@@ -20,7 +20,7 @@ const pillars = [
   {
     title: "A more social reading experience",
     body:
-      "The Beacon is meant to feel more participatory than a one-way headline feed. Readers can follow stories, react to coverage, and build a personal reading history, all of which help turn news consumption into an experience that feels more connected and ongoing.",
+      "The Beacon is meant to feel more participatory than a one-way headline feed. Readers can follow stories, react to coverage, comment, reply, vote on discussion, and build a personal reading history, all of which help turn news consumption into an experience that feels more connected and ongoing.",
   },
   {
     title: "Personalized without being complicated",
@@ -31,7 +31,7 @@ const pillars = [
 
 const goals = [
   "Make it easy to understand the news quickly, even when the story is still developing.",
-  "Help readers keep track of the stories they care about through follows, reactions, and personalized organization.",
+  "Help readers keep track of the stories they care about through follows, comments, reactions, and personalized organization.",
   "Offer customization that feels simple and useful instead of buried behind settings.",
   "Keep the product approachable, fast, and easy to use on a daily basis.",
 ] as const;
@@ -78,7 +78,7 @@ export default function AboutPage() {
             care about, and shape the experience around their interests without extra friction.
           </p>
           <p className="mt-4 text-base leading-7 text-neutral-400">
-            That is why the product combines concise story presentation, social features, lightweight customization,
+            That is why the product combines concise story presentation, live discussion, lightweight customization,
             and a ranked daily briefing. The result is meant to feel less like an endless feed and more like a reading
             tool that helps you keep your bearings.
           </p>
