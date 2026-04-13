@@ -1025,7 +1025,7 @@ export default function HomePageClient({
               customTopRangeStories.length > 0 &&
               customTopDayFallbackStories.length > 0 &&
               index === customTopRangeStories.length - 1 ? (
-                <div className="rounded-2xl border border-[#8f7740]/35 bg-[#07101a] px-5 py-4 text-sm text-neutral-300 shadow-[0_18px_40px_rgba(0,0,0,0.2)]">
+                <div className="mt-4 rounded-2xl border border-[#8f7740]/35 bg-[#07101a] px-5 py-4 text-sm text-neutral-300 shadow-[0_18px_40px_rgba(0,0,0,0.2)]">
                   That&apos;s all the top stories for the day. Everything below is sorted by new.
                 </div>
               ) : null}
