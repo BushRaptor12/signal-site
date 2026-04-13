@@ -24,6 +24,7 @@ const HOME_STATE_KEY = "signal:homeState:v1";
 const CUSTOM_SORT_KEY = "signal:customSortMode:v1";
 const CUSTOM_TOP_RANGE_KEY = "signal:customTopRange:v1";
 const INITIAL_NOW_MS = Date.now();
+const MAX_SCROLL_RESTORE_ATTEMPTS = 18;
 const STORY_BATCH_SIZE = 10;
 const TOP_RANGE_MS: Record<TopRange, number> = {
   day: 24 * 60 * 60 * 1000,
@@ -201,6 +202,16 @@ function compareByPopularity(left: StoryWithViews, right: StoryWithViews, nowMs:
   return publishedAtMs(right) - publishedAtMs(left);
 }
 
+function compareByViews(left: StoryWithViews, right: StoryWithViews): number {
+  const byViews = Number(right.views ?? 0) - Number(left.views ?? 0);
+  if (byViews !== 0) return byViews;
+
+  const byUpdated = updatedAtMs(right) - updatedAtMs(left);
+  if (byUpdated !== 0) return byUpdated;
+
+  return publishedAtMs(right) - publishedAtMs(left);
+}
+
 function updatedAtMs(story: StoryWithViews): number {
   const contentUpdated = new Date(story.content_updated_at ?? "").getTime();
   if (Number.isFinite(contentUpdated) && contentUpdated > 0) return contentUpdated;
@@ -262,7 +273,7 @@ export default function HomePageClient({
   const [accountAuthenticated, setAccountAuthenticated] = useState(initialAccountAuthenticated);
   const [followedStoryIds, setFollowedStoryIds] = useState<string[]>(initialFollowedStoryIds);
   const [loadingFollowState, setLoadingFollowState] = useState(false);
-  const pendingScrollRestoreRef = useRef<{ tabKey: string; scrollY: number } | null>(null);
+  const pendingScrollRestoreRef = useRef<{ attempts: number; tabKey: string; scrollY: number } | null>(null);
 
   useEffect(() => {
     try {
@@ -335,6 +346,7 @@ export default function HomePageClient({
         : STORY_BATCH_SIZE;
     setVisibleCount(nextVisibleCount);
     pendingScrollRestoreRef.current = {
+      attempts: 0,
       tabKey: nextTab,
       scrollY: typeof savedState?.scrollY === "number" && savedState.scrollY > 0 ? savedState.scrollY : 0,
     };
@@ -359,6 +371,15 @@ export default function HomePageClient({
   }, [persistHomeState]);
 
   useEffect(() => {
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+
+    return () => {
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, []);
+
+  useEffect(() => {
     let frame = 0;
     const onScroll = () => {
       if (frame) return;
@@ -372,6 +393,28 @@ export default function HomePageClient({
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       window.removeEventListener("scroll", onScroll);
+    };
+  }, [persistHomeState]);
+
+  useEffect(() => {
+    const persist = () => {
+      persistHomeState();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        persist();
+      }
+    };
+
+    window.addEventListener("pagehide", persist);
+    window.addEventListener("beforeunload", persist);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pagehide", persist);
+      window.removeEventListener("beforeunload", persist);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [persistHomeState]);
 
@@ -498,24 +541,43 @@ export default function HomePageClient({
     [followedStoryIdSet, recentStories]
   );
 
-  const topStories = useCallback((pool: StoryWithViews[], range: TopRange) => {
-    const nowMs = INITIAL_NOW_MS;
-    return pool
-      .filter((story) => isWithinTopRange(story, nowMs, range))
-      .sort((a, b) => compareByPopularity(a, b, nowMs));
-  }, []);
-
   const customTabStories = useMemo(() => {
     if (isBuiltinTabKey(normalize(String(activeTab)))) return [];
     return recentStories.filter((story) => storyMatchesTab(story, String(activeTab)));
   }, [recentStories, activeTab, storyMatchesTab]);
 
-  const customTopStories = useMemo(() => topStories(customTabStories, customTopRange), [customTabStories, customTopRange, topStories]);
+  const customStoriesByNew = useMemo(
+    () => [...customTabStories].sort((a, b) => publishedAtMs(b) - publishedAtMs(a)),
+    [customTabStories]
+  );
+  const customStoriesInTopRange = useMemo(
+    () => customTabStories.filter((story) => isWithinTopRange(story, INITIAL_NOW_MS, customTopRange)),
+    [customTabStories, customTopRange]
+  );
+  const customTopRangeStories = useMemo(
+    () => [...customStoriesInTopRange].sort(compareByViews),
+    [customStoriesInTopRange]
+  );
+  const customTopDayFallbackStories = useMemo(
+    () =>
+      [...customTabStories]
+        .filter((story) => !isWithinTopRange(story, INITIAL_NOW_MS, "day"))
+        .sort((a, b) => publishedAtMs(b) - publishedAtMs(a)),
+    [customTabStories]
+  );
+  const customTopDisplayStories = useMemo(
+    () =>
+      customTopRange === "day"
+        ? [...customTopRangeStories, ...customTopDayFallbackStories]
+        : customTopRangeStories,
+    [customTopDayFallbackStories, customTopRange, customTopRangeStories]
+  );
   const shouldFallbackToCustomNew =
     activeTab !== "popular" &&
     activeTab !== "recent" &&
+    customTopRange === "day" &&
     customSortMode === "top" &&
-    customTopStories.length === 0 &&
+    customTopRangeStories.length === 0 &&
     customTabStories.length > 0;
   const effectiveCustomSortMode: CustomSortMode =
     shouldFallbackToCustomNew ? "new" : customSortMode;
@@ -529,13 +591,13 @@ export default function HomePageClient({
       return [...recentStories].sort((a, b) => compareByPopularity(a, b, INITIAL_NOW_MS));
     }
 
-    return effectiveCustomSortMode === "new" ? customTabStories : customTopStories;
+    return effectiveCustomSortMode === "new" ? customStoriesByNew : customTopDisplayStories;
   }, [
     activeTab,
     recentStories,
     effectiveCustomSortMode,
-    customTabStories,
-    customTopStories,
+    customStoriesByNew,
+    customTopDisplayStories,
     followingStories,
   ]);
 
@@ -546,11 +608,42 @@ export default function HomePageClient({
     const pending = pendingScrollRestoreRef.current;
     const currentTab = normalize(String(activeTab)) || "popular";
     if (!pending || pending.tabKey !== currentTab) return;
+    let cancelled = false;
+    let retryId = 0;
 
-    pendingScrollRestoreRef.current = null;
-    window.requestAnimationFrame(() => {
-      window.scrollTo({ top: pending.scrollY, behavior: "auto" });
-    });
+    const attemptRestore = () => {
+      if (cancelled) return;
+
+      const nextPending = pendingScrollRestoreRef.current;
+      if (!nextPending || nextPending.tabKey !== currentTab) return;
+
+      const viewportHeight = window.innerHeight;
+      const maxScrollableTop = Math.max(0, document.documentElement.scrollHeight - viewportHeight);
+      const targetTop = Math.min(nextPending.scrollY, maxScrollableTop);
+      window.scrollTo({ top: targetTop, behavior: "auto" });
+
+      const closeEnough = Math.abs(window.scrollY - nextPending.scrollY) <= 24 || nextPending.scrollY <= 0;
+      if (closeEnough || nextPending.attempts >= MAX_SCROLL_RESTORE_ATTEMPTS) {
+        pendingScrollRestoreRef.current = null;
+        return;
+      }
+
+      pendingScrollRestoreRef.current = {
+        ...nextPending,
+        attempts: nextPending.attempts + 1,
+      };
+
+      retryId = window.setTimeout(() => {
+        window.requestAnimationFrame(attemptRestore);
+      }, 120);
+    };
+
+    window.requestAnimationFrame(attemptRestore);
+
+    return () => {
+      cancelled = true;
+      if (retryId) window.clearTimeout(retryId);
+    };
   }, [activeTab, visible, visibleCount]);
 
   function togglePin(tag: string) {
@@ -700,6 +793,11 @@ export default function HomePageClient({
                   {mode === "top" ? "Top" : "New"}
                 </button>
               ))}
+              {customTopRange === "day" && shouldFallbackToCustomNew ? (
+                <div className="ml-2 text-xs text-neutral-500">
+                  No top stories in the last 24 hours. Showing newest instead.
+                </div>
+              ) : null}
             </div>
             <div className="flex flex-col items-end gap-2">
               {customSortMode === "top" ? (
@@ -711,11 +809,6 @@ export default function HomePageClient({
                     window.scrollTo({ top: 0, behavior: "auto" });
                   }}
                 />
-              ) : null}
-              {shouldFallbackToCustomNew ? (
-                <div className="text-right text-xs text-neutral-500">
-                  No top stories in the {TOP_RANGE_DESCRIPTIONS[customTopRange]}. Showing newest instead.
-                </div>
               ) : null}
             </div>
           </div>
@@ -830,99 +923,113 @@ export default function HomePageClient({
                     : "Check back soon for popular stories."
                   : effectiveCustomSortMode === "new"
                     ? `There are no new stories in ${toTitleCase(String(activeTab))} yet.`
-                    : `There are no top stories in ${toTitleCase(String(activeTab))} from the ${TOP_RANGE_DESCRIPTIONS[customTopRange]} yet.`}
+                    : customTopRange === "day"
+                      ? `There are no top stories in ${toTitleCase(String(activeTab))} from the ${TOP_RANGE_DESCRIPTIONS[customTopRange]} yet.`
+                      : `There are no stories in ${toTitleCase(String(activeTab))} from the ${TOP_RANGE_DESCRIPTIONS[customTopRange]} yet.`}
               </p>
             </div>
         ) : (
-          visibleStories.map((story) => (
-            <Link
-              key={story.id}
-              href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
-              onClick={() => persistHomeState()}
-              className="block"
-            >
-                <div
-                 className={`rounded-2xl border p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
-                    story.urgent
-                      ? "border-red-500/70 hover:border-red-400"
-                      : "border-[#0d2438] hover:border-[#163754]"
-                  } bg-[var(--surface)] relative`}
-                >
-                  {story.image_url ? (
-                    story.image_display === "contain" ? (
-                      <div className="mb-6 overflow-hidden rounded-xl bg-transparent">
-                        <div className="flex justify-center p-3">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={story.image_url}
-                            alt={story.title}
-                            loading="lazy"
-                            className="block max-h-[28rem] max-w-full rounded-lg object-contain"
-                          />
+          visibleStories.map((story, index) => (
+            <div key={story.id}>
+              <Link
+                href={`/story/${story.id}?from=${encodeURIComponent(String(activeTab))}`}
+                onClick={() => persistHomeState()}
+                className="block"
+              >
+                  <div
+                   className={`rounded-2xl border p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
+                      story.urgent
+                        ? "border-red-500/70 hover:border-red-400"
+                        : "border-[#0d2438] hover:border-[#163754]"
+                    } bg-[var(--surface)] relative`}
+                  >
+                    {story.image_url ? (
+                      story.image_display === "contain" ? (
+                        <div className="mb-6 overflow-hidden rounded-xl bg-transparent">
+                          <div className="flex justify-center p-3">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={story.image_url}
+                              alt={story.title}
+                              loading="lazy"
+                              className="block max-h-[28rem] max-w-full rounded-lg object-contain"
+                            />
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="mb-6 overflow-hidden rounded-xl bg-[#020b14]">
-                        <div className="relative aspect-[4/3] md:aspect-[16/10]">
-                          <Image
-                            src={story.image_url}
-                            alt={story.title}
-                            fill
-                            sizes="(max-width: 768px) 100vw, 896px"
-                            className="object-cover"
-                            style={{ objectPosition: imageObjectPosition(story) }}
-                          />
+                      ) : (
+                        <div className="mb-6 overflow-hidden rounded-xl bg-[#020b14]">
+                          <div className="relative aspect-[4/3] md:aspect-[16/10]">
+                            <Image
+                              src={story.image_url}
+                              alt={story.title}
+                              fill
+                              sizes="(max-width: 768px) 100vw, 896px"
+                              className="object-cover"
+                              style={{ objectPosition: imageObjectPosition(story) }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    )
-                  ) : null}
+                      )
+                    ) : null}
 
-                  <h2
-                    className={`text-center font-semibold ${
-                      story.urgent ? "text-3xl tracking-wide text-red-400 md:text-4xl" : "text-2xl"
-                   }`}
-                 >
-                   {story.title}
-                 </h2>
+                    <h2
+                      className={`text-center font-semibold ${
+                        story.urgent ? "text-3xl tracking-wide text-red-400 md:text-4xl" : "text-2xl"
+                     }`}
+                   >
+                     {story.title}
+                   </h2>
 
-                 <div className="mx-auto mt-4 max-w-2xl space-y-2 text-center text-neutral-400">
-                   {(story.summary ?? []).map((line, index) => (
-                     <p key={index}>{line}</p>
-                   ))}
+                   <div className="mx-auto mt-4 max-w-2xl space-y-2 text-center text-neutral-400">
+                     {(story.summary ?? []).map((line, index) => (
+                       <p key={index}>{line}</p>
+                     ))}
+                   </div>
+
+                   <div className="mt-5 text-center text-sm text-neutral-500">
+                     {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
+                   </div>
+
+                   <div className="mt-2 text-center text-sm text-neutral-500">
+                     {formatStoryDate(story.date)}
+                   </div>
+
+                   <div className="mt-5 flex flex-wrap justify-center gap-2">
+                     {(story.topics ?? []).map((topic) => {
+                       const key = normalize(topic);
+                       return (
+                          <button
+                            key={key}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+
+                              setActiveTabAndUrl(key);
+
+                              if (!pinned.includes(key)) setGhostTab(key);
+                              else setGhostTab(null);
+                            }}
+                           className="rounded-full border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:bg-neutral-800"
+                         >
+                           {toTitleCase(key)}
+                         </button>
+                       );
+                     })}
+                   </div>
                  </div>
-
-                 <div className="mt-5 text-center text-sm text-neutral-500">
-                   {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
-                 </div>
-
-                 <div className="mt-2 text-center text-sm text-neutral-500">
-                   {formatStoryDate(story.date)}
-                 </div>
-
-                 <div className="mt-5 flex flex-wrap justify-center gap-2">
-                   {(story.topics ?? []).map((topic) => {
-                     const key = normalize(topic);
-                     return (
-                        <button
-                          key={key}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-
-                            setActiveTabAndUrl(key);
-
-                            if (!pinned.includes(key)) setGhostTab(key);
-                            else setGhostTab(null);
-                          }}
-                         className="rounded-full border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:bg-neutral-800"
-                       >
-                         {toTitleCase(key)}
-                       </button>
-                     );
-                   })}
-                 </div>
-               </div>
-            </Link>
+              </Link>
+              {activeTab !== "popular" &&
+              activeTab !== "recent" &&
+              customTopRange === "day" &&
+              effectiveCustomSortMode === "top" &&
+              customTopRangeStories.length > 0 &&
+              customTopDayFallbackStories.length > 0 &&
+              index === customTopRangeStories.length - 1 ? (
+                <div className="rounded-2xl border border-[#8f7740]/35 bg-[#07101a] px-5 py-4 text-sm text-neutral-300 shadow-[0_18px_40px_rgba(0,0,0,0.2)]">
+                  That&apos;s all the top stories for the day. Everything below is sorted by new.
+                </div>
+              ) : null}
+            </div>
           ))
         )}
       </div>

@@ -7,6 +7,14 @@ import { formatUpdatedAgo, formatUpdatedAt } from "@/app/lib/dates";
 import { supabaseBrowser } from "@/app/lib/supabase-browser";
 
 type CommentSort = "controversial" | "most-liked" | "new" | "old" | "top";
+type StaffRole = "admin" | "moderator" | "reader";
+type CommunitySettings = {
+  allowCommentRealtime: boolean;
+  allowCommentReplies: boolean;
+  allowCommentVoting: boolean;
+  allowNewComments: boolean;
+  commentsReadOnly: boolean;
+};
 
 type StoryComment = {
   body: string | null;
@@ -21,6 +29,7 @@ type StoryComment = {
   parentCommentId: string | null;
   removedMessage: string | null;
   storyId: string;
+  staffRole: StaffRole;
   totalReplies: number;
   updatedAt: string;
   upvotes: number;
@@ -32,6 +41,7 @@ type StoryComment = {
 
 type StoryCommentsResponse = {
   comments?: StoryComment[];
+  communitySettings?: CommunitySettings;
   error?: string;
   totalCount?: number;
 };
@@ -49,6 +59,7 @@ type CommentCardProps = {
   busyAction: string | null;
   collapsed: boolean;
   comment: StoryComment;
+  communitySettings: CommunitySettings;
   collapsedCommentIds: Record<string, boolean>;
   editingCommentId: string | null;
   editDraft: string;
@@ -134,6 +145,12 @@ function collectCommentIds(commentTree: StoryComment[], ids = new Set<string>())
   }
 
   return ids;
+}
+
+function commentStaffBadge(role: StaffRole) {
+  if (role === "admin") return "admin";
+  if (role === "moderator") return "mod";
+  return null;
 }
 
 function pruneCommentUiState(state: Record<string, boolean>, commentTree: StoryComment[]) {
@@ -316,6 +333,7 @@ function CommentCard({
   busyAction,
   collapsed,
   comment,
+  communitySettings,
   collapsedCommentIds,
   editingCommentId,
   editDraft,
@@ -343,6 +361,7 @@ function CommentCard({
   const deleteBusy = busyAction === `delete:${comment.id}`;
   const replyBusy = busyAction === `reply:${comment.id}`;
   const editBusy = busyAction === `edit:${comment.id}`;
+  const staffBadge = commentStaffBadge(comment.staffRole);
 
   function handleCollapseToggle() {
     if (!collapsed) {
@@ -378,6 +397,11 @@ function CommentCard({
             <div>
               <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                 <div className="text-sm font-semibold text-neutral-100">{comment.username}</div>
+                {staffBadge ? (
+                  <span className="rounded-full border border-[#8f7740]/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#d7c08d]">
+                    {staffBadge}
+                  </span>
+                ) : null}
                 <div
                   className="text-[11px] uppercase tracking-[0.16em] text-neutral-500"
                   title={formatUpdatedAt(comment.createdAt)}
@@ -393,7 +417,7 @@ function CommentCard({
               <button
                 type="button"
                 onClick={() => void onVote(comment.id, 1, comment.viewerVote)}
-                disabled={voteBusy}
+                disabled={voteBusy || !communitySettings.allowCommentVoting || communitySettings.commentsReadOnly}
                 aria-label={`Thumbs up comment by ${comment.username}`}
                 title="Thumbs up"
                 className={`flex flex-col items-center gap-1 text-xs transition ${
@@ -408,7 +432,7 @@ function CommentCard({
               <button
                 type="button"
                 onClick={() => void onVote(comment.id, -1, comment.viewerVote)}
-                disabled={voteBusy}
+                disabled={voteBusy || !communitySettings.allowCommentVoting || communitySettings.commentsReadOnly}
                 aria-label={`Thumbs down comment by ${comment.username}`}
                 title="Thumbs down"
                 className={`flex flex-col items-center gap-1 text-xs transition ${
@@ -461,7 +485,7 @@ function CommentCard({
 
         {!comment.deleted && !collapsed ? (
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            {comment.canEdit ? (
+            {comment.canEdit && !communitySettings.commentsReadOnly ? (
               <button
                 type="button"
                 onClick={() => onEditStart(comment)}
@@ -470,20 +494,22 @@ function CommentCard({
                 Edit
               </button>
             ) : null}
-            <button
-              type="button"
-              onClick={() => {
-                if (!authenticated) {
-                  onShowAuthDialog("reply");
-                  return;
-                }
+            {communitySettings.allowCommentReplies && !communitySettings.commentsReadOnly ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!authenticated) {
+                    onShowAuthDialog("reply");
+                    return;
+                  }
 
-                onReplyToggle(comment.id);
-              }}
-              className="text-sm font-medium text-neutral-300 transition hover:text-white"
-            >
-              Reply
-            </button>
+                  onReplyToggle(comment.id);
+                }}
+                className="text-sm font-medium text-neutral-300 transition hover:text-white"
+              >
+                Reply
+              </button>
+            ) : null}
             {authenticated && !comment.viewerOwns ? (
               <button
                 type="button"
@@ -504,7 +530,7 @@ function CommentCard({
               </button>
             ) : null}
 
-            {comment.viewerOwns ? (
+            {comment.viewerOwns && !communitySettings.commentsReadOnly ? (
               <button
                 type="button"
                 onClick={() => void onDelete(comment, "soft")}
@@ -553,7 +579,7 @@ function CommentCard({
               <button
                 type="button"
                 onClick={() => void onReplySubmit(comment.id)}
-                disabled={replyBusy}
+                disabled={replyBusy || communitySettings.commentsReadOnly || !communitySettings.allowCommentReplies}
                 className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {replyBusy ? "Posting..." : "Post reply"}
@@ -580,6 +606,7 @@ function CommentCard({
               busyAction={busyAction}
               collapsed={Boolean(collapsedCommentIds[child.id])}
               comment={child}
+              communitySettings={communitySettings}
               collapsedCommentIds={collapsedCommentIds}
               editingCommentId={editingCommentId}
               editDraft={editDraft}
@@ -609,6 +636,13 @@ function CommentCard({
 }
 
 export default function CommentsSection({ authenticated, currentUserId, isAdmin, storyId }: CommentsSectionProps) {
+  const [communitySettings, setCommunitySettings] = useState<CommunitySettings>({
+    allowCommentRealtime: true,
+    allowCommentReplies: true,
+    allowCommentVoting: true,
+    allowNewComments: true,
+    commentsReadOnly: false,
+  });
   const [comments, setComments] = useState<StoryComment[]>([]);
   const [collapsedCommentIds, setCollapsedCommentIds] = useState<Record<string, boolean>>({});
   const [composerDraft, setComposerDraft] = useState("");
@@ -654,7 +688,15 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
       }
 
       const nextComments = Array.isArray(data.comments) ? data.comments : [];
+      const nextSettings = data.communitySettings ?? {
+        allowCommentRealtime: true,
+        allowCommentReplies: true,
+        allowCommentVoting: true,
+        allowNewComments: true,
+        commentsReadOnly: false,
+      };
       setComments(nextComments);
+      setCommunitySettings(nextSettings);
       setCollapsedCommentIds((current) => pruneCommentUiState(current, nextComments));
       setExpandedReplyIds((current) => pruneCommentUiState(current, nextComments));
       setTotalCount(Number(data.totalCount ?? 0));
@@ -666,6 +708,13 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
       if (!options?.background) {
         setError(loadError instanceof Error ? loadError.message : "We couldn't load comments.");
         setComments([]);
+        setCommunitySettings({
+          allowCommentRealtime: true,
+          allowCommentReplies: true,
+          allowCommentVoting: true,
+          allowNewComments: true,
+          commentsReadOnly: false,
+        });
         setCollapsedCommentIds({});
         setExpandedReplyIds({});
         setTotalCount(0);
@@ -691,6 +740,11 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
   }, [storyId]);
 
   useEffect(() => {
+    if (!communitySettings.allowCommentRealtime) {
+      pendingRealtimeRefreshRef.current = false;
+      return;
+    }
+
     const flushRealtimeRefresh = () => {
       if (document.visibilityState !== "visible") return;
       if (loading || busyAction || editingCommentId || replyParentId || reportingComment) {
@@ -775,7 +829,7 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [busyAction, editingCommentId, loadComments, loading, replyParentId, reportingComment, sort, storyId]);
+  }, [busyAction, communitySettings.allowCommentRealtime, editingCommentId, loadComments, loading, replyParentId, reportingComment, sort, storyId]);
 
   useEffect(() => {
     if (loading || comments.length === 0 || typeof window === "undefined") {
@@ -833,6 +887,21 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
       return;
     }
 
+    if (communitySettings.commentsReadOnly) {
+      setError("Comments are temporarily read-only.");
+      return;
+    }
+
+    if (parentCommentId && !communitySettings.allowCommentReplies) {
+      setError("Replies are temporarily disabled.");
+      return;
+    }
+
+    if (!parentCommentId && !communitySettings.allowNewComments) {
+      setError("New comments are temporarily disabled.");
+      return;
+    }
+
     const draft = parentCommentId ? replyDraft : composerDraft;
     if (!draft.trim()) {
       setError(parentCommentId ? "Write a reply before posting." : "Write a comment before posting.");
@@ -876,6 +945,16 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
   async function handleVote(commentId: string, nextVote: -1 | 1, currentVote: -1 | 0 | 1) {
     if (!authenticated) {
       setAuthDialogAction("vote on comments");
+      return;
+    }
+
+    if (communitySettings.commentsReadOnly) {
+      setError("Comments are temporarily read-only.");
+      return;
+    }
+
+    if (!communitySettings.allowCommentVoting) {
+      setError("Comment voting is temporarily disabled.");
       return;
     }
 
@@ -1140,13 +1219,20 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
           onChange={(event) => setComposerDraft(event.target.value)}
           rows={2}
           className="w-full resize-y rounded-xl border border-[#163754] bg-[#020b14] px-4 py-2.5 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/60"
-          placeholder="Add a comment..."
+          disabled={communitySettings.commentsReadOnly || !communitySettings.allowNewComments}
+          placeholder={
+            communitySettings.commentsReadOnly
+              ? "Comments are temporarily read-only."
+              : communitySettings.allowNewComments
+                ? "Add a comment..."
+                : "New comments are temporarily disabled."
+          }
         />
         <div className="mt-2 flex justify-end">
           <button
             type="button"
             onClick={() => void submitComment(null)}
-            disabled={busyAction === "post"}
+            disabled={busyAction === "post" || communitySettings.commentsReadOnly || !communitySettings.allowNewComments}
             className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busyAction === "post" ? "Posting..." : "Post"}
@@ -1172,6 +1258,7 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
               busyAction={busyAction}
               collapsed={Boolean(collapsedCommentIds[comment.id])}
               comment={comment}
+              communitySettings={communitySettings}
               collapsedCommentIds={collapsedCommentIds}
               editingCommentId={editingCommentId}
               editDraft={editDraft}

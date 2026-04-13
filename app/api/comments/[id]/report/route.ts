@@ -29,7 +29,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = errorMessage(error, "We couldn't submit your report.");
-    const status = /signed in|required|cannot report|already reported|daily report limit|no longer exists/i.test(message) ? 400 : 500;
+    const status =
+      /signed in|required|cannot report|already reported|daily report limit|no longer exists|muted|community/i.test(message) ? 400 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }

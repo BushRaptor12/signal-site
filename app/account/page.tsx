@@ -164,7 +164,8 @@ export default async function AccountPage() {
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Admin</div>
                 <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Admin tools</h2>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-400">
-                  This account has admin access. Use these shortcuts to open the story editor, review comment reports, or manage The Briefing.
+                 This account has admin access. Use these shortcuts to open the story editor, review comment reports, or manage The Briefing.
+                  Keep the control center open if you want one place for launch monitoring, staff access, and emergency switches.
                 </p>
               </div>
               <div className="rounded-full border border-[#8f7740]/50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">
@@ -174,8 +175,14 @@ export default async function AccountPage() {
 
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
-                href="/admin/editor"
+                href="/admin"
                 className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+              >
+                Open control center
+              </Link>
+              <Link
+                href="/admin/editor"
+                className="inline-flex rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
               >
                 Open editor
               </Link>

@@ -20,9 +20,15 @@ type SessionPayload = {
 
 type UserProfileRow = {
   admin_granted_at: string | null;
+  comment_moderated_at?: string | null;
+  comment_moderated_by?: string | null;
+  comment_moderation_note?: string | null;
+  comment_moderation_status?: string | null;
+  comment_moderation_until?: string | null;
   created_at: string;
   email: string;
   is_admin: boolean;
+  staff_role?: string | null;
   updated_at: string;
   user_id: string;
   username: string;
@@ -38,11 +44,20 @@ type UserStorySeenRow = {
   story_id: string;
 };
 
+export type StaffRole = "admin" | "moderator" | "reader";
+export type CommentModerationStatus = "active" | "banned" | "muted";
+
 export type AccountProfile = {
   adminGrantedAt: string | null;
+  commentModeratedAt: string | null;
+  commentModeratedBy: string | null;
+  commentModerationNote: string | null;
+  commentModerationStatus: CommentModerationStatus;
+  commentModerationUntil: string | null;
   createdAt: string;
   email: string;
   isAdmin: boolean;
+  staffRole: StaffRole;
   updatedAt: string;
   userId: string;
   username: string;
@@ -224,12 +239,44 @@ function readCookieValue(cookieHeader: string | null | undefined, key: string) {
   return undefined;
 }
 
+export function toStaffRole(value: string | null | undefined, isAdmin = false): StaffRole {
+  if (value === "admin" || value === "moderator" || value === "reader") {
+    return value;
+  }
+
+  return isAdmin ? "admin" : "reader";
+}
+
+export function toCommentModerationStatus(value: string | null | undefined): CommentModerationStatus {
+  if (value === "muted" || value === "banned") {
+    return value;
+  }
+
+  return "active";
+}
+
+export function isCommentRestrictionActive(profile: Pick<AccountProfile, "commentModerationStatus" | "commentModerationUntil">, now = new Date()) {
+  if (profile.commentModerationStatus === "active") return false;
+  if (profile.commentModerationStatus === "banned") return true;
+  if (!profile.commentModerationUntil) return true;
+
+  const untilMs = new Date(profile.commentModerationUntil).getTime();
+  if (!Number.isFinite(untilMs)) return true;
+  return untilMs > now.getTime();
+}
+
 function toAccountProfile(row: UserProfileRow): AccountProfile {
   return {
     adminGrantedAt: row.admin_granted_at,
+    commentModeratedAt: row.comment_moderated_at ?? null,
+    commentModeratedBy: row.comment_moderated_by ?? null,
+    commentModerationNote: row.comment_moderation_note ?? null,
+    commentModerationStatus: toCommentModerationStatus(row.comment_moderation_status),
+    commentModerationUntil: row.comment_moderation_until ?? null,
     createdAt: row.created_at,
     email: row.email,
     isAdmin: Boolean(row.is_admin),
+    staffRole: toStaffRole(row.staff_role, Boolean(row.is_admin)),
     updatedAt: row.updated_at,
     userId: row.user_id,
     username: row.username,

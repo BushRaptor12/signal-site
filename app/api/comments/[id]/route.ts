@@ -28,7 +28,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = errorMessage(error, "We couldn't update that comment.");
-    const status = /signed in|required|only edit your own|only be edited|cannot be edited|no longer exists/i.test(message) ? 400 : 500;
+    const status =
+      /signed in|required|only edit your own|only be edited|cannot be edited|no longer exists|read-only|muted|community/i.test(message)
+        ? 400
+        : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }
@@ -61,7 +64,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = errorMessage(error, "We couldn't remove that comment.");
-    const status = /required|no longer exists|only delete your own/i.test(message) ? 400 : 500;
+    const status = /required|no longer exists|only delete your own|read-only|muted|community/i.test(message) ? 400 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }

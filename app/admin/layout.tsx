@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAccountProfile } from "@/app/lib/account.server";
-import { AdminAuthBoundary } from "./admin-auth";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -27,5 +26,5 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/account");
   }
 
-  return <AdminAuthBoundary>{children}</AdminAuthBoundary>;
+  return children;
 }

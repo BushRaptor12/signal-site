@@ -1,5 +1,14 @@
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { notifyAdminsAboutCommentReport, notifyUserAboutCommentReply } from "@/app/lib/notifications.server";
+import {
+  getAccountProfileByUserId,
+  isCommentRestrictionActive,
+  toCommentModerationStatus,
+  toStaffRole,
+  type CommentModerationStatus,
+  type StaffRole,
+} from "@/app/lib/account.server";
+import { getCommunitySettings } from "@/app/lib/community-settings";
 
 const COMMENT_EDIT_WINDOW_MINUTES = 15;
 const COMMENT_POST_LIMIT_PER_10_MINUTES = 6;
@@ -57,6 +66,10 @@ type CommentVoteRow = {
 };
 
 type CommentUserRow = {
+  comment_moderation_status?: string | null;
+  comment_moderation_until?: string | null;
+  is_admin?: boolean | null;
+  staff_role?: string | null;
   user_id: string;
   username: string;
 };
@@ -77,6 +90,7 @@ type BaseStoryComment = {
   parentCommentId: string | null;
   removedMessage: string | null;
   storyId: string;
+  staffRole: StaffRole;
   topScore: number;
   totalReplies: number;
   updatedAt: string;
@@ -121,7 +135,18 @@ export type AdminCommentReport = {
     deleted: boolean;
     editedAt: string | null;
     id: string;
+    staffRole: StaffRole;
     storyId: string;
+    userId: string;
+    username: string;
+  };
+  commentAuthor: {
+    commentCount: number;
+    moderationStatus: CommentModerationStatus;
+    moderationUntil: string | null;
+    openReportCount: number;
+    staffRole: StaffRole;
+    userId: string;
     username: string;
   };
   createdAt: string;
@@ -131,6 +156,13 @@ export type AdminCommentReport = {
   reporterUsername: string;
   status: CommentReportStatus;
   storyTitle: string | null;
+};
+
+type CommentAuthorMeta = {
+  moderationStatus: CommentModerationStatus;
+  moderationUntil: string | null;
+  staffRole: StaffRole;
+  username: string;
 };
 
 function clampInt(value: number, min: number, max: number) {
@@ -294,6 +326,67 @@ function messageFromDatabaseError(error: unknown, fallback: string) {
   return fallback;
 }
 
+function commentRestrictionMessage(moderationStatus: CommentModerationStatus, moderationUntil: string | null) {
+  if (moderationStatus === "banned") {
+    return "Your account cannot use community features right now.";
+  }
+
+  if (moderationStatus === "muted") {
+    if (moderationUntil) {
+      return `Your account is temporarily muted from comments until ${new Date(moderationUntil).toLocaleString()}.`;
+    }
+
+    return "Your account is temporarily muted from comments.";
+  }
+
+  return null;
+}
+
+async function assertCanUseComments(
+  userId: string,
+  action:
+    | "delete"
+    | "edit"
+    | "new-comment"
+    | "realtime"
+    | "report"
+    | "reply"
+    | "vote"
+) {
+  const [profile, settings] = await Promise.all([getAccountProfileByUserId(userId), getCommunitySettings()]);
+  if (!profile) {
+    throw new Error("You must be signed in to use comments.");
+  }
+
+  if (action === "realtime") {
+    return { profile, settings };
+  }
+
+  if (settings.commentsReadOnly && action !== "report") {
+    throw new Error("Comments are temporarily read-only.");
+  }
+
+  if (action === "new-comment" && !settings.allowNewComments) {
+    throw new Error("New comments are temporarily disabled.");
+  }
+
+  if (action === "reply" && !settings.allowCommentReplies) {
+    throw new Error("Replies are temporarily disabled.");
+  }
+
+  if (action === "vote" && !settings.allowCommentVoting) {
+    throw new Error("Comment voting is temporarily disabled.");
+  }
+
+  const restrictionActive = isCommentRestrictionActive(profile);
+  if (restrictionActive) {
+    const message = commentRestrictionMessage(profile.commentModerationStatus, profile.commentModerationUntil);
+    throw new Error(message ?? "Your account cannot use community features right now.");
+  }
+
+  return { profile, settings };
+}
+
 async function ensureStoryExists(storyId: string) {
   const supabase = supabaseServer();
   const { data, error } = await supabase.from("stories").select("id").eq("id", storyId).maybeSingle();
@@ -405,7 +498,7 @@ function normalizeReportDetails(value: string | null | undefined) {
 function buildStoryCommentTree(
   commentRows: CommentRow[],
   votesByCommentId: Map<string, { downvotes: number; upvotes: number; viewerVote: -1 | 0 | 1 }>,
-  usernamesByUserId: Map<string, string>,
+  authorsByUserId: Map<string, CommentAuthorMeta>,
   sort: CommentSort,
   viewerUserId?: string | null
 ) {
@@ -436,9 +529,9 @@ function buildStoryCommentTree(
       viewerVote: 0 as const,
     };
 
-    return {
-      body: row.deleted_at ? null : row.body,
-      canEdit: isCommentEditableByUser(row, viewerUserId, nowMs),
+      return {
+        body: row.deleted_at ? null : row.body,
+        canEdit: isCommentEditableByUser(row, viewerUserId, nowMs),
       children: childNodes,
       createdAt: row.created_at,
       deleted: Boolean(row.deleted_at),
@@ -447,17 +540,18 @@ function buildStoryCommentTree(
       editedAt: row.edited_at,
       id: row.id,
       parentCommentId: row.parent_comment_id,
-      removedMessage: row.deleted_at ? (row.deleted_by ? "Removed by admin." : "<deleted>") : null,
-      storyId: row.story_id,
-      topScore: topCommentScore(voteSummary.upvotes, voteSummary.downvotes, totalReplies, row.created_at, nowMs),
-      totalReplies,
-      updatedAt: row.updated_at,
-      upvotes: voteSummary.upvotes,
-      userId: row.user_id,
-      username: usernamesByUserId.get(row.user_id) ?? "Reader",
-      viewerOwns: Boolean(viewerUserId && row.user_id === viewerUserId),
-      viewerVote: voteSummary.viewerVote,
-    };
+        removedMessage: row.deleted_at ? (row.deleted_by ? "Removed by admin." : "<deleted>") : null,
+        storyId: row.story_id,
+        staffRole: authorsByUserId.get(row.user_id)?.staffRole ?? "reader",
+        topScore: topCommentScore(voteSummary.upvotes, voteSummary.downvotes, totalReplies, row.created_at, nowMs),
+        totalReplies,
+        updatedAt: row.updated_at,
+        upvotes: voteSummary.upvotes,
+        userId: row.user_id,
+        username: authorsByUserId.get(row.user_id)?.username ?? "Reader",
+        viewerOwns: Boolean(viewerUserId && row.user_id === viewerUserId),
+        viewerVote: voteSummary.viewerVote,
+      };
   };
 
   return commentRows
@@ -529,7 +623,10 @@ export async function listStoryComments(storyId: string, sort: CommentSort, view
 
   const [{ data: voteData, error: voteError }, { data: userData, error: userError }] = await Promise.all([
     supabase.from("comment_votes").select("comment_id, user_id, vote").in("comment_id", commentIds),
-    supabase.from("user_profiles").select("user_id, username").in("user_id", userIds),
+    supabase
+      .from("user_profiles")
+      .select("user_id, username, staff_role, is_admin, comment_moderation_status, comment_moderation_until")
+      .in("user_id", userIds),
   ]);
 
   if (voteError) {
@@ -561,12 +658,20 @@ export async function listStoryComments(storyId: string, sort: CommentSort, view
     votesByCommentId.set(row.comment_id, current);
   }
 
-  const usernamesByUserId = new Map(
-    ((userData ?? []) as CommentUserRow[]).map((row) => [row.user_id, row.username])
+  const authorsByUserId = new Map(
+    ((userData ?? []) as CommentUserRow[]).map((row) => [
+      row.user_id,
+      {
+        moderationStatus: toCommentModerationStatus(row.comment_moderation_status),
+        moderationUntil: row.comment_moderation_until ?? null,
+        staffRole: toStaffRole(row.staff_role, Boolean(row.is_admin)),
+        username: row.username,
+      } satisfies CommentAuthorMeta,
+    ])
   );
 
   return {
-    comments: buildStoryCommentTree(commentRows, votesByCommentId, usernamesByUserId, sort, viewerUserId),
+    comments: buildStoryCommentTree(commentRows, votesByCommentId, authorsByUserId, sort, viewerUserId),
     totalCount: commentRows.filter((row) => !row.deleted_at).length,
   };
 }
@@ -589,6 +694,8 @@ export async function createComment(input: {
   if (!userId) {
     throw new Error("You must be signed in to comment.");
   }
+
+  await assertCanUseComments(userId, parentCommentId ? "reply" : "new-comment");
 
   await enforceCommentRateLimit({
     actionType: "comment_post",
@@ -662,6 +769,8 @@ export async function updateComment(input: {
     throw new Error("You must be signed in to edit comments.");
   }
 
+  await assertCanUseComments(userId, "edit");
+
   const existingComment = await getCommentRowById(commentId);
   if (!existingComment) {
     throw new Error("That comment no longer exists.");
@@ -712,6 +821,8 @@ export async function setCommentVote(input: { commentId: string; userId: string;
   if (!userId) {
     throw new Error("You must be signed in to vote.");
   }
+
+  await assertCanUseComments(userId, "vote");
 
   const supabase = supabaseServer();
   const { data: existingComment, error: commentError } = await supabase
@@ -829,6 +940,8 @@ export async function removeOwnComment(commentId: string, userId: string) {
     throw new Error("You must be signed in to delete comments.");
   }
 
+  await assertCanUseComments(normalizedUserId, "delete");
+
   const existingComment = await getCommentRowById(normalizedCommentId);
   if (!existingComment) {
     throw new Error("That comment no longer exists.");
@@ -901,6 +1014,8 @@ export async function reportComment(input: {
   if (!userId) {
     throw new Error("You must be signed in to report comments.");
   }
+
+  await assertCanUseComments(userId, "report");
 
   await enforceCommentRateLimit({
     actionType: "comment_report",
@@ -1023,7 +1138,7 @@ export async function listAccountCommentHistory(
   };
 }
 
-export async function listCommentReportsForAdmin(status: CommentReportStatus = "open"): Promise<AdminCommentReport[]> {
+export async function listCommentReportsForAdmin(status: CommentReportStatus = "open", search = ""): Promise<AdminCommentReport[]> {
   const supabase = supabaseServer();
   const { data, error } = await supabase
     .from("comment_reports")
@@ -1074,9 +1189,55 @@ export async function listCommentReportsForAdmin(status: CommentReportStatus = "
 
   const uniqueUserIds = Array.from(new Set(userIds));
   const storyIds = Array.from(new Set(typedComments.map((row) => row.story_id)));
+  const reportedAuthorIds = Array.from(new Set(typedComments.map((row) => row.user_id)));
+  const authorCommentIds: string[] = [];
+
+  const commentCountByUserId = new Map<string, number>();
+  if (reportedAuthorIds.length > 0) {
+    const { data: authorCommentsData, error: authorCommentsError } = await supabase
+      .from("user_comments")
+      .select("id, user_id")
+      .in("user_id", reportedAuthorIds);
+
+    if (authorCommentsError) {
+      throw new Error(messageFromDatabaseError(authorCommentsError, "We couldn't load author comment counts."));
+    }
+
+    for (const row of (authorCommentsData ?? []) as Array<{ id: string; user_id: string }>) {
+      authorCommentIds.push(row.id);
+      commentCountByUserId.set(row.user_id, (commentCountByUserId.get(row.user_id) ?? 0) + 1);
+    }
+  }
+
+  const openReportCountByUserId = new Map<string, number>();
+  if (authorCommentIds.length > 0) {
+    const commentOwnerById = new Map(typedComments.map((comment) => [comment.id, comment.user_id]));
+    const { data: authorCommentsData } = await supabase.from("user_comments").select("id, user_id").in("id", authorCommentIds);
+    for (const row of (authorCommentsData ?? []) as Array<{ id: string; user_id: string }>) {
+      commentOwnerById.set(row.id, row.user_id);
+    }
+    const { data: openReportRows, error: openReportsError } = await supabase
+      .from("comment_reports")
+      .select("comment_id")
+      .eq("status", "open")
+      .in("comment_id", authorCommentIds);
+
+    if (openReportsError) {
+      throw new Error(messageFromDatabaseError(openReportsError, "We couldn't load author report counts."));
+    }
+
+    for (const report of (openReportRows ?? []) as Array<{ comment_id: string }>) {
+      const ownerUserId = commentOwnerById.get(report.comment_id);
+      if (!ownerUserId) continue;
+      openReportCountByUserId.set(ownerUserId, (openReportCountByUserId.get(ownerUserId) ?? 0) + 1);
+    }
+  }
 
   const [{ data: usersData, error: usersError }, { data: storiesData, error: storiesError }] = await Promise.all([
-    supabase.from("user_profiles").select("user_id, username").in("user_id", uniqueUserIds),
+    supabase
+      .from("user_profiles")
+      .select("user_id, username, staff_role, is_admin, comment_moderation_status, comment_moderation_until")
+      .in("user_id", uniqueUserIds),
     supabase.from("stories").select("id, title").in("id", storyIds),
   ]);
 
@@ -1089,32 +1250,75 @@ export async function listCommentReportsForAdmin(status: CommentReportStatus = "
   }
 
   const commentsById = new Map(typedComments.map((row) => [row.id, row]));
-  const usernamesByUserId = new Map(((usersData ?? []) as Array<{ user_id: string; username: string }>).map((row) => [row.user_id, row.username]));
+  const usersByUserId = new Map(
+    ((usersData ?? []) as CommentUserRow[]).map((row) => [
+      row.user_id,
+      {
+        moderationStatus: toCommentModerationStatus(row.comment_moderation_status),
+        moderationUntil: row.comment_moderation_until ?? null,
+        staffRole: toStaffRole(row.staff_role, Boolean(row.is_admin)),
+        username: row.username,
+      } satisfies CommentAuthorMeta,
+    ])
+  );
   const storiesById = new Map(((storiesData ?? []) as Array<{ id: string; title: string }>).map((row) => [row.id, row.title]));
+  const normalizedSearch = search.trim().toLowerCase();
 
   return reportRows
     .map((row) => {
       const comment = commentsById.get(row.comment_id);
       if (!comment) return null;
+      const author = usersByUserId.get(comment.user_id);
+      const reporter = usersByUserId.get(row.reporter_user_id);
 
-      return {
+      const mapped = {
         comment: {
           body: comment.deleted_at ? null : comment.body,
           createdAt: comment.created_at,
           deleted: Boolean(comment.deleted_at),
           editedAt: comment.edited_at,
           id: comment.id,
+          staffRole: author?.staffRole ?? "reader",
           storyId: comment.story_id,
-          username: usernamesByUserId.get(comment.user_id) ?? "Reader",
+          userId: comment.user_id,
+          username: author?.username ?? "Reader",
+        },
+        commentAuthor: {
+          commentCount: commentCountByUserId.get(comment.user_id) ?? 0,
+          moderationStatus: author?.moderationStatus ?? "active",
+          moderationUntil: author?.moderationUntil ?? null,
+          openReportCount: openReportCountByUserId.get(comment.user_id) ?? 0,
+          staffRole: author?.staffRole ?? "reader",
+          userId: comment.user_id,
+          username: author?.username ?? "Reader",
         },
         createdAt: row.created_at,
         details: row.details,
         id: row.id,
         reason: row.reason,
-        reporterUsername: usernamesByUserId.get(row.reporter_user_id) ?? "Reader",
+        reporterUsername: reporter?.username ?? "Reader",
         status: row.status,
         storyTitle: storiesById.get(comment.story_id) ?? null,
       } satisfies AdminCommentReport;
+
+      if (!normalizedSearch) {
+        return mapped;
+      }
+
+      const haystack = [
+        mapped.comment.id,
+        mapped.comment.username,
+        mapped.commentAuthor.username,
+        mapped.reporterUsername,
+        mapped.reason,
+        mapped.details ?? "",
+        mapped.storyTitle ?? "",
+        mapped.comment.body ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(normalizedSearch) ? mapped : null;
     })
     .filter((row): row is AdminCommentReport => Boolean(row));
 }

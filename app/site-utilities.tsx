@@ -96,7 +96,10 @@ export default function SiteUtilities() {
   if (isAdminPage) return null;
 
   return (
-    <div className="pointer-events-none fixed right-3 top-3 z-40 md:right-5 md:top-5">
+    <div
+      className="pointer-events-none sticky top-0 z-40 flex justify-end px-3 pb-2 pt-3 md:fixed md:right-5 md:top-5 md:block md:p-0"
+      style={{ paddingTop: "max(env(safe-area-inset-top), 0.75rem)" }}
+    >
       <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-[#13314b] bg-[#020b14]/92 p-1.5 shadow-[0_18px_45px_rgba(0,0,0,0.3)] backdrop-blur-sm">
         <Link
           href="/notifications"

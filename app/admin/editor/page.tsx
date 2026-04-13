@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 import BackLink from "@/app/back-link";
-import { useAdminAuth } from "@/app/admin/admin-auth";
+import { formatUpdatedAt } from "@/app/lib/dates";
 import { DEFAULT_IMAGE_FOCUS, clampImageFocus, imageObjectPosition } from "@/app/lib/image-focus";
 import { STORY_IMAGE_ACCEPT } from "@/app/lib/story-images";
 import type { Lean, Story, StoryImageDisplay, StoryStatus, StoryWithViews } from "@/app/lib/types";
@@ -17,6 +17,13 @@ type SourceEditorRow = { name: string; title: string; url: string; lean: Lean; l
 type SourcePreview = { name: string; title: string; url: string };
 type EditorNotice = { tone: "error" | "info" | "success"; text: string } | null;
 type PendingEditorAction = { action: () => void; description: string } | null;
+type StoryRevision = {
+  action: "deleted" | "restored" | "saved";
+  createdAt: string;
+  id: string;
+  story: StoryWithViews;
+  storyId: string;
+};
 
 function createSourceRow(): SourceEditorRow {
   return { name: "", title: "", url: "", lean: "Center", leanMode: "auto" };
@@ -49,7 +56,6 @@ function normalizeStoryIdInput(value: string) {
 
 export default function EditorPage() {
   const searchParams = useSearchParams();
-  const { adminToken, clearToken } = useAdminAuth();
   const [entities, setEntities] = useState<Entity[]>([]);
   const [entitySearch, setEntitySearch] = useState("");
   const [aliasDraft, setAliasDraft] = useState<Record<string, string>>({});
@@ -85,6 +91,9 @@ export default function EditorPage() {
   const [notice, setNotice] = useState<EditorNotice>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
   const [pendingEditorAction, setPendingEditorAction] = useState<PendingEditorAction>(null);
+  const [revisions, setRevisions] = useState<StoryRevision[]>([]);
+  const [loadingRevisions, setLoadingRevisions] = useState(false);
+  const [busyRevisionId, setBusyRevisionId] = useState<string | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState("");
   const [pendingBaselineSync, setPendingBaselineSync] = useState(true);
   const requestedStoryId = searchParams.get("story");
@@ -93,38 +102,21 @@ export default function EditorPage() {
   const storyId = activeStoryId ?? normalizeStoryIdInput(slugInput || generatedId || "new-story");
 
   const loadStories = useCallback(async () => {
-    if (!adminToken) {
-      setStories([]);
-      return;
-    }
-
     try {
       const query = new URLSearchParams();
       query.set("statuses", "draft,published,archived");
       query.set("limit", "250");
 
-      const res = await fetch(`/api/stories?${query.toString()}`, {
-        cache: "no-store",
-        headers: { "x-admin-token": adminToken },
-      });
-      if (res.status === 401) {
-        clearToken();
-        return;
-      }
+      const res = await fetch(`/api/stories?${query.toString()}`, { cache: "no-store" });
 
       const data = (await res.json().catch(() => [])) as StoryWithViews[];
       if (Array.isArray(data)) setStories(data);
     } finally {
       // no-op
     }
-  }, [adminToken, clearToken]);
+  }, []);
 
   const searchStories = useCallback(async (search: string) => {
-    if (!adminToken) {
-      setSearchedStories([]);
-      return;
-    }
-
     const trimmedSearch = search.trim();
     if (!trimmedSearch) {
       setSearchedStories([]);
@@ -138,40 +130,23 @@ export default function EditorPage() {
       query.set("limit", "120");
       query.set("search", trimmedSearch);
 
-      const res = await fetch(`/api/stories?${query.toString()}`, {
-        cache: "no-store",
-        headers: { "x-admin-token": adminToken },
-      });
-      if (res.status === 401) {
-        clearToken();
-        return;
-      }
+      const res = await fetch(`/api/stories?${query.toString()}`, { cache: "no-store" });
 
       const data = (await res.json().catch(() => [])) as StoryWithViews[];
       setSearchedStories(Array.isArray(data) ? data : []);
     } finally {
       setLoadingStories(false);
     }
-  }, [adminToken, clearToken]);
+  }, []);
 
-  function showNotice(text: string, tone: NonNullable<EditorNotice>["tone"] = "info") {
+  const showNotice = useCallback((text: string, tone: NonNullable<EditorNotice>["tone"] = "info") => {
     setNotice({ text, tone });
-  }
+  }, []);
 
-  const loadEntities = useCallback(async (token = adminToken) => {
-    if (!token) {
-      setEntities([]);
-      return;
-    }
-
+  const loadEntities = useCallback(async () => {
     const res = await fetch("/api/entities", {
       cache: "no-store",
-      headers: { "x-admin-token": token },
     });
-    if (res.status === 401) {
-      clearToken();
-      return;
-    }
     const data = await res.json().catch(() => []);
     if (res.ok && Array.isArray(data)) {
       setEntities(data);
@@ -179,7 +154,7 @@ export default function EditorPage() {
     }
 
     setEntities([]);
-  }, [adminToken, clearToken]);
+  }, []);
 
   function resetForm() {
     setActiveStoryId(null);
@@ -252,6 +227,40 @@ export default function EditorPage() {
   useEffect(() => {
     void loadEntities();
   }, [loadEntities]);
+
+  const loadRevisions = useCallback(async (nextStoryId: string) => {
+    if (!nextStoryId || nextStoryId === "new-story") {
+      setRevisions([]);
+      return;
+    }
+
+    setLoadingRevisions(true);
+    try {
+      const response = await fetch(`/api/admin/story-revisions?storyId=${encodeURIComponent(nextStoryId)}`, {
+        cache: "no-store",
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string; revisions?: StoryRevision[] };
+      if (!response.ok) {
+        throw new Error(data.error ?? "We couldn't load revision history.");
+      }
+
+      setRevisions(Array.isArray(data.revisions) ? data.revisions : []);
+    } catch (revisionError) {
+      showNotice(revisionError instanceof Error ? revisionError.message : "We couldn't load revision history.", "error");
+      setRevisions([]);
+    } finally {
+      setLoadingRevisions(false);
+    }
+  }, [showNotice]);
+
+  useEffect(() => {
+    if (!activeStoryId) {
+      setRevisions([]);
+      return;
+    }
+
+    void loadRevisions(activeStoryId);
+  }, [activeStoryId, loadRevisions]);
 
   const filteredStories = storySearch.trim() ? searchedStories : stories;
 
@@ -433,11 +442,6 @@ export default function EditorPage() {
   }
 
   async function addSourceFromUrl(rawUrl: string, preferredIndex?: number) {
-    if (!adminToken) {
-      clearToken();
-      return;
-    }
-
     const url = rawUrl.trim();
     if (!url) {
       showNotice("Paste a source URL first.", "error");
@@ -451,7 +455,6 @@ export default function EditorPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-token": adminToken,
         },
         body: JSON.stringify({ url }),
       });
@@ -460,11 +463,6 @@ export default function EditorPage() {
         error?: string;
         source?: SourcePreview;
       };
-
-      if (res.status === 401) {
-        clearToken();
-        return;
-      }
 
       if (!res.ok || !json.source) {
         showNotice(`Could not fill source: ${json.error ?? res.statusText}`, "error");
@@ -515,11 +513,6 @@ export default function EditorPage() {
   }
 
   async function uploadImage(file: File) {
-    if (!adminToken) {
-      clearToken();
-      return;
-    }
-
     setUploadingImage(true);
 
     try {
@@ -532,7 +525,6 @@ export default function EditorPage() {
 
       const res = await fetch("/api/admin/story-images", {
         method: "POST",
-        headers: { "x-admin-token": adminToken },
         body: formData,
       });
 
@@ -541,11 +533,6 @@ export default function EditorPage() {
         imagePath?: string;
         imageUrl?: string;
       };
-
-      if (res.status === 401) {
-        clearToken();
-        return;
-      }
 
       if (!res.ok || !json.imagePath || !json.imageUrl) {
         showNotice(`Upload failed: ${json.error ?? res.statusText}`, "error");
@@ -567,24 +554,13 @@ export default function EditorPage() {
     if (!imagePath && !imageUrl) return;
 
     if (imagePath && imagePath !== savedImagePath) {
-      if (!adminToken) {
-        clearToken();
-        return;
-      }
-
       const res = await fetch("/api/admin/story-images", {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-token": adminToken,
         },
         body: JSON.stringify({ imagePath }),
       });
-
-      if (res.status === 401) {
-        clearToken();
-        return;
-      }
 
       if (!res.ok) {
         const json = (await res.json().catch(() => ({}))) as { error?: string };
@@ -611,11 +587,6 @@ export default function EditorPage() {
   }
 
   async function onSave() {
-    if (!adminToken) {
-      clearToken();
-      return;
-    }
-
     const cleanedSummary = summary.map((line) => line.trim()).filter(Boolean);
     const cleanedSources = sources
       .map((source) => ({
@@ -644,7 +615,6 @@ export default function EditorPage() {
       showNotice("Add at least 1 source.", "error");
       return;
     }
-
     const storyEntities = selectedEntities
   .map((name) => entities.find((e) => e.name === name))
   .filter(Boolean)
@@ -678,16 +648,11 @@ export default function EditorPage() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-admin-token": adminToken,
       },
       body: JSON.stringify(story),
     });
 
     const json = (await res.json().catch(() => ({}))) as { error?: string; story?: Story };
-    if (res.status === 401) {
-      clearToken();
-      return;
-    }
     if (!res.ok) {
       showNotice(`Save failed: ${json.error ?? res.statusText}`, "error");
       return;
@@ -695,6 +660,7 @@ export default function EditorPage() {
 
     await loadStories();
     await searchStories(storySearch);
+    await loadRevisions(story.id);
     setActiveStoryId(story.id);
     setSlugInput(story.id);
     setImageUrl(json.story?.image_url ?? imageUrl);
@@ -706,11 +672,6 @@ export default function EditorPage() {
   }
 
   async function onDeleteConfirmed() {
-    if (!adminToken) {
-      clearToken();
-      return;
-    }
-
     const id = storyId;
     if (!id || id === "new-story") {
       showNotice("Save the story before trying to delete it.", "error");
@@ -719,13 +680,7 @@ export default function EditorPage() {
 
     const res = await fetch(`/api/stories/${encodeURIComponent(id)}`, {
       method: "DELETE",
-      headers: { "x-admin-token": adminToken },
     });
-
-    if (res.status === 401) {
-      clearToken();
-      return;
-    }
 
     if (!res.ok) {
       const err = (await res.json().catch(() => ({}))) as { error?: string };
@@ -735,30 +690,21 @@ export default function EditorPage() {
 
     await loadStories();
     await searchStories(storySearch);
+    setRevisions([]);
     resetForm();
     setPendingBaselineSync(true);
     showNotice(`Deleted: ${id}`, "success");
   }
   async function createEntity(name: string) {
-    if (!adminToken) {
-      clearToken();
-      return null;
-    }
-
     const res = await fetch("/api/entities", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-admin-token": adminToken,
       },
       body: JSON.stringify({ name, aliases: [] }),
     });
 
     const json = await res.json().catch(() => ({}));
-    if (res.status === 401) {
-      clearToken();
-      return null;
-    }
     if (!res.ok) {
       showNotice(`Create entity failed: ${json?.error ?? res.statusText}`, "error");
       return null;
@@ -775,25 +721,15 @@ export default function EditorPage() {
   }
 
   async function saveAliases(entityName: string, aliases: string[]) {
-    if (!adminToken) {
-      clearToken();
-      return;
-    }
-
     const res = await fetch(`/api/entities/${encodeURIComponent(entityName)}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        "x-admin-token": adminToken,
       },
       body: JSON.stringify({ aliases }),
     });
 
     const json = await res.json().catch(() => ({}));
-    if (res.status === 401) {
-      clearToken();
-      return;
-    }
     if (!res.ok) {
       showNotice(`Update aliases failed: ${json?.error ?? res.statusText}`, "error");
       return;
@@ -803,12 +739,47 @@ export default function EditorPage() {
     setEntities((prev) => prev.map((e) => (e.name === updated.name ? updated : e)));
     showNotice(`Updated aliases for ${updated.name}.`, "success");
   }
+
+  async function restoreRevision(revisionId: string) {
+    if (typeof window !== "undefined" && !window.confirm("Restore this story revision into the editor?")) {
+      return;
+    }
+
+    setBusyRevisionId(revisionId);
+    try {
+      const response = await fetch("/api/admin/story-revisions", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ revisionId }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string; story?: StoryWithViews };
+      if (!response.ok || !data.story) {
+        throw new Error(data.error ?? "We couldn't restore that revision.");
+      }
+
+      loadStoryIntoForm(data.story);
+      await loadStories();
+      await searchStories(storySearch);
+      await loadRevisions(data.story.id);
+      setPendingBaselineSync(true);
+      showNotice(`Restored ${data.story.id} from revision history.`, "success");
+    } catch (restoreError) {
+      showNotice(restoreError instanceof Error ? restoreError.message : "We couldn't restore that revision.", "error");
+    } finally {
+      setBusyRevisionId(null);
+    }
+  }
   return (
     <main className="min-h-screen bg-neutral-900 text-neutral-100 p-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Story Editor</h1>
           <div className="flex items-center gap-4">
+            <Link href="/admin" className="text-xs text-neutral-400 hover:text-neutral-200">
+              Control center
+            </Link>
             <button
               onClick={() => requestEditorTransition(resetForm, "start a new story")}
               className="text-xs text-neutral-400 hover:text-neutral-200"
@@ -821,9 +792,6 @@ export default function EditorPage() {
             <Link href="/admin/moderation" className="text-xs text-neutral-400 hover:text-neutral-200">
               Moderation
             </Link>
-            <button onClick={clearToken} className="text-xs text-neutral-400 hover:text-neutral-200">
-              Lock admin
-            </button>
             <BackLink href="/" />
           </div>
         </div>
@@ -1576,6 +1544,49 @@ export default function EditorPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold text-neutral-300 uppercase">Revision History</div>
+                <p className="mt-2 text-sm text-neutral-500">
+                  Every save and delete writes a snapshot. Restore a previous version directly into the editor when you need to back out a change.
+                </p>
+              </div>
+              <div className="text-xs uppercase tracking-[0.18em] text-neutral-500">
+                {activeStoryId ? activeStoryId : "Save first"}
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {!activeStoryId ? (
+                <div className="text-sm text-neutral-500">Save the story once to start storing revision history.</div>
+              ) : loadingRevisions ? (
+                <div className="text-sm text-neutral-500">Loading revisions...</div>
+              ) : revisions.length === 0 ? (
+                <div className="text-sm text-neutral-500">No revisions yet.</div>
+              ) : (
+                revisions.map((revision) => (
+                  <div key={revision.id} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                    <div>
+                      <div className="text-sm text-neutral-100">{revision.story.title}</div>
+                      <div className="mt-1 text-xs uppercase tracking-[0.16em] text-neutral-500">
+                        {revision.action} • {formatUpdatedAt(revision.createdAt)}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void restoreRevision(revision.id)}
+                      disabled={busyRevisionId === revision.id}
+                      className="rounded-full border border-[#8f7740]/60 px-4 py-2 text-xs font-semibold text-[#e3cca0] transition hover:bg-[#8f7740]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {busyRevisionId === revision.id ? "Restoring..." : "Restore"}
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

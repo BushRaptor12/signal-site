@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requestHasAdminAccess } from "@/app/lib/admin.server";
-import { getAccountUserIdFromCookieHeader } from "@/app/lib/account.server";
+import { getAdminAccountFromRequest } from "@/app/lib/admin.server";
 import { listCommentReportsForAdmin, updateCommentReportStatus } from "@/app/lib/comments";
 
 function errorMessage(error: unknown, fallback: string) {
@@ -9,14 +8,15 @@ function errorMessage(error: unknown, fallback: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    const adminAccess = await requestHasAdminAccess(request);
-    if (!adminAccess) {
+    const admin = await getAdminAccountFromRequest(request);
+    if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const statusParam = request.nextUrl.searchParams.get("status");
     const status = statusParam === "dismissed" || statusParam === "reviewed" ? statusParam : "open";
-    const reports = await listCommentReportsForAdmin(status);
+    const search = request.nextUrl.searchParams.get("search") ?? "";
+    const reports = await listCommentReportsForAdmin(status, search);
     return NextResponse.json({ reports });
   } catch (error) {
     return NextResponse.json({ error: errorMessage(error, "We couldn't load comment reports.") }, { status: 500 });
@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const adminAccess = await requestHasAdminAccess(request);
-    if (!adminAccess) {
+    const admin = await getAdminAccountFromRequest(request);
+    if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -41,12 +41,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Report id and status are required." }, { status: 400 });
     }
 
-    const userId = getAccountUserIdFromCookieHeader(request.headers.get("cookie"));
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    await updateCommentReportStatus(reportId, status, userId);
+    await updateCommentReportStatus(reportId, status, admin.userId);
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = errorMessage(error, "We couldn't update that report.");

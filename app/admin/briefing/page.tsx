@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAdminAuth } from "@/app/admin/admin-auth";
 import { buildBriefingLayout, serializeBriefingLayout, type BriefingLayout } from "@/app/lib/briefing-layout";
 import { imageObjectPosition } from "@/app/lib/image-focus";
 import type { BriefingPosition, StoryWithViews } from "@/app/lib/types";
@@ -55,7 +54,6 @@ function sortLibrary(stories: StoryWithViews[]) {
 }
 
 export default function AdminBriefingPage() {
-  const { adminToken, clearToken } = useAdminAuth();
   const [briefingStories, setBriefingStories] = useState<StoryWithViews[]>([]);
   const [libraryStories, setLibraryStories] = useState<StoryWithViews[]>([]);
   const [savedBriefing, setSavedBriefing] = useState<SavedBriefingItem[]>([]);
@@ -65,24 +63,16 @@ export default function AdminBriefingPage() {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
 
-  const loadStories = useCallback(async (token: string) => {
-    if (!token) return;
-
+  const loadStories = useCallback(async () => {
     setLoading(true);
     setError("");
     setStatus("");
 
-    try {
-      const res = await fetch("/api/admin/briefing", {
-        headers: { "x-admin-token": token },
-        cache: "no-store",
-      });
+      try {
+        const res = await fetch("/api/admin/briefing", {
+          cache: "no-store",
+        });
       const json = (await res.json().catch(() => ({}))) as AdminBriefingResponse;
-
-      if (res.status === 401) {
-        clearToken();
-        return;
-      }
 
       if (!res.ok) {
         throw new Error(json.error ?? res.statusText);
@@ -106,12 +96,11 @@ export default function AdminBriefingPage() {
     } finally {
       setLoading(false);
     }
-  }, [clearToken]);
+  }, []);
 
   useEffect(() => {
-    if (!adminToken) return;
-    void loadStories(adminToken);
-  }, [adminToken, loadStories]);
+    void loadStories();
+  }, [loadStories]);
 
   const hasUnsavedChanges = useMemo(() => {
     if (briefingStories.length !== savedBriefing.length) return true;
@@ -258,11 +247,6 @@ export default function AdminBriefingPage() {
   }
 
   async function saveOrder() {
-    if (!adminToken) {
-      clearToken();
-      return;
-    }
-
     setSaving(true);
     setError("");
     setStatus("");
@@ -272,7 +256,6 @@ export default function AdminBriefingPage() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-token": adminToken,
         },
         body: JSON.stringify({
           briefing: briefingStories.map((story) => ({
@@ -285,10 +268,6 @@ export default function AdminBriefingPage() {
       });
 
       const json = (await res.json().catch(() => ({}))) as AdminBriefingResponse;
-      if (res.status === 401) {
-        clearToken();
-        return;
-      }
       if (!res.ok) {
         throw new Error(json.error ?? res.statusText);
       }
@@ -328,9 +307,9 @@ export default function AdminBriefingPage() {
            </div>
 
           <div className="flex items-center gap-3">
-            <button onClick={clearToken} className="text-xs text-neutral-400 hover:text-neutral-200">
-              Lock admin
-            </button>
+            <Link href="/admin" className="text-xs text-neutral-400 hover:text-neutral-200">
+              Control center
+            </Link>
             <Link
               href="/admin/editor"
               className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white"
@@ -363,15 +342,15 @@ export default function AdminBriefingPage() {
               {status && <div className="text-sm text-emerald-400">{status}</div>}
               {error && <div className="text-sm text-red-300">{error}</div>}
               <button
-                onClick={() => void loadStories(adminToken)}
-                disabled={!adminToken || loading || saving}
+                onClick={() => void loadStories()}
+                disabled={loading || saving}
                 className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Refresh
               </button>
               <button
                 onClick={saveOrder}
-                disabled={!adminToken || loading || saving || !hasUnsavedChanges}
+                disabled={loading || saving || !hasUnsavedChanges}
                 className="rounded-full bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? "Saving..." : hasUnsavedChanges ? "Save briefing" : "Saved"}

@@ -1,9 +1,10 @@
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { requestHasAdminAccess } from "@/app/lib/admin.server";
+import { getAdminAccountFromRequest, requestHasAdminAccess } from "@/app/lib/admin.server";
 import { sendUrgentNotificationsForStory } from "@/app/lib/notifications.server";
 import { deleteStoryImage, isStoryImagePath, storyImagePublicUrl } from "@/app/lib/story-images";
+import { recordStoryRevision } from "@/app/lib/story-revisions";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { BriefingPosition, StoryImageDisplay, StoryStatus, StoryWithViews } from "@/app/lib/types";
 import {
@@ -86,7 +87,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(req: Request) {
   try {
-    if (!(await requestHasAdminAccess(req))) {
+    const admin = await getAdminAccountFromRequest(req);
+    if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -239,6 +241,18 @@ export async function POST(req: Request) {
 
     const { error } = await supabase.from("stories").upsert(story, { onConflict: "id" });
     if (error) throw error;
+
+    await recordStoryRevision({
+      action: "saved",
+      actorUserId: admin.userId,
+      snapshot: {
+        ...story,
+        created_at: existing?.created_at ?? nowIso,
+        updated_at: nowIso,
+        views: Number(incoming.views ?? 0),
+      } as StoryDbRow,
+      storyId: story.id,
+    });
 
     const existingImagePath = toNullableString(existing?.image_path);
     if (existingImagePath && existingImagePath !== normalizedImagePath) {

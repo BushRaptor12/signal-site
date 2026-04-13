@@ -1,0 +1,370 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { formatUpdatedAt } from "@/app/lib/dates";
+import type { AdminDashboardData, AdminManagedUser } from "@/app/lib/admin-tools";
+import type { CommunitySettings } from "@/app/lib/community-settings";
+import type { StaffRole } from "@/app/lib/account.server";
+
+type AdminDashboardClientProps = {
+  initialData: AdminDashboardData;
+  initialUsers: AdminManagedUser[];
+};
+
+type ToggleKey =
+  | "allowNewComments"
+  | "allowCommentReplies"
+  | "allowCommentVoting"
+  | "allowCommentRealtime"
+  | "commentsReadOnly";
+
+const TOGGLE_OPTIONS: Array<{ description: string; key: ToggleKey; label: string }> = [
+  { description: "Allow new top-level comments.", key: "allowNewComments", label: "New comments" },
+  { description: "Allow replies under existing comments.", key: "allowCommentReplies", label: "Replies" },
+  { description: "Allow thumbs up and thumbs down.", key: "allowCommentVoting", label: "Voting" },
+  { description: "Allow live browser subscriptions on story pages.", key: "allowCommentRealtime", label: "Realtime" },
+  { description: "Freeze comments into read-only mode.", key: "commentsReadOnly", label: "Read only" },
+];
+
+function SummaryCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
+      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{label}</div>
+      <div className="mt-3 text-3xl font-semibold text-neutral-100">{value}</div>
+    </div>
+  );
+}
+
+export default function AdminDashboardClient({ initialData, initialUsers }: AdminDashboardClientProps) {
+  const [settings, setSettings] = useState<CommunitySettings>(initialData.communitySettings);
+  const [users, setUsers] = useState<AdminManagedUser[]>(initialUsers);
+  const [userSearchDraft, setUserSearchDraft] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setUserSearch(userSearchDraft.trim()), 180);
+    return () => window.clearTimeout(timer);
+  }, [userSearchDraft]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadUsers() {
+      setBusyAction((current) => current ?? "user-search");
+      try {
+        const params = new URLSearchParams();
+        if (userSearch) params.set("search", userSearch);
+        const response = await fetch(`/api/admin/users?${params.toString()}`, { cache: "no-store" });
+        const data = (await response.json().catch(() => ({}))) as { error?: string; users?: AdminManagedUser[] };
+        if (!response.ok) {
+          throw new Error(data.error ?? "We couldn't load users.");
+        }
+        if (!cancelled) {
+          setUsers(Array.isArray(data.users) ? data.users : []);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : "We couldn't load users.");
+        }
+      } finally {
+        if (!cancelled) {
+          setBusyAction((current) => (current === "user-search" ? null : current));
+        }
+      }
+    }
+
+    void loadUsers();
+    return () => {
+      cancelled = true;
+    };
+  }, [userSearch]);
+
+  async function updateSetting(key: ToggleKey, value: boolean) {
+    const previous = settings;
+    const nextSettings = { ...settings, [key]: value };
+    setSettings(nextSettings);
+    setBusyAction(`setting:${String(key)}`);
+    setError("");
+    setStatus("");
+
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(nextSettings),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string; settings?: CommunitySettings };
+      if (!response.ok || !data.settings) {
+        throw new Error(data.error ?? "We couldn't update site settings.");
+      }
+
+      setSettings(data.settings);
+      setStatus("Community settings updated.");
+    } catch (updateError) {
+      setSettings(previous);
+      setError(updateError instanceof Error ? updateError.message : "We couldn't update site settings.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function updateStaffRole(userId: string, staffRole: StaffRole) {
+    setBusyAction(`role:${userId}`);
+    setError("");
+    setStatus("");
+
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ staffRole, targetUserId: userId }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string; user?: AdminManagedUser };
+      if (!response.ok || !data.user) {
+        throw new Error(data.error ?? "We couldn't update that user.");
+      }
+
+      setUsers((current) => current.map((user) => (user.userId === userId ? data.user! : user)));
+      setStatus(`Updated ${data.user.username}.`);
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "We couldn't update that user.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-neutral-900 p-8 text-neutral-100">
+      <div className="mx-auto max-w-7xl">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <div className="text-sm font-semibold uppercase tracking-[0.22em] text-neutral-500">Admin</div>
+            <h1 className="mt-2 text-3xl font-bold">Control Center</h1>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-400">
+              Launch view for community controls, staff access, story QA, recent activity, and the main editorial tools.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href="/admin/editor" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
+              Story editor
+            </Link>
+            <Link href="/admin/moderation" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
+              Moderation
+            </Link>
+            <Link href="/admin/briefing" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
+              Briefing manager
+            </Link>
+            <Link href="/notifications" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
+              Notifications
+            </Link>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center gap-4">
+          {status ? <div className="text-sm text-emerald-400">{status}</div> : null}
+          {error ? <div className="text-sm text-red-300">{error}</div> : null}
+        </div>
+
+        <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard label="Open Reports" value={initialData.summary.openReports} />
+          <SummaryCard label="Unread Alerts" value={initialData.summary.unreadAdminNotifications} />
+          <SummaryCard label="Draft Stories" value={initialData.summary.drafts} />
+          <SummaryCard label="Comments Today" value={initialData.summary.commentsToday} />
+          <SummaryCard label="Published Stories" value={initialData.summary.publishedStories} />
+          <SummaryCard label="Archived Stories" value={initialData.summary.archivedStories} />
+          <SummaryCard label="Briefing Stories" value={initialData.summary.briefingStories} />
+          <SummaryCard label="New Signups (7d)" value={initialData.summary.signups7d} />
+        </section>
+
+        <div className="mt-8 grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
+          <section className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Community</div>
+                <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Emergency Controls</h2>
+              </div>
+              <div className="text-xs text-neutral-500">
+                Updated {settings.updatedAt ? formatUpdatedAt(settings.updatedAt) : "just now"}
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              {TOGGLE_OPTIONS.map((toggle) => {
+                const enabled = settings[toggle.key];
+                const actionKey = `setting:${toggle.key}`;
+                return (
+                  <div key={toggle.key} className="flex items-center justify-between gap-4 rounded-2xl border border-[#13314b] bg-[#04111b] px-4 py-4">
+                    <div>
+                      <div className="text-sm font-medium text-neutral-100">{toggle.label}</div>
+                      <div className="mt-1 text-sm text-neutral-400">{toggle.description}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void updateSetting(toggle.key, !enabled)}
+                      disabled={busyAction === actionKey}
+                      className={`rounded-full border px-4 py-2 text-sm transition ${
+                        enabled
+                          ? "border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/10"
+                          : "border-red-400/40 text-red-200 hover:bg-red-500/10"
+                      } disabled:cursor-not-allowed disabled:opacity-60`}
+                    >
+                      {busyAction === actionKey ? "Saving..." : enabled ? "On" : "Off"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Staff</div>
+                <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Access</h2>
+              </div>
+            </div>
+
+            <input
+              value={userSearchDraft}
+              onChange={(event) => setUserSearchDraft(event.target.value)}
+              placeholder="Search by username or email"
+              className="mt-6 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-500"
+            />
+
+            <div className="mt-4 space-y-3">
+              {users.map((user) => (
+                <div key={user.userId} className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium text-neutral-100">{user.username}</div>
+                      <div className="mt-1 text-sm text-neutral-400">{user.email}</div>
+                      <div className="mt-2 text-xs uppercase tracking-[0.16em] text-neutral-500">
+                        {user.commentCount} comments • {user.openReportCount} open reports
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={user.staffRole}
+                        onChange={(event) => void updateStaffRole(user.userId, event.target.value as StaffRole)}
+                        disabled={busyAction === `role:${user.userId}`}
+                        className="rounded-full border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+                      >
+                        <option value="reader">Reader</option>
+                        <option value="moderator">Moderator</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {users.length === 0 ? <div className="text-sm text-neutral-500">No accounts matched that search.</div> : null}
+            </div>
+          </section>
+        </div>
+
+        <div className="mt-8 grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
+          <section className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Story QA</div>
+            <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Attention Needed</h2>
+
+            <div className="mt-6 space-y-4">
+              {initialData.attentionStories.map((story) => (
+                <Link
+                  key={story.id}
+                  href={`/admin/editor?story=${encodeURIComponent(story.id)}`}
+                  className="block rounded-2xl border border-[#13314b] bg-[#04111b] p-5 transition hover:border-[#8f7740]/60"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-medium text-neutral-100">{story.title}</div>
+                      <div className="mt-1 text-xs uppercase tracking-[0.16em] text-neutral-500">
+                        {story.status} • Updated {story.updatedAt ? formatUpdatedAt(story.updatedAt) : "recently"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {story.issues.map((issue) => (
+                      <span key={issue} className="rounded-full border border-[#163754] px-3 py-1 text-xs text-neutral-300">
+                        {issue}
+                      </span>
+                    ))}
+                  </div>
+                </Link>
+              ))}
+              {initialData.attentionStories.length === 0 ? <div className="text-sm text-neutral-500">No major story QA issues found.</div> : null}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Recent Activity</div>
+            <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Launch Feed</h2>
+
+            <div className="mt-6 space-y-6">
+              <div>
+                <div className="text-sm font-medium text-neutral-200">Recent comments</div>
+                <div className="mt-3 space-y-3">
+                  {initialData.recentComments.map((comment) => (
+                    <Link
+                      key={comment.id}
+                      href={`/story/${comment.storyId}?comment=${encodeURIComponent(comment.id)}#comment-${comment.id}`}
+                      className="block rounded-2xl border border-[#13314b] bg-[#04111b] p-4 transition hover:border-[#8f7740]/60"
+                    >
+                      <div className="text-sm text-neutral-100">{comment.username}</div>
+                      <div className="mt-1 text-xs text-neutral-500">
+                        {comment.storyTitle ?? comment.storyId} • {formatUpdatedAt(comment.createdAt)}
+                      </div>
+                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-neutral-300">{comment.body}</p>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-sm font-medium text-neutral-200">Recent signups</div>
+                <div className="mt-3 space-y-3">
+                  {initialData.recentSignups.map((signup) => (
+                    <div key={signup.userId} className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                      <div className="text-sm text-neutral-100">{signup.username}</div>
+                      <div className="mt-1 text-sm text-neutral-400">{signup.email}</div>
+                      <div className="mt-2 text-xs uppercase tracking-[0.16em] text-neutral-500">
+                        {signup.staffRole} • {formatUpdatedAt(signup.createdAt)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-sm font-medium text-neutral-200">Recent revisions</div>
+                <div className="mt-3 space-y-3">
+                  {initialData.recentRevisions.map((revision) => (
+                    <Link
+                      key={revision.id}
+                      href={`/admin/editor?story=${encodeURIComponent(revision.storyId)}`}
+                      className="block rounded-2xl border border-[#13314b] bg-[#04111b] p-4 transition hover:border-[#8f7740]/60"
+                    >
+                      <div className="text-sm text-neutral-100">{revision.storyId}</div>
+                      <div className="mt-1 text-xs uppercase tracking-[0.16em] text-neutral-500">
+                        {revision.action} • {formatUpdatedAt(revision.createdAt)}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  );
+}
