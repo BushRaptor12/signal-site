@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { NON_SINGULAR_TOKENS, PHRASE_KNOWLEDGE, TERM_KNOWLEDGE } from "@/app/lib/interest-knowledge";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { Story, StoryWithViews } from "@/app/lib/types";
@@ -67,50 +68,9 @@ const STOP_WORDS = new Set([
   "with",
 ]);
 
-const NON_SINGULAR_TOKENS = new Set([
-  "angeles",
-  "angels",
-]);
-
-const CONCEPT_EXPANSIONS: Record<string, string[]> = {
-  ai: ["artificial intelligence", "machine learning", "openai", "nvidia", "automation", "chatbots", "models"],
-  "artificial intelligence": ["ai", "machine learning", "openai", "nvidia", "chatbots", "models"],
-  business: ["businesses", "company", "companies", "corporate", "earnings", "startup", "startups", "markets", "ceo"],
-  businesses: ["business", "company", "companies", "corporate", "earnings", "startup", "startups", "markets", "ceo"],
-  california: [
-    "sacramento",
-    "los angeles",
-    "san francisco",
-    "bay area",
-    "silicon valley",
-    "san diego",
-    "oakland",
-    "anaheim",
-    "golden state warriors",
-    "lakers",
-    "dodgers",
-    "49ers",
-    "giants",
-    "padres",
-    "angels",
-    "kings",
-    "clippers",
-  ],
-  economy: ["economic", "economics", "inflation", "jobs", "labor", "gdp", "rates", "recession", "growth", "consumer"],
-  entertainment: ["hollywood", "film", "movie", "movies", "tv", "television", "music", "celebrity"],
-  finance: ["bank", "banks", "banking", "wall street", "stocks", "stock market", "markets", "investing"],
-  google: ["alphabet", "search", "android", "ai"],
-  microsoft: ["windows", "azure", "enterprise software", "ai"],
-  nvidia: ["ai", "chips", "semiconductors", "gpu", "gpus"],
-  oil: ["crude", "energy", "petroleum", "gas", "gasoline"],
-  openai: ["ai", "artificial intelligence", "chatgpt", "models"],
-  politics: ["political", "election", "elections", "campaign", "campaigns", "congress", "senate", "house", "governor", "policy"],
-  shipping: ["maritime", "ports", "cargo", "freight", "trade route", "sea lane"],
-  sports: ["sport", "athletics", "team", "teams", "league", "leagues", "game", "games", "season", "playoffs", "nba", "nfl", "mlb", "nhl", "soccer", "football", "basketball", "baseball", "hockey"],
-  technology: ["tech", "software", "hardware", "chips", "chip", "semiconductor", "internet", "platform", "platforms", "apps"],
-  trump: ["donald trump", "president trump", "white house"],
-  world: ["international", "global", "foreign", "diplomatic", "geopolitics"],
-};
+const NON_SINGULAR_TOKEN_SET = new Set<string>(NON_SINGULAR_TOKENS);
+const TERM_EXPANSION_MAP = TERM_KNOWLEDGE as Record<string, string[]>;
+const PHRASE_EXPANSION_MAP = PHRASE_KNOWLEDGE as Record<string, string[]>;
 
 function uniqueNonEmpty(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
@@ -138,7 +98,7 @@ export function normalizeInterestQuery(value: string) {
 }
 
 function singularizeToken(token: string) {
-  if (NON_SINGULAR_TOKENS.has(token)) {
+  if (NON_SINGULAR_TOKEN_SET.has(token)) {
     return token;
   }
 
@@ -183,12 +143,19 @@ function expandConceptPhrases(value: string) {
   const output = new Set<string>();
   const seeds = new Set<string>([normalizedValue]);
 
+  for (const expansion of PHRASE_EXPANSION_MAP[normalizedValue] ?? []) {
+    const normalizedExpansion = normalizeInterestQuery(expansion);
+    if (normalizedExpansion) {
+      output.add(normalizedExpansion);
+    }
+  }
+
   for (const token of tokenizeText(normalizedValue)) {
     seeds.add(token);
   }
 
   for (const seed of seeds) {
-    const expansions = CONCEPT_EXPANSIONS[seed] ?? [];
+    const expansions = TERM_EXPANSION_MAP[seed] ?? [];
     for (const expansion of expansions) {
       const normalizedExpansion = normalizeInterestQuery(expansion);
       if (normalizedExpansion) {
@@ -629,8 +596,7 @@ export async function getSemanticStoryIdsForUser(
       supabase
         .from("user_interest_follows")
         .select("query, normalized_query, embedding")
-        .eq("user_id", userId)
-        .select("query, normalized_query, embedding"),
+        .eq("user_id", userId),
       supabase
         .from("story_embeddings")
         .select("story_id, embedding")
