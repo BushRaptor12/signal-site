@@ -117,6 +117,10 @@ function uniqueNonEmpty(values) {
   return [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
 }
 
+function normalizeKeywordList(values) {
+  return uniqueNonEmpty(values.map((value) => normalizeInterestQuery(value)));
+}
+
 function toStringArray(value) {
   return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
 }
@@ -151,19 +155,24 @@ function collectConceptPhrases(values) {
   return uniqueNonEmpty(values.flatMap((value) => [value, ...expandConceptPhrases(value)]));
 }
 
-function buildInterestEmbeddingInput(query) {
+function buildInterestEmbeddingInputWithKeywords(query, matchKeywords) {
   const normalizedQuery = normalizeInterestQuery(query);
-  const phrases = new Set([normalizedQuery]);
+  const normalizedKeywords = normalizeKeywordList(matchKeywords ?? []);
+  const phrases = new Set([normalizedQuery, ...normalizedKeywords]);
 
   for (const phrase of expandConceptPhrases(normalizedQuery)) {
     phrases.add(phrase);
   }
 
-  if (tokenizeText(normalizedQuery).size <= 3 && phrases.size > 1) {
-    return uniqueNonEmpty([String(query ?? "").trim(), ...phrases]).join("\n");
+  for (const phrase of normalizedKeywords) {
+    phrases.add(phrase);
   }
 
-  return String(query ?? "").trim();
+  if (tokenizeText(normalizedQuery).size <= 3 && phrases.size > 1) {
+    return uniqueNonEmpty([String(query ?? "").trim(), ...normalizedKeywords, ...phrases]).join("\n");
+  }
+
+  return uniqueNonEmpty([String(query ?? "").trim(), ...normalizedKeywords]).join("\n");
 }
 
 function buildStoryEmbeddingInput(row) {
@@ -281,7 +290,7 @@ async function backfillStories() {
 async function backfillInterests() {
   const { data: interests, error } = await supabase
     .from("user_interest_follows")
-    .select("id, query")
+    .select("id, query, match_keywords")
     .order("updated_at", { ascending: false });
 
   if (error) {
@@ -290,7 +299,12 @@ async function backfillInterests() {
 
   let updatedCount = 0;
   for (const interest of interests ?? []) {
-    const embedding = await generateEmbedding(buildInterestEmbeddingInput(String(interest.query ?? "")));
+    const embedding = await generateEmbedding(
+      buildInterestEmbeddingInputWithKeywords(
+        String(interest.query ?? ""),
+        Array.isArray(interest.match_keywords) ? interest.match_keywords.map(String) : []
+      )
+    );
     const { error: updateError } = await supabase
       .from("user_interest_follows")
       .update({

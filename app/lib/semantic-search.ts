@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   CONCEPT_INTENT_MAP,
+  CONCEPT_VALUE_IDS,
   NON_SINGULAR_TOKENS,
   PHRASE_INTENT_MAP,
   PHRASE_KNOWLEDGE,
@@ -29,6 +30,8 @@ type StoryEmbeddingShape = Pick<
 type StoredInterestEmbeddingRow = {
   id?: number | string | null;
   embedding: number[] | string | null;
+  exclude_keywords?: string[] | null;
+  match_keywords?: string[] | null;
   normalized_query: string | null;
   query: string | null;
 };
@@ -50,7 +53,9 @@ type ConceptGroup = {
 
 type InterestSearchProfile = {
   conceptGroups: ConceptGroup[];
+  excludeKeywords: string[];
   intentDimensions: IntentDimension[];
+  matchKeywords: string[];
   normalizedQuery: string;
   rawQuery: string;
   phrases: Set<string>;
@@ -141,6 +146,7 @@ const STOP_WORDS = new Set([
 
 const NON_SINGULAR_TOKEN_SET = new Set<string>(NON_SINGULAR_TOKENS);
 const CONCEPT_INTENTS = CONCEPT_INTENT_MAP as Record<string, ConceptIntentDefinition>;
+const CONCEPT_VALUE_MAP = CONCEPT_VALUE_IDS as Record<string, string[]>;
 const TERM_CONCEPT_MAP = TERM_CONCEPT_IDS as Record<string, string[]>;
 const PHRASE_INTENT_CONCEPT_MAP = PHRASE_INTENT_MAP as Record<string, string[]>;
 const TERM_EXPANSION_MAP = TERM_KNOWLEDGE as Record<string, string[]>;
@@ -261,6 +267,10 @@ function createTermSet(values: string[]) {
   return terms;
 }
 
+function normalizeKeywordList(values: string[]) {
+  return uniqueNonEmpty(values.map((value) => normalizeInterestQuery(value)));
+}
+
 function buildConceptGroups(normalizedQuery: string) {
   const rawTokens = normalizeInterestQuery(normalizedQuery)
     .split(/[^a-z0-9]+/)
@@ -309,6 +319,25 @@ function toConceptTerms(conceptIds: string[]) {
 function buildIntentDimensions(normalizedQuery: string) {
   const matchedConceptIds = new Set<string>(PHRASE_INTENT_CONCEPT_MAP[normalizedQuery] ?? []);
   const querySeeds = new Set<string>([normalizedQuery]);
+  const rawWords = normalizeInterestQuery(normalizedQuery)
+    .split(/[^a-z0-9]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  for (let start = 0; start < rawWords.length; start += 1) {
+    for (let length = 1; length <= Math.min(3, rawWords.length - start); length += 1) {
+      const seed = rawWords.slice(start, start + length).join(" ");
+      if (seed) {
+        querySeeds.add(seed);
+      }
+    }
+  }
+
+  for (const seed of querySeeds) {
+    for (const conceptId of CONCEPT_VALUE_MAP[seed] ?? []) {
+      matchedConceptIds.add(conceptId);
+    }
+  }
 
   for (const token of tokenizeText(normalizedQuery)) {
     querySeeds.add(token);
@@ -349,10 +378,22 @@ function buildIntentDimensions(normalizedQuery: string) {
   return [...dimensions.values()];
 }
 
-function buildInterestSearchProfile(query: string, normalizedQuery = normalizeInterestQuery(query)): InterestSearchProfile {
+function buildInterestSearchProfile(
+  query: string,
+  normalizedQuery = normalizeInterestQuery(query),
+  options?: {
+    excludeKeywords?: string[];
+    matchKeywords?: string[];
+  }
+): InterestSearchProfile {
   const phrases = new Set<string>([normalizedQuery]);
   for (const phrase of expandConceptPhrases(normalizedQuery)) {
     phrases.add(phrase);
+  }
+  const matchKeywords = normalizeKeywordList(options?.matchKeywords ?? []);
+  const excludeKeywords = normalizeKeywordList(options?.excludeKeywords ?? []);
+  for (const matchKeyword of matchKeywords) {
+    phrases.add(matchKeyword);
   }
 
   const tokens = new Set<string>();
@@ -364,7 +405,9 @@ function buildInterestSearchProfile(query: string, normalizedQuery = normalizeIn
 
   return {
     conceptGroups: buildConceptGroups(normalizedQuery),
+    excludeKeywords,
     intentDimensions: buildIntentDimensions(normalizedQuery),
+    matchKeywords,
     normalizedQuery,
     rawQuery: query.trim(),
     phrases,
@@ -600,6 +643,18 @@ export function buildInterestEmbeddingInput(query: string) {
   return query.trim();
 }
 
+function buildInterestEmbeddingInputWithKeywords(query: string, matchKeywords: string[]) {
+  const normalizedQuery = normalizeInterestQuery(query);
+  const searchProfile = buildInterestSearchProfile(query, normalizedQuery, { matchKeywords });
+  const expansionPhrases = [...searchProfile.phrases].filter((phrase) => phrase !== normalizedQuery);
+
+  if (searchProfile.wordCount <= 3 && expansionPhrases.length > 0) {
+    return uniqueNonEmpty([query.trim(), ...matchKeywords, ...expansionPhrases]).join("\n");
+  }
+
+  return uniqueNonEmpty([query.trim(), ...matchKeywords]).join("\n");
+}
+
 export function buildStoryEmbeddingInput(story: StoryEmbeddingShape) {
   const sourceTitles = story.sources.map((source) => [source.name, source.title ?? ""].join(" - "));
   const entityTokens = story.entities.flatMap((entity) => [entity.name, ...entity.aliases]);
@@ -694,6 +749,15 @@ function scoreInterestAgainstStory(
   storyProfile: StorySearchProfile,
   similarityThreshold: number
 ) {
+  const excludedKeywordHit = interestProfile.excludeKeywords.some((keyword) => storyProfile.allText.includes(keyword));
+  if (excludedKeywordHit) {
+    return {
+      matched: false,
+      reasons: [] as string[],
+      score: -1,
+    };
+  }
+
   const semanticSimilarity = interestEmbedding && storyEmbedding ? cosineSimilarity(interestEmbedding, storyEmbedding) : 0;
   const exactPhraseMatch = storyProfile.allText.includes(interestProfile.normalizedQuery);
   const expandedPhraseMatches = [...interestProfile.phrases]
@@ -721,6 +785,8 @@ function scoreInterestAgainstStory(
   const hasRequiredIntentCoverage =
     requiredIntentDimensionCount === 0 || coveredIntentDimensions.length >= requiredIntentDimensionCount;
   const overlapRatio = allMatches / Math.max(2, Math.min(interestProfile.tokens.size, interestProfile.wordCount <= 2 ? 5 : 7));
+  const matchedKeywordHits = interestProfile.matchKeywords.filter((keyword) => storyProfile.allText.includes(keyword));
+  const hasRequiredMatchKeywords = interestProfile.matchKeywords.length === 0 || matchedKeywordHits.length > 0;
   const hybridScore =
     semanticSimilarity
     + (exactPhraseMatch ? 0.2 : 0)
@@ -733,13 +799,15 @@ function scoreInterestAgainstStory(
     + Math.min(tagMatches, 2) * 0.04
     + Math.min(coveredIntentDimensions.length, 2) * 0.12
     + (hasRequiredIntentCoverage && requiredIntentDimensionCount > 0 ? 0.1 : 0)
+    + Math.min(matchedKeywordHits.length, 2) * 0.15
     + Math.min(interestProfile.wordCount <= 2 ? 0.22 : 0.16, overlapRatio * (interestProfile.wordCount <= 2 ? 0.3 : 0.18));
   const shortInterest = interestProfile.wordCount <= 2;
   const noEmbedding = !interestEmbedding;
   const semanticFloor = shortInterest ? Math.max(0.12, similarityThreshold - 0.04) : similarityThreshold;
   const strongSemantic = semanticSimilarity >= (shortInterest ? 0.18 : 0.22);
   const structuredSignal =
-    hasRequiredIntentCoverage
+    hasRequiredMatchKeywords
+    && hasRequiredIntentCoverage
     && hasCompoundCoverage
     && (
       exactPhraseMatch
@@ -753,6 +821,7 @@ function scoreInterestAgainstStory(
   const minimumHybridScore = noEmbedding ? (shortInterest ? 0.28 : 0.26) : shortInterest ? 0.34 : 0.3;
   const structuredOnlyMatch =
     noEmbedding
+    && hasRequiredMatchKeywords
     && hasRequiredIntentCoverage
     && hasCompoundCoverage
     && hybridScore >= minimumHybridScore
@@ -766,8 +835,18 @@ function scoreInterestAgainstStory(
   return {
     matched:
       structuredOnlyMatch
-      || (strongSemantic && hasRequiredIntentCoverage && (!needsCompoundCoverage || hasCompoundCoverage || semanticSimilarity >= 0.32))
-      || ((semanticSimilarity >= semanticFloor || structuredSignal) && hybridScore >= minimumHybridScore && hasRequiredIntentCoverage),
+      || (
+        strongSemantic
+        && hasRequiredMatchKeywords
+        && hasRequiredIntentCoverage
+        && (!needsCompoundCoverage || hasCompoundCoverage || semanticSimilarity >= 0.32)
+      )
+      || (
+        (semanticSimilarity >= semanticFloor || structuredSignal)
+        && hybridScore >= minimumHybridScore
+        && hasRequiredMatchKeywords
+        && hasRequiredIntentCoverage
+      ),
     reasons: buildMatchReasons({
       coveredConceptLabels,
       coveredIntentLabels,
@@ -794,12 +873,18 @@ export async function generateEmbedding(value: string) {
   return Array.from(result.data as Float32Array);
 }
 
-export async function updateInterestEmbeddingRecord(interestId: string, query: string) {
+export async function updateInterestEmbeddingRecord(
+  interestId: string,
+  query: string,
+  options?: {
+    matchKeywords?: string[];
+  }
+) {
   const supabase = supabaseServer();
   const nowIso = new Date().toISOString();
 
   try {
-    const embedding = await generateEmbedding(buildInterestEmbeddingInput(query));
+    const embedding = await generateEmbedding(buildInterestEmbeddingInputWithKeywords(query, options?.matchKeywords ?? []));
     const { error } = await supabase
       .from("user_interest_follows")
       .update({
@@ -914,7 +999,7 @@ export async function getSemanticStoryMatchesForUser(
   try {
     let interestQuery = supabase
       .from("user_interest_follows")
-      .select("id, query, normalized_query, embedding")
+      .select("id, query, normalized_query, match_keywords, exclude_keywords, embedding")
       .eq("user_id", userId);
 
     if (interestIds.length > 0) {
@@ -987,7 +1072,10 @@ export async function getSemanticStoryMatchesForUser(
         return {
           embedding: embedding ?? null,
           interestId,
-          profile: buildInterestSearchProfile(query, normalizedQuery),
+          profile: buildInterestSearchProfile(query, normalizedQuery, {
+            excludeKeywords: Array.isArray(row.exclude_keywords) ? row.exclude_keywords.map(String) : [],
+            matchKeywords: Array.isArray(row.match_keywords) ? row.match_keywords.map(String) : [],
+          }),
         };
       })
       .filter((row): row is { embedding: number[] | null; interestId: string; profile: InterestSearchProfile } => row !== null);

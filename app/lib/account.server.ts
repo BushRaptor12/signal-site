@@ -57,6 +57,8 @@ type UserInterestFollowRow = {
   created_at: string;
   embedding_state?: string | null;
   id: number | string;
+  exclude_keywords?: string[] | null;
+  match_keywords?: string[] | null;
   normalized_query: string;
   query: string;
   updated_at: string;
@@ -89,7 +91,9 @@ export type FollowedStory = {
 export type FollowedInterest = {
   createdAt: string;
   embeddingState: EmbeddingState;
+  excludeKeywords: string[];
   id: string;
+  matchKeywords: string[];
   normalizedQuery: string;
   query: string;
   updatedAt: string;
@@ -334,11 +338,17 @@ function toFollowedInterest(row: UserInterestFollowRow): FollowedInterest {
   return {
     createdAt: row.created_at,
     embeddingState: toEmbeddingState(row.embedding_state),
+    excludeKeywords: Array.isArray(row.exclude_keywords) ? row.exclude_keywords.map(String).filter(Boolean) : [],
     id: String(row.id),
+    matchKeywords: Array.isArray(row.match_keywords) ? row.match_keywords.map(String).filter(Boolean) : [],
     normalizedQuery: row.normalized_query,
     query: row.query,
     updatedAt: row.updated_at,
   };
+}
+
+function normalizeInterestKeywords(values: string[]) {
+  return [...new Set(values.map((value) => normalizeInterestQuery(value)).filter(Boolean))];
 }
 
 async function findAvailableUsername(seed: string) {
@@ -518,7 +528,7 @@ export async function getFollowedInterests(userId: string) {
   const supabase = supabaseServer();
   const { data, error } = await supabase
     .from("user_interest_follows")
-    .select("id, query, normalized_query, embedding_state, created_at, updated_at")
+    .select("id, query, normalized_query, match_keywords, exclude_keywords, embedding_state, created_at, updated_at")
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
 
@@ -669,7 +679,7 @@ export async function createInterestFollow(userId: string, query: string) {
   const supabase = supabaseServer();
   const { data: existing, error: existingError } = await supabase
     .from("user_interest_follows")
-    .select("id, query, normalized_query, embedding_state, created_at, updated_at")
+    .select("id, query, normalized_query, match_keywords, exclude_keywords, embedding_state, created_at, updated_at")
     .eq("user_id", userId)
     .eq("normalized_query", normalizedQuery)
     .maybeSingle();
@@ -681,7 +691,9 @@ export async function createInterestFollow(userId: string, query: string) {
   if (existing) {
     const followedInterest = toFollowedInterest(existing as UserInterestFollowRow);
     if (followedInterest.embeddingState !== "ready") {
-      await updateInterestEmbeddingRecord(followedInterest.id, followedInterest.query);
+      await updateInterestEmbeddingRecord(followedInterest.id, followedInterest.query, {
+        matchKeywords: followedInterest.matchKeywords,
+      });
     }
     return followedInterest;
   }
@@ -693,12 +705,14 @@ export async function createInterestFollow(userId: string, query: string) {
       user_id: userId,
       query: trimmedQuery,
       normalized_query: normalizedQuery,
+      match_keywords: [],
+      exclude_keywords: [],
       embedding_model: SENTENCE_TRANSFORMER_MODEL,
       embedding_state: "pending",
       embedding_updated_at: nowIso,
       updated_at: nowIso,
     })
-    .select("id, query, normalized_query, embedding_state, created_at, updated_at")
+    .select("id, query, normalized_query, match_keywords, exclude_keywords, embedding_state, created_at, updated_at")
     .single();
 
   if (error) {
@@ -706,7 +720,53 @@ export async function createInterestFollow(userId: string, query: string) {
   }
 
   const followedInterest = toFollowedInterest(data as UserInterestFollowRow);
-  await updateInterestEmbeddingRecord(followedInterest.id, followedInterest.query);
+  await updateInterestEmbeddingRecord(followedInterest.id, followedInterest.query, {
+    matchKeywords: followedInterest.matchKeywords,
+  });
+  return followedInterest;
+}
+
+export async function updateInterestFollowSettings(
+  userId: string,
+  interestId: string,
+  options: {
+    excludeKeywords?: string[];
+    matchKeywords?: string[];
+  }
+) {
+  const numericId = Number(interestId);
+  if (!Number.isInteger(numericId) || numericId <= 0) {
+    throw new Error("Interest id is invalid.");
+  }
+
+  const matchKeywords = normalizeInterestKeywords(options.matchKeywords ?? []);
+  const excludeKeywords = normalizeInterestKeywords(options.excludeKeywords ?? []);
+  if (matchKeywords.length > 24 || excludeKeywords.length > 24) {
+    throw new Error("Keep interest keyword lists to 24 items or fewer.");
+  }
+
+  const supabase = supabaseServer();
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("user_interest_follows")
+    .update({
+      exclude_keywords: excludeKeywords,
+      match_keywords: matchKeywords,
+      updated_at: nowIso,
+    })
+    .eq("user_id", userId)
+    .eq("id", numericId)
+    .select("id, query, normalized_query, match_keywords, exclude_keywords, embedding_state, created_at, updated_at")
+    .single();
+
+  if (error) {
+    throw new Error(friendlyInterestError(error.message, "We couldn't update that interest."));
+  }
+
+  const followedInterest = toFollowedInterest(data as UserInterestFollowRow);
+  await updateInterestEmbeddingRecord(followedInterest.id, followedInterest.query, {
+    matchKeywords: followedInterest.matchKeywords,
+  });
   return followedInterest;
 }
 

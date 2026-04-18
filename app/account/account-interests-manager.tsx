@@ -11,6 +11,11 @@ type AccountInterestsManagerProps = {
   storyLinkFrom?: string;
 };
 
+type KeywordDraftState = {
+  excludeKeywords: string;
+  matchKeywords: string;
+};
+
 function toInterestGroup(interest: FollowedInterest | FollowedInterestWithMatches) {
   const candidate = interest as Partial<FollowedInterestWithMatches>;
   return {
@@ -18,6 +23,14 @@ function toInterestGroup(interest: FollowedInterest | FollowedInterestWithMatche
     hiddenCount: typeof candidate.hiddenCount === "number" ? candidate.hiddenCount : 0,
     matches: Array.isArray(candidate.matches) ? candidate.matches : [],
   } satisfies FollowedInterestWithMatches;
+}
+
+function toKeywordDraft(values: string[]) {
+  return values.join("\n");
+}
+
+function parseKeywordDraft(value: string) {
+  return [...new Set(value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean))];
 }
 
 export default function AccountInterestsManager({
@@ -28,9 +41,11 @@ export default function AccountInterestsManager({
   const [expandedInterestIds, setExpandedInterestIds] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [keywordDrafts, setKeywordDrafts] = useState<Record<string, KeywordDraftState>>({});
   const [pendingCreate, setPendingCreate] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [pendingHideKey, setPendingHideKey] = useState<string | null>(null);
+  const [pendingUpdateId, setPendingUpdateId] = useState<string | null>(null);
 
   async function addInterest() {
     const trimmedDraft = draft.trim();
@@ -66,6 +81,13 @@ export default function AccountInterestsManager({
 
         return [nextInterest, ...current];
       });
+      setKeywordDrafts((current) => ({
+        ...current,
+        [nextInterest.id]: {
+          excludeKeywords: toKeywordDraft(nextInterest.excludeKeywords),
+          matchKeywords: toKeywordDraft(nextInterest.matchKeywords),
+        },
+      }));
       setExpandedInterestIds((current) => [...new Set([nextInterest.id, ...current])]);
       setDraft("");
       emitAccountFollowsUpdated();
@@ -94,6 +116,11 @@ export default function AccountInterestsManager({
 
       setInterests((current) => current.filter((interest) => interest.id !== id));
       setExpandedInterestIds((current) => current.filter((interestId) => interestId !== id));
+      setKeywordDrafts((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
       emitAccountFollowsUpdated();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "We couldn't remove that interest.");
@@ -147,6 +174,59 @@ export default function AccountInterestsManager({
     );
   }
 
+  function draftStateForInterest(interest: FollowedInterestWithMatches) {
+    return (
+      keywordDrafts[interest.id] ?? {
+        excludeKeywords: toKeywordDraft(interest.excludeKeywords),
+        matchKeywords: toKeywordDraft(interest.matchKeywords),
+      }
+    );
+  }
+
+  async function saveInterestSettings(interest: FollowedInterestWithMatches) {
+    if (pendingUpdateId) return;
+
+    const draftState = draftStateForInterest(interest);
+    setPendingUpdateId(interest.id);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/account/interests/${encodeURIComponent(interest.id)}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          excludeKeywords: parseKeywordDraft(draftState.excludeKeywords),
+          matchKeywords: parseKeywordDraft(draftState.matchKeywords),
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        interest?: FollowedInterest | FollowedInterestWithMatches;
+      };
+
+      if (!response.ok || !data.interest) {
+        throw new Error(data.error ?? "We couldn't update that interest.");
+      }
+
+      const nextInterest = toInterestGroup(data.interest);
+      setInterests((current) => current.map((item) => (item.id === nextInterest.id ? nextInterest : item)));
+      setKeywordDrafts((current) => ({
+        ...current,
+        [nextInterest.id]: {
+          excludeKeywords: toKeywordDraft(nextInterest.excludeKeywords),
+          matchKeywords: toKeywordDraft(nextInterest.matchKeywords),
+        },
+      }));
+      emitAccountFollowsUpdated();
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "We couldn't update that interest.");
+    } finally {
+      setPendingUpdateId(null);
+    }
+  }
+
   return (
     <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
       <div className="text-sm leading-7 text-neutral-300">
@@ -186,6 +266,8 @@ export default function AccountInterestsManager({
         <div className="mt-5 space-y-4">
           {interests.map((interest) => {
             const isExpanded = expandedInterestIds.includes(interest.id);
+            const keywordDraft = draftStateForInterest(interest);
+            const pendingUpdate = pendingUpdateId === interest.id;
 
             return (
               <section key={interest.id} className="rounded-2xl border border-[#163754] bg-[#020b14] p-5">
@@ -217,11 +299,129 @@ export default function AccountInterestsManager({
                 </div>
 
                 {!isExpanded ? null : interest.matches.length === 0 ? (
-                  <div className="mt-4 rounded-2xl border border-[#13314b] bg-[#04111b] p-4 text-sm leading-7 text-neutral-400">
-                    No live matches yet for this interest. Try a more specific phrase or wait for newer stories.
+                  <div className="mt-4 space-y-3">
+                    <div className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Advanced</div>
+                      <p className="mt-2 text-sm leading-6 text-neutral-400">
+                        Use include keywords to force a stronger link for obscure interests. Use exclude keywords to filter false positives.
+                      </p>
+
+                      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                        <label className="block">
+                          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Must match keywords</div>
+                          <textarea
+                            value={keywordDraft.matchKeywords}
+                            onChange={(event) =>
+                              setKeywordDrafts((current) => ({
+                                ...current,
+                                [interest.id]: {
+                                  ...draftStateForInterest(interest),
+                                  matchKeywords: event.target.value,
+                                },
+                              }))
+                            }
+                            rows={5}
+                            placeholder="artist&#10;album&#10;concert"
+                            className="mt-2 w-full rounded-xl border border-[#163754] bg-[#020b14] px-4 py-3 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/70"
+                          />
+                        </label>
+
+                        <label className="block">
+                          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Exclude keywords</div>
+                          <textarea
+                            value={keywordDraft.excludeKeywords}
+                            onChange={(event) =>
+                              setKeywordDrafts((current) => ({
+                                ...current,
+                                [interest.id]: {
+                                  ...draftStateForInterest(interest),
+                                  excludeKeywords: event.target.value,
+                                },
+                              }))
+                            }
+                            rows={5}
+                            placeholder="school choir&#10;principal"
+                            className="mt-2 w-full rounded-xl border border-[#163754] bg-[#020b14] px-4 py-3 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/70"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="mt-4">
+                        <button
+                          type="button"
+                          onClick={() => void saveInterestSettings(interest)}
+                          disabled={pendingUpdate}
+                          className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {pendingUpdate ? "Saving" : "Save settings"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4 text-sm leading-7 text-neutral-400">
+                      No live matches yet for this interest. Try a more specific phrase, add must-match keywords, or wait for newer stories.
+                    </div>
                   </div>
                 ) : (
                   <div className="mt-4 space-y-3">
+                    <div className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Advanced</div>
+                      <p className="mt-2 text-sm leading-6 text-neutral-400">
+                        Use include keywords to force a stronger link for obscure interests. Use exclude keywords to filter false positives.
+                      </p>
+
+                      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                        <label className="block">
+                          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Must match keywords</div>
+                          <textarea
+                            value={keywordDraft.matchKeywords}
+                            onChange={(event) =>
+                              setKeywordDrafts((current) => ({
+                                ...current,
+                                [interest.id]: {
+                                  ...draftStateForInterest(interest),
+                                  matchKeywords: event.target.value,
+                                },
+                              }))
+                            }
+                            rows={5}
+                            placeholder="artist&#10;album&#10;concert"
+                            className="mt-2 w-full rounded-xl border border-[#163754] bg-[#020b14] px-4 py-3 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/70"
+                          />
+                        </label>
+
+                        <label className="block">
+                          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Exclude keywords</div>
+                          <textarea
+                            value={keywordDraft.excludeKeywords}
+                            onChange={(event) =>
+                              setKeywordDrafts((current) => ({
+                                ...current,
+                                [interest.id]: {
+                                  ...draftStateForInterest(interest),
+                                  excludeKeywords: event.target.value,
+                                },
+                              }))
+                            }
+                            rows={5}
+                            placeholder="school choir&#10;principal"
+                            className="mt-2 w-full rounded-xl border border-[#163754] bg-[#020b14] px-4 py-3 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/70"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="mt-4">
+                        <button
+                          type="button"
+                          onClick={() => void saveInterestSettings(interest)}
+                          disabled={pendingUpdate}
+                          className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {pendingUpdate ? "Saving" : "Save settings"}
+                        </button>
+                      </div>
+                    </div>
+
                     {interest.hiddenCount > 0 ? (
                       <div className="text-xs uppercase tracking-[0.16em] text-neutral-500">
                         Hidden matches: {interest.hiddenCount}
