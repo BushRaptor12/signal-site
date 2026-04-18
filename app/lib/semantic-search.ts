@@ -122,6 +122,7 @@ export type SemanticStoryMatch = {
 
 export type SemanticInterestStoryMatches = {
   hiddenCount: number;
+  hiddenStoryIds: string[];
   interestId: string;
   matches: SemanticStoryMatch[];
 };
@@ -1126,6 +1127,7 @@ export async function getSemanticStoryMatchesForUser(
 
       matchGroups.push({
         hiddenCount: hiddenStoryIds.size,
+        hiddenStoryIds: [...hiddenStoryIds],
         interestId: interest.interestId,
         matches: nearestStories,
       });

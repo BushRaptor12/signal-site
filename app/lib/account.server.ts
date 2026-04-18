@@ -107,6 +107,7 @@ export type FollowedInterestStoryMatch = {
 
 export type FollowedInterestWithMatches = FollowedInterest & {
   hiddenCount: number;
+  hiddenStoryIds: string[];
   matches: FollowedInterestStoryMatch[];
 };
 
@@ -581,6 +582,7 @@ export async function getFollowedInterestsWithMatches(userId: string, interests?
     return {
       ...interest,
       hiddenCount: group?.hiddenCount ?? 0,
+      hiddenStoryIds: group?.hiddenStoryIds ?? [],
       matches: (group?.matches ?? [])
         .map((match) => {
           const story = storiesById.get(match.storyId);

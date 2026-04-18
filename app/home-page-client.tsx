@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FollowedInterestWithMatches } from "@/app/lib/account.server";
-import { ACCOUNT_FOLLOWS_UPDATED_EVENT } from "./lib/account-events";
+import { ACCOUNT_FOLLOWS_UPDATED_EVENT, emitAccountFollowsUpdated } from "./lib/account-events";
 import {
   STORY_COMMENT_COUNT_UPDATED_EVENT,
   readStoredStoryCommentCountUpdate,
@@ -199,6 +199,7 @@ export default function HomePageClient({
   const [followedInterests, setFollowedInterests] = useState<FollowedInterestWithMatches[]>(initialFollowedInterests);
   const [semanticStoryIds, setSemanticStoryIds] = useState<string[]>(initialSemanticStoryIds);
   const [loadingFollowState, setLoadingFollowState] = useState(false);
+  const [pendingHideKey, setPendingHideKey] = useState<string | null>(null);
   const pendingScrollRestoreRef = useRef<{ attempts: number; scrollY: number; tabKey: TabKey } | null>(null);
 
   useEffect(() => {
@@ -417,6 +418,13 @@ export default function HomePageClient({
 
     return map;
   }, [followedInterests]);
+  const hiddenInterestStoryIdsByQuery = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const interest of followedInterests) {
+      map.set(interest.normalizedQuery, new Set(interest.hiddenStoryIds ?? []));
+    }
+    return map;
+  }, [followedInterests]);
   const topicStoriesByTab = useMemo(() => {
     const entries: Array<[string, StoryWithViews[]]> = PRESET_TOPIC_TABS.map((topic) => [
       topic,
@@ -431,9 +439,15 @@ export default function HomePageClient({
         if (followedStoryIdSet.has(story.id)) return true;
         if (semanticInterestMatchesByStoryId.has(story.id)) return true;
         if (semanticStoryIdSet.has(story.id)) return true;
-        return followedInterestQueries.some((query) => storyMatchesInterest(story, query));
+        return followedInterestQueries.some((query) => {
+          if (hiddenInterestStoryIdsByQuery.get(query)?.has(story.id)) {
+            return false;
+          }
+
+          return storyMatchesInterest(story, query);
+        });
       }),
-    [followedInterestQueries, followedStoryIdSet, recentStories, semanticInterestMatchesByStoryId, semanticStoryIdSet]
+    [followedInterestQueries, followedStoryIdSet, hiddenInterestStoryIdsByQuery, recentStories, semanticInterestMatchesByStoryId, semanticStoryIdSet]
   );
   const visible = useMemo(() => {
     if (activeTab === "following") return followingStories;
@@ -445,6 +459,47 @@ export default function HomePageClient({
   }, [activeTab, followingStories, recentStories, topicStoriesByTab]);
   const visibleStories = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
   const canLoadMore = visibleCount < visible.length;
+
+  async function hideStoryForInterest(interestQuery: string, storyId: string) {
+    const matchedInterest = followedInterests.find((interest) => interest.query === interestQuery);
+    if (!matchedInterest || pendingHideKey) return;
+
+    const pendingKey = `${matchedInterest.id}:${storyId}`;
+    setPendingHideKey(pendingKey);
+
+    try {
+      const response = await fetch(
+        `/api/account/interests/${encodeURIComponent(matchedInterest.id)}/stories/${encodeURIComponent(storyId)}`,
+        {
+          method: "POST",
+        }
+      );
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "We couldn't hide that story for this interest.");
+      }
+
+      setFollowedInterests((current) =>
+        current.map((interest) =>
+          interest.id === matchedInterest.id
+            ? {
+                ...interest,
+                hiddenCount: interest.hiddenCount + 1,
+                hiddenStoryIds: [...new Set([...(interest.hiddenStoryIds ?? []), storyId])],
+                matches: interest.matches.filter((match) => match.story.id !== storyId),
+              }
+            : interest
+        )
+      );
+      setSemanticStoryIds((current) => current.filter((value) => value !== storyId));
+      emitAccountFollowsUpdated();
+    } catch {
+      // keep the UI stable; the interests page still exposes the same control path
+    } finally {
+      setPendingHideKey(null);
+    }
+  }
 
   useEffect(() => {
     const pending = pendingScrollRestoreRef.current;
@@ -535,71 +590,72 @@ export default function HomePageClient({
 
       </div>
 
-      <div className="mx-auto mb-6 min-h-[44px] max-w-4xl">
+      <div className="mx-auto mb-6 min-h-[120px] max-w-4xl">
         {activeTab === "following" ? (
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="min-h-[44px] flex-1 space-y-4">
-              {trackingStories.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
-                  {trackingStories.map((story) => (
-                    <Link
-                      key={story.id}
-                      href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
-                      onClick={() => persistHomeState()}
-                      className="min-w-0 text-[17px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
-                    >
-                      {story.title}
-                    </Link>
-                  ))}
-                </div>
-              ) : null}
+          <div className="space-y-4">
+            <div className="flex min-h-[44px] items-start justify-between gap-4">
+              <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
+                {trackingStories.map((story) => (
+                  <Link
+                    key={story.id}
+                    href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
+                    onClick={() => persistHomeState()}
+                    className="min-w-0 text-[17px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
+                  >
+                    {story.title}
+                  </Link>
+                ))}
+              </div>
 
+              {accountAuthenticated ? (
+                <Link
+                  href="/account/interests"
+                  className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+                >
+                  Manage interests
+                </Link>
+              ) : <div className="w-[150px]" />}
+            </div>
+
+            <div className="min-h-[56px]">
               {!accountAuthenticated ? (
                 <div className="text-sm text-neutral-500">Log in to follow interests and track stories.</div>
               ) : followedInterests.length > 0 ? (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Interests:</div>
-                    {followedInterests.map((interest) => (
-                      <span
-                        key={interest.id}
-                        className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1.5 text-xs text-neutral-300"
-                      >
-                        {interest.query}
-                      </span>
-                    ))}
-                  </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Interests:</div>
+                  {followedInterests.map((interest) => (
+                    <span
+                      key={interest.id}
+                      className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1.5 text-xs text-neutral-300"
+                    >
+                      {interest.query}
+                    </span>
+                  ))}
                 </div>
               ) : (
                 <div className="text-sm text-neutral-500">Add interests from your interests page to shape this feed.</div>
               )}
             </div>
-
-            {accountAuthenticated ? (
-              <Link
-                href="/account/interests"
-                className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
-              >
-                Manage interests
-              </Link>
-            ) : null}
           </div>
         ) : activeTab === "popular" || activeTab === "recent" || isPresetTopicTab(normalize(activeTab)) ? trackingStories.length > 0 ? (
-          <div className="flex min-h-[44px] items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
-              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
-              {trackingStories.map((story) => (
-                <Link
-                  key={story.id}
-                  href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
-                  onClick={() => persistHomeState()}
-                  className="min-w-0 text-[17px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
-                >
-                  {story.title}
-                </Link>
-              ))}
+          <div className="space-y-4">
+            <div className="flex min-h-[44px] items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
+                {trackingStories.map((story) => (
+                  <Link
+                    key={story.id}
+                    href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
+                    onClick={() => persistHomeState()}
+                    className="min-w-0 text-[17px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
+                  >
+                    {story.title}
+                  </Link>
+                ))}
+              </div>
             </div>
+            <div className="min-h-[56px]" />
           </div>
         ) : null : null}
       </div>
@@ -650,21 +706,49 @@ export default function HomePageClient({
         ) : (
           visibleStories.map((story) => {
             const matchedInterests = semanticInterestMatchesByStoryId.get(story.id) ?? [];
-            const primaryInterestMatch = matchedInterests[0] ?? null;
+            const fallbackInterest = followedInterests.find((interest) => storyMatchesInterest(story, interest.query));
+            const lexicalInterestMatch = matchedInterests[0] ?? (fallbackInterest ? { query: fallbackInterest.query, reasons: [] } : null);
+            const primaryInterestMatch = lexicalInterestMatch && lexicalInterestMatch.query ? lexicalInterestMatch : null;
             const followedDirectly = followedStoryIdSet.has(story.id);
+            const followBadges = [
+              followedDirectly
+                ? (
+                    <span
+                      key="tracked"
+                      className="rounded-full border border-[#8f7740]/50 bg-[#07101a] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d]"
+                    >
+                      Tracked story
+                    </span>
+                  )
+                : null,
+              primaryInterestMatch
+                ? (
+                    <span
+                      key="interest"
+                      className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-300"
+                    >
+                      Because you follow {primaryInterestMatch.query}
+                    </span>
+                  )
+                : null,
+            ].filter(Boolean);
+            const primaryInterest = primaryInterestMatch
+              ? followedInterests.find((interest) => interest.query === primaryInterestMatch.query)
+              : null;
+            const pendingNotRelevant = primaryInterest ? pendingHideKey === `${primaryInterest.id}:${story.id}` : false;
 
             return (
             <div key={story.id}>
-              <Link
-                href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
-                onClick={() => persistHomeState()}
-                className="block"
-              >
                 <div
                   className={`relative rounded-2xl border bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
                     story.urgent ? "border-red-500/70 hover:border-red-400" : "border-[#0d2438] hover:border-[#163754]"
                   }`}
                 >
+              <Link
+                href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
+                onClick={() => persistHomeState()}
+                className="block"
+              >
                   {story.image_url ? (
                     story.image_display === "contain" ? (
                       <div className="mb-6 overflow-hidden rounded-xl bg-transparent">
@@ -714,18 +798,26 @@ export default function HomePageClient({
 
                   <div className="mt-2 text-center text-sm text-neutral-500">{formatStoryDate(story.date)}</div>
 
-                  {activeTab === "following" ? (
+                  {activeTab === "following" && followBadges.length > 0 ? (
                     <div className="mt-4 flex flex-wrap justify-center gap-2">
-                      {followedDirectly ? (
-                        <span className="rounded-full border border-[#8f7740]/50 bg-[#07101a] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d]">
-                          Tracked story
-                        </span>
-                      ) : null}
-                      {primaryInterestMatch ? (
-                        <span className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-300">
-                          Because you follow {primaryInterestMatch.query}
-                        </span>
-                      ) : null}
+                      {followBadges}
+                    </div>
+                  ) : null}
+
+                  {activeTab === "following" && primaryInterestMatch ? (
+                    <div className="mt-4 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          void hideStoryForInterest(primaryInterestMatch.query, story.id);
+                        }}
+                        disabled={pendingNotRelevant}
+                        className="rounded-full border border-[#163754] bg-[#020b14] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-300 transition hover:border-[#8f7740]/50 hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {pendingNotRelevant ? "Hiding" : "Not relevant"}
+                      </button>
                     </div>
                   ) : null}
 
@@ -745,8 +837,8 @@ export default function HomePageClient({
                       </button>
                     ))}
                   </div>
-                </div>
               </Link>
+                </div>
             </div>
           )})
         )}

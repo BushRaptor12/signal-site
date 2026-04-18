@@ -21,6 +21,7 @@ function toInterestGroup(interest: FollowedInterest | FollowedInterestWithMatche
   return {
     ...interest,
     hiddenCount: typeof candidate.hiddenCount === "number" ? candidate.hiddenCount : 0,
+    hiddenStoryIds: Array.isArray(candidate.hiddenStoryIds) ? candidate.hiddenStoryIds : [],
     matches: Array.isArray(candidate.matches) ? candidate.matches : [],
   } satisfies FollowedInterestWithMatches;
 }
