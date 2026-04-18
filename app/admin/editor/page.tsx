@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "reac
 import BackLink from "@/app/back-link";
 import { formatUpdatedAt } from "@/app/lib/dates";
 import { DEFAULT_IMAGE_FOCUS, clampImageFocus, imageObjectPosition } from "@/app/lib/image-focus";
+import { inferStoryKnowledge } from "@/app/lib/story-knowledge";
 import { STORY_IMAGE_ACCEPT } from "@/app/lib/story-images";
 import type { Lean, Story, StoryImageDisplay, StoryStatus, StoryWithViews } from "@/app/lib/types";
 import { detectSourceLean, guessSourceLabel } from "@/app/lib/source-lean";
@@ -102,6 +103,7 @@ export default function EditorPage() {
   const [sources, setSources] = useState<SourceEditorRow[]>(blankSources());
   const [sourceUrlDraft, setSourceUrlDraft] = useState("");
   const [sourcePreviewLoading, setSourcePreviewLoading] = useState(false);
+  const [pendingKnowledgeAutofill, setPendingKnowledgeAutofill] = useState(false);
   const [notice, setNotice] = useState<EditorNotice>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
   const [pendingEditorAction, setPendingEditorAction] = useState<PendingEditorAction>(null);
@@ -516,6 +518,93 @@ export default function EditorPage() {
       showNotice("Source details filled from the article link.", "success");
     } finally {
       setSourcePreviewLoading(false);
+    }
+  }
+
+  async function previewSource(rawUrl: string) {
+    const url = rawUrl.trim();
+    if (!url) return null;
+
+    const res = await fetch("/api/admin/source-preview", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url }),
+    });
+
+    const json = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      source?: SourcePreview;
+    };
+
+    if (!res.ok || !json.source) {
+      throw new Error(json.error ?? "We couldn't preview that source.");
+    }
+
+    return json.source;
+  }
+
+  async function autofillStoryKnowledge() {
+    setPendingKnowledgeAutofill(true);
+
+    try {
+      const refreshedSources = await Promise.all(
+        sources.map(async (source) => {
+          if (!source.url.trim() || source.title.trim()) {
+            return source;
+          }
+
+          try {
+            const preview = await previewSource(source.url);
+            if (!preview) return source;
+
+            return {
+              ...source,
+              name: source.name.trim() || preview.name,
+              title: source.title.trim() || preview.title,
+              url: preview.url,
+            };
+          } catch {
+            return source;
+          }
+        })
+      );
+
+      setSources(refreshedSources);
+
+      const inferred = inferStoryKnowledge({
+        current: {
+          facets,
+          industries,
+          locations,
+          offices,
+          organizations,
+          people,
+          sports_teams: sportsTeams,
+        },
+        entityNames: selectedEntities,
+        primaryEntities,
+        sourceNames: refreshedSources.map((source) => source.name),
+        sourceTitles: refreshedSources.map((source) => source.title),
+        summary,
+        title,
+        topics,
+      });
+
+      setLocations(inferred.locations);
+      setOrganizations(inferred.organizations);
+      setPeople(inferred.people);
+      setIndustries(inferred.industries);
+      setSportsTeams(inferred.sports_teams);
+      setOffices(inferred.offices);
+      setFacets(inferred.facets);
+
+      showNotice("Story knowledge suggestions filled from the draft and source article titles.", "success");
+    } catch (knowledgeError) {
+      showNotice(knowledgeError instanceof Error ? knowledgeError.message : "We couldn't auto-fill story knowledge.", "error");
+    } finally {
+      setPendingKnowledgeAutofill(false);
     }
   }
 
@@ -1264,10 +1353,22 @@ export default function EditorPage() {
           </div>
 
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
-            <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Story Knowledge</div>
-            <p className="text-sm text-neutral-500">
-              Optional structured hints for matching. Add one item per line or separate values with commas.
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Story Knowledge</div>
+                <p className="text-sm text-neutral-500">
+                  Optional structured hints for matching. Add one item per line or separate values with commas.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void autofillStoryKnowledge()}
+                disabled={pendingKnowledgeAutofill}
+                className="rounded-full border border-[#8f7740]/60 px-4 py-2 text-xs font-semibold text-[#e3cca0] transition hover:bg-[#8f7740]/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pendingKnowledgeAutofill ? "Filling..." : "Auto-fill from draft"}
+              </button>
+            </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div>
                 <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Locations</div>
