@@ -31,6 +31,7 @@ type StoredStoryEmbeddingRow = {
 
 type InterestSearchProfile = {
   normalizedQuery: string;
+  rawQuery: string;
   phrases: Set<string>;
   tokens: Set<string>;
   wordCount: number;
@@ -220,6 +221,7 @@ function buildInterestSearchProfile(query: string, normalizedQuery = normalizeIn
 
   return {
     normalizedQuery,
+    rawQuery: query.trim(),
     phrases,
     tokens,
     wordCount: tokenizeText(normalizedQuery).size,
@@ -377,13 +379,13 @@ export function cosineSimilarity(left: number[], right: number[]) {
 }
 
 function scoreInterestAgainstStory(
-  interestEmbedding: number[],
+  interestEmbedding: number[] | null,
   interestProfile: InterestSearchProfile,
-  storyEmbedding: number[],
+  storyEmbedding: number[] | null,
   storyProfile: StorySearchProfile,
   similarityThreshold: number
 ) {
-  const semanticSimilarity = cosineSimilarity(interestEmbedding, storyEmbedding);
+  const semanticSimilarity = interestEmbedding && storyEmbedding ? cosineSimilarity(interestEmbedding, storyEmbedding) : 0;
   const exactPhraseMatch = storyProfile.allText.includes(interestProfile.normalizedQuery);
   const expandedPhraseMatches = [...interestProfile.phrases]
     .filter((phrase) => phrase !== interestProfile.normalizedQuery && phrase.includes(" ") && storyProfile.allText.includes(phrase))
@@ -408,6 +410,7 @@ function scoreInterestAgainstStory(
     + Math.min(tagMatches, 2) * 0.04
     + Math.min(interestProfile.wordCount <= 2 ? 0.22 : 0.16, overlapRatio * (interestProfile.wordCount <= 2 ? 0.3 : 0.18));
   const shortInterest = interestProfile.wordCount <= 2;
+  const noEmbedding = !interestEmbedding;
   const semanticFloor = shortInterest ? Math.max(0.12, similarityThreshold - 0.04) : similarityThreshold;
   const strongSemantic = semanticSimilarity >= (shortInterest ? 0.18 : 0.22);
   const structuredSignal =
@@ -418,10 +421,22 @@ function scoreInterestAgainstStory(
     || entityMatches > 0
     || tagMatches > 0
     || allMatches >= (shortInterest ? 2 : 3);
-  const minimumHybridScore = shortInterest ? 0.34 : 0.3;
+  const minimumHybridScore = noEmbedding ? (shortInterest ? 0.28 : 0.26) : shortInterest ? 0.34 : 0.3;
+  const structuredOnlyMatch =
+    noEmbedding
+    && hybridScore >= minimumHybridScore
+    && (
+      exactPhraseMatch
+      || expandedPhraseMatches > 0
+      || (topicMatches > 0 && (entityMatches > 0 || titleMatches > 0 || tagMatches > 0))
+      || (allMatches >= (shortInterest ? 3 : 4))
+    );
 
   return {
-    matched: strongSemantic || ((semanticSimilarity >= semanticFloor || structuredSignal) && hybridScore >= minimumHybridScore),
+    matched:
+      structuredOnlyMatch
+      || strongSemantic
+      || ((semanticSimilarity >= semanticFloor || structuredSignal) && hybridScore >= minimumHybridScore),
     score: hybridScore,
   };
 }
@@ -561,8 +576,7 @@ export async function getSemanticStoryIdsForUser(
         .from("user_interest_follows")
         .select("query, normalized_query, embedding")
         .eq("user_id", userId)
-        .eq("embedding_state", "ready")
-        .not("embedding", "is", null),
+        .select("query, normalized_query, embedding"),
       supabase
         .from("story_embeddings")
         .select("story_id, embedding")
@@ -583,21 +597,28 @@ export async function getSemanticStoryIdsForUser(
 
     const publishedStories = ((storyRows ?? []) as StoryDbRow[]).map(coerceStory);
     const publishedStoryIds = new Set(publishedStories.map((story) => story.id));
-    const parsedInterestEmbeddings = ((interestRows ?? []) as StoredInterestEmbeddingRow[])
+    const parsedInterestEmbeddings: Array<{ embedding: number[] | null; profile: InterestSearchProfile }> = ((interestRows ?? []) as StoredInterestEmbeddingRow[])
       .map((row) => {
         const embedding = parsePgVector(row.embedding);
         const query = String(row.query ?? "").trim();
         const normalizedQuery = normalizeInterestQuery(String(row.normalized_query ?? query));
         if (!embedding || !query || !normalizedQuery) {
-          return null;
+          if (!query || !normalizedQuery) {
+            return null;
+          }
+
+          return {
+            embedding: null,
+            profile: buildInterestSearchProfile(query, normalizedQuery),
+          };
         }
 
         return {
-          embedding,
+          embedding: embedding ?? null,
           profile: buildInterestSearchProfile(query, normalizedQuery),
         };
       })
-      .filter((row): row is { embedding: number[]; profile: InterestSearchProfile } => Boolean(row));
+      .filter((row): row is { embedding: number[] | null; profile: InterestSearchProfile } => row !== null);
     const parsedStoryEmbeddings = ((storyEmbeddingRows ?? []) as StoredStoryEmbeddingRow[])
       .map((row) => ({
         embedding: parsePgVector(row.embedding),
