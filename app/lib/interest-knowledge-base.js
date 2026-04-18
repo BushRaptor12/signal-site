@@ -1,0 +1,187 @@
+export const NON_SINGULAR_TOKENS = [
+  "angeles",
+  "angels",
+];
+
+export const KNOWLEDGE_CONCEPTS = [
+  {
+    id: "ai",
+    members: ["openai", "nvidia", "microsoft", "google", "meta"],
+    related: ["artificial intelligence", "machine learning", "automation", "chatbots", "models"],
+    terms: ["ai", "artificial intelligence"],
+  },
+  {
+    id: "business",
+    related: ["company", "companies", "corporate", "earnings", "startup", "startups", "markets", "ceo"],
+    terms: ["business", "businesses"],
+  },
+  {
+    id: "california",
+    members: [
+      "sacramento",
+      "los angeles",
+      "san francisco",
+      "bay area",
+      "silicon valley",
+      "san diego",
+      "oakland",
+      "anaheim",
+      "golden state warriors",
+      "lakers",
+      "dodgers",
+      "49ers",
+      "giants",
+      "padres",
+      "angels",
+      "kings",
+      "clippers",
+    ],
+    related: ["california"],
+    terms: ["california"],
+  },
+  {
+    id: "economy",
+    related: ["economic", "economics", "inflation", "jobs", "labor", "gdp", "rates", "recession", "growth", "consumer"],
+    terms: ["economy"],
+  },
+  {
+    id: "entertainment",
+    related: ["hollywood", "film", "movie", "movies", "tv", "television", "music", "celebrity"],
+    terms: ["entertainment"],
+  },
+  {
+    id: "female-public-figures",
+    members: ["kamala harris", "nikki haley", "nancy pelosi", "alexandria ocasio-cortez", "elizabeth warren"],
+    related: ["female", "woman", "women"],
+    terms: ["female", "woman", "women"],
+  },
+  {
+    id: "finance",
+    related: ["bank", "banks", "banking", "wall street", "stocks", "stock market", "markets", "investing"],
+    terms: ["finance"],
+  },
+  {
+    id: "google",
+    related: ["alphabet", "search", "android", "ai"],
+    terms: ["google"],
+  },
+  {
+    id: "kamala-harris",
+    attributes: ["female", "woman", "politician"],
+    related: ["vice president", "democrat", "democratic candidate"],
+    terms: ["kamala harris"],
+  },
+  {
+    id: "microsoft",
+    related: ["windows", "azure", "enterprise software", "ai"],
+    terms: ["microsoft"],
+  },
+  {
+    id: "nvidia",
+    related: ["ai", "chips", "semiconductors", "gpu", "gpus"],
+    terms: ["nvidia"],
+  },
+  {
+    id: "oil",
+    related: ["crude", "energy", "petroleum", "gas", "gasoline"],
+    terms: ["oil"],
+  },
+  {
+    id: "openai",
+    related: ["ai", "artificial intelligence", "chatgpt", "models"],
+    terms: ["openai"],
+  },
+  {
+    id: "politician",
+    related: [
+      "politics",
+      "political",
+      "candidate",
+      "candidates",
+      "campaign",
+      "campaigns",
+      "election",
+      "elections",
+      "officeholder",
+      "public official",
+      "governor",
+      "senator",
+      "president",
+      "vice president",
+    ],
+    terms: ["politician", "politicians"],
+  },
+  {
+    id: "politics",
+    related: ["political", "election", "elections", "campaign", "campaigns", "congress", "senate", "house", "governor", "policy"],
+    terms: ["politics"],
+  },
+  {
+    id: "shipping",
+    related: ["maritime", "ports", "cargo", "freight", "trade route", "sea lane"],
+    terms: ["shipping"],
+  },
+  {
+    id: "sports",
+    related: [
+      "sport",
+      "athletics",
+      "team",
+      "teams",
+      "league",
+      "leagues",
+      "game",
+      "games",
+      "season",
+      "playoffs",
+      "nba",
+      "nfl",
+      "mlb",
+      "nhl",
+      "soccer",
+      "football",
+      "basketball",
+      "baseball",
+      "hockey",
+    ],
+    terms: ["sports"],
+  },
+  {
+    id: "technology",
+    related: ["tech", "software", "hardware", "chips", "chip", "semiconductor", "internet", "platform", "platforms", "apps"],
+    terms: ["technology"],
+  },
+  {
+    id: "trump",
+    related: ["donald trump", "president trump", "white house"],
+    terms: ["trump"],
+  },
+  {
+    id: "world",
+    related: ["international", "global", "foreign", "diplomatic", "geopolitics"],
+    terms: ["world"],
+  },
+];
+
+export const PHRASE_INTENTS = [
+  {
+    conceptIds: ["ai", "business"],
+    phrase: "ai businesses",
+  },
+  {
+    conceptIds: ["california", "sports"],
+    phrase: "california sports",
+  },
+  {
+    conceptIds: ["female-public-figures", "politician"],
+    phrase: "female politicians",
+  },
+  {
+    conceptIds: ["female-public-figures", "politician"],
+    phrase: "woman politician",
+  },
+  {
+    conceptIds: ["female-public-figures", "politician"],
+    phrase: "women politicians",
+  },
+];

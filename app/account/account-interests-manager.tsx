@@ -86,14 +86,14 @@ export default function AccountInterestsManager({ initialInterests }: AccountInt
   return (
     <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
       <div className="text-sm leading-7 text-neutral-300">
-        Add short subjects you want to follow here. The Following feed will pull in stories related to interests like California sports, AI businesses, or oil shipping.
+        Add subjects you want to follow here. The Following feed will pull in stories related to your interests.
       </div>
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Add an interest, like California sports"
+          placeholder="Add an interest like Music"
           className="min-w-0 flex-1 rounded-xl border border-[#163754] bg-[#020b14] px-4 py-3 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/70"
           onKeyDown={(event) => {
             if (event.key === "Enter") {

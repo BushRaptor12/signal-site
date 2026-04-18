@@ -1,112 +1,40 @@
-export const NON_SINGULAR_TOKENS = [
-  "angeles",
-  "angels",
-];
+import { KNOWLEDGE_CONCEPTS, NON_SINGULAR_TOKENS, PHRASE_INTENTS } from "@/app/lib/interest-knowledge-base";
 
-export const TERM_KNOWLEDGE = {
-  ai: ["artificial intelligence", "machine learning", "openai", "nvidia", "automation", "chatbots", "models"],
-  "artificial intelligence": ["ai", "machine learning", "openai", "nvidia", "chatbots", "models"],
-  business: ["businesses", "company", "companies", "corporate", "earnings", "startup", "startups", "markets", "ceo"],
-  businesses: ["business", "company", "companies", "corporate", "earnings", "startup", "startups", "markets", "ceo"],
-  california: [
-    "sacramento",
-    "los angeles",
-    "san francisco",
-    "bay area",
-    "silicon valley",
-    "san diego",
-    "oakland",
-    "anaheim",
-    "golden state warriors",
-    "lakers",
-    "dodgers",
-    "49ers",
-    "giants",
-    "padres",
-    "angels",
-    "kings",
-    "clippers",
-  ],
-  economy: ["economic", "economics", "inflation", "jobs", "labor", "gdp", "rates", "recession", "growth", "consumer"],
-  entertainment: ["hollywood", "film", "movie", "movies", "tv", "television", "music", "celebrity"],
-  female: ["woman", "women", "kamala harris", "nikki haley", "nancy pelosi", "alexandria ocasio-cortez", "elizabeth warren"],
-  finance: ["bank", "banks", "banking", "wall street", "stocks", "stock market", "markets", "investing"],
-  google: ["alphabet", "search", "android", "ai"],
-  "kamala harris": ["female", "woman", "women", "vice president", "democrat", "democratic candidate"],
-  microsoft: ["windows", "azure", "enterprise software", "ai"],
-  nvidia: ["ai", "chips", "semiconductors", "gpu", "gpus"],
-  oil: ["crude", "energy", "petroleum", "gas", "gasoline"],
-  openai: ["ai", "artificial intelligence", "chatgpt", "models"],
-  politician: ["politics", "political", "candidate", "candidates", "campaign", "campaigns", "election", "elections", "officeholder", "public official", "governor", "senator", "president", "vice president"],
-  politicians: ["politician", "politics", "political", "candidate", "candidates", "campaign", "campaigns", "election", "elections", "officeholders", "public officials", "governor", "senator", "president", "vice president"],
-  politics: ["political", "election", "elections", "campaign", "campaigns", "congress", "senate", "house", "governor", "policy"],
-  shipping: ["maritime", "ports", "cargo", "freight", "trade route", "sea lane"],
-  sports: ["sport", "athletics", "team", "teams", "league", "leagues", "game", "games", "season", "playoffs", "nba", "nfl", "mlb", "nhl", "soccer", "football", "basketball", "baseball", "hockey"],
-  technology: ["tech", "software", "hardware", "chips", "chip", "semiconductor", "internet", "platform", "platforms", "apps"],
-  trump: ["donald trump", "president trump", "white house"],
-  woman: ["female", "women", "kamala harris", "nikki haley", "nancy pelosi", "alexandria ocasio-cortez", "elizabeth warren"],
-  women: ["woman", "female", "kamala harris", "nikki haley", "nancy pelosi", "alexandria ocasio-cortez", "elizabeth warren"],
-  world: ["international", "global", "foreign", "diplomatic", "geopolitics"],
-};
+function uniqueNonEmpty(values) {
+  return [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
+}
 
-export const PHRASE_KNOWLEDGE = {
-  "ai businesses": [
-    "openai",
-    "anthropic",
-    "nvidia",
-    "microsoft",
-    "google",
-    "meta",
-    "startup",
-    "startups",
-    "enterprise software",
-    "automation",
-    "company",
-    "companies",
-  ],
-  "california sports": [
-    "los angeles",
-    "anaheim",
-    "san francisco",
-    "oakland",
-    "san diego",
-    "golden state warriors",
-    "lakers",
-    "dodgers",
-    "angels",
-    "49ers",
-    "giants",
-    "padres",
-    "kings",
-    "clippers",
-    "mlb",
-    "nba",
-    "nfl",
-    "nhl",
-    "baseball",
-    "basketball",
-    "football",
-    "hockey",
-  ],
-  "female politicians": [
-    "kamala harris",
-    "nikki haley",
-    "nancy pelosi",
-    "alexandria ocasio-cortez",
-    "elizabeth warren",
-  ],
-  "woman politician": [
-    "kamala harris",
-    "nikki haley",
-    "nancy pelosi",
-    "alexandria ocasio-cortez",
-    "elizabeth warren",
-  ],
-  "women politicians": [
-    "kamala harris",
-    "nikki haley",
-    "nancy pelosi",
-    "alexandria ocasio-cortez",
-    "elizabeth warren",
-  ],
-};
+function valuesForConcept(concept) {
+  return uniqueNonEmpty([
+    ...(concept.terms ?? []),
+    ...(concept.related ?? []),
+    ...(concept.members ?? []),
+    ...(concept.attributes ?? []),
+  ]);
+}
+
+const conceptById = new Map(KNOWLEDGE_CONCEPTS.map((concept) => [concept.id, concept]));
+
+const termKnowledge = {};
+for (const concept of KNOWLEDGE_CONCEPTS) {
+  const values = valuesForConcept(concept);
+  for (const term of concept.terms ?? []) {
+    termKnowledge[term] = uniqueNonEmpty(values.filter((value) => value !== term));
+  }
+}
+
+const phraseKnowledge = {};
+for (const intent of PHRASE_INTENTS) {
+  const values = uniqueNonEmpty(
+    intent.conceptIds.flatMap((conceptId) => {
+      const concept = conceptById.get(conceptId);
+      return concept ? valuesForConcept(concept) : [];
+    })
+  ).filter((value) => value !== intent.phrase);
+
+  phraseKnowledge[intent.phrase] = values;
+}
+
+export { NON_SINGULAR_TOKENS, KNOWLEDGE_CONCEPTS, PHRASE_INTENTS };
+export const TERM_KNOWLEDGE = termKnowledge;
+export const PHRASE_KNOWLEDGE = phraseKnowledge;
