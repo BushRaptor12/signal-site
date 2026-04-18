@@ -225,7 +225,7 @@ export async function getSemanticStoryIdsForUser(
   }
 ) {
   const supabase = supabaseServer();
-  const similarityThreshold = options?.similarityThreshold ?? 0.33;
+  const similarityThreshold = options?.similarityThreshold ?? 0.18;
   const matchCountPerInterest = options?.matchCountPerInterest ?? 24;
 
   try {
@@ -248,7 +248,7 @@ export async function getSemanticStoryIdsForUser(
 
       const { data: matches, error: matchError } = await supabase.rpc("match_story_embeddings", {
         match_count: matchCountPerInterest,
-        query_embedding: toPgVectorLiteral(embedding),
+        query_embedding_text: toPgVectorLiteral(embedding),
         similarity_threshold: similarityThreshold,
       });
 
