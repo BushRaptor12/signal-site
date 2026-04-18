@@ -32,13 +32,34 @@ function automaticRelatedScore(current: StoryWithViews, candidate: StoryWithView
   const entityScore = overlapScore(entityNames(current), entityNames(candidate), 5);
   const topicScore = overlapScore(current.topics, candidate.topics, 4);
   const tagScore = overlapScore(current.tags, candidate.tags, 2);
+  const locationScore = overlapScore(current.locations, candidate.locations, 4);
+  const organizationScore = overlapScore(current.organizations, candidate.organizations, 4);
+  const peopleScore = overlapScore(current.people, candidate.people, 5);
+  const industryScore = overlapScore(current.industries, candidate.industries, 3);
+  const sportsTeamScore = overlapScore(current.sports_teams, candidate.sports_teams, 5);
+  const officeScore = overlapScore(current.offices, candidate.offices, 4);
+  const facetScore = overlapScore(current.facets, candidate.facets, 3);
   const manualReciprocalBoost = candidate.related_story_ids.includes(current.id) ? 24 : 0;
 
   const ageMs = Math.max(0, Date.now() - publishedAtMs(candidate));
   const ageDays = ageMs / 86_400_000;
   const recencyBoost = Math.max(0, 6 - Math.min(ageDays, 6));
 
-  return primaryEntityScore + entityScore + topicScore + tagScore + manualReciprocalBoost + recencyBoost;
+  return (
+    primaryEntityScore
+    + entityScore
+    + topicScore
+    + tagScore
+    + locationScore
+    + organizationScore
+    + peopleScore
+    + industryScore
+    + sportsTeamScore
+    + officeScore
+    + facetScore
+    + manualReciprocalBoost
+    + recencyBoost
+  );
 }
 
 export function buildRelatedStories(current: StoryWithViews, pool: StoryWithViews[], limit = 4) {

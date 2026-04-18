@@ -76,7 +76,19 @@ export function storyModifiedTime(story: StoryWithViews) {
 }
 
 export function storyKeywords(story: StoryWithViews) {
-  return Array.from(new Set([...story.topics, ...story.primary_entities])).filter(Boolean);
+  return Array.from(
+    new Set([
+      ...story.topics,
+      ...story.primary_entities,
+      ...story.locations,
+      ...story.organizations,
+      ...story.people,
+      ...story.industries,
+      ...story.sports_teams,
+      ...story.offices,
+      ...story.facets,
+    ])
+  ).filter(Boolean);
 }
 
 export function buildStoryMetadata(story: StoryWithViews): Metadata {

@@ -40,6 +40,13 @@ export type Story = {
   topics: string[];          // high-level sections
   entities: Entity[];        // canonical + aliases
   primary_entities: string[];// canonical names
+  locations: string[];
+  organizations: string[];
+  people: string[];
+  industries: string[];
+  sports_teams: string[];
+  offices: string[];
+  facets: string[];
   related_story_ids: string[];
 
   // legacy / optional

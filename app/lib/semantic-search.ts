@@ -16,7 +16,7 @@ type EmbeddingExtractor = (
 
 type StoryEmbeddingShape = Pick<
   Story | StoryWithViews,
-  "entities" | "primary_entities" | "sources" | "summary" | "tags" | "title" | "topics"
+  "entities" | "facets" | "industries" | "locations" | "offices" | "organizations" | "people" | "primary_entities" | "sources" | "sports_teams" | "summary" | "tags" | "title" | "topics"
 >;
 
 type StoredInterestEmbeddingRow = {
@@ -230,10 +230,19 @@ function buildInterestSearchProfile(query: string, normalizedQuery = normalizeIn
 function buildStorySearchProfile(story: StoryEmbeddingShape): StorySearchProfile {
   const sourceTitles = story.sources.map((source) => [source.name, source.title ?? ""].join(" - "));
   const entityTokens = story.entities.flatMap((entity) => [entity.name, ...entity.aliases]);
+  const structuredValues = [
+    ...story.locations,
+    ...story.organizations,
+    ...story.people,
+    ...story.industries,
+    ...story.sports_teams,
+    ...story.offices,
+    ...story.facets,
+  ];
   const titleValues = collectConceptPhrases([story.title]);
   const summaryValues = collectConceptPhrases(story.summary);
   const topicValues = collectConceptPhrases(story.topics);
-  const entityValues = collectConceptPhrases([...story.primary_entities, ...entityTokens]);
+  const entityValues = collectConceptPhrases([...story.primary_entities, ...entityTokens, ...structuredValues]);
   const sourceValues = collectConceptPhrases(sourceTitles);
   const tagValues = collectConceptPhrases(story.tags);
   const titleTerms = createTermSet(titleValues);
@@ -259,6 +268,13 @@ function buildStorySearchProfile(story: StoryEmbeddingShape): StorySearchProfile
       ...story.primary_entities,
       ...entityTokens,
       ...story.tags,
+      ...story.locations,
+      ...story.organizations,
+      ...story.people,
+      ...story.industries,
+      ...story.sports_teams,
+      ...story.offices,
+      ...story.facets,
       ...sourceTitles,
       ...titleValues,
       ...summaryValues,
@@ -325,11 +341,21 @@ export function buildInterestEmbeddingInput(query: string) {
 export function buildStoryEmbeddingInput(story: StoryEmbeddingShape) {
   const sourceTitles = story.sources.map((source) => [source.name, source.title ?? ""].join(" - "));
   const entityTokens = story.entities.flatMap((entity) => [entity.name, ...entity.aliases]);
+  const structuredValues = [
+    ...story.locations,
+    ...story.organizations,
+    ...story.people,
+    ...story.industries,
+    ...story.sports_teams,
+    ...story.offices,
+    ...story.facets,
+  ];
   const conceptPhrases = collectConceptPhrases([
     ...story.topics,
     ...story.primary_entities,
     ...entityTokens,
     ...story.tags,
+    ...structuredValues,
   ]);
 
   return uniqueNonEmpty([
@@ -339,6 +365,13 @@ export function buildStoryEmbeddingInput(story: StoryEmbeddingShape) {
     ...story.primary_entities.map((entity) => `Entity ${entity}`),
     ...entityTokens.map((entity) => `Alias ${entity}`),
     ...story.tags.map((tag) => `Tag ${tag}`),
+    ...story.locations.map((value) => `Location ${value}`),
+    ...story.organizations.map((value) => `Organization ${value}`),
+    ...story.people.map((value) => `Person ${value}`),
+    ...story.industries.map((value) => `Industry ${value}`),
+    ...story.sports_teams.map((value) => `Sports team ${value}`),
+    ...story.offices.map((value) => `Office ${value}`),
+    ...story.facets.map((value) => `Facet ${value}`),
     ...sourceTitles.map((sourceTitle) => `Source ${sourceTitle}`),
     ...conceptPhrases,
   ]).join("\n");

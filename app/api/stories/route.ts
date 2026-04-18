@@ -104,6 +104,7 @@ export async function POST(req: Request) {
       .from("stories")
       .select(
         "beacon_include, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, image_focus_x, image_focus_y, image_display, content_updated_at, updated_at, created_at, urgent"
+        + ", locations, organizations, people, industries, sports_teams, offices, facets"
       )
       .eq("id", String(incoming.id))
       .maybeSingle();
@@ -116,6 +117,13 @@ export async function POST(req: Request) {
       beacon_order?: number | null;
       summary?: unknown;
       sources?: unknown;
+      locations?: unknown;
+      organizations?: unknown;
+      people?: unknown;
+      industries?: unknown;
+      sports_teams?: unknown;
+      offices?: unknown;
+      facets?: unknown;
       image_path?: string | null;
       image_focus_x?: number | null;
       image_focus_y?: number | null;
@@ -160,6 +168,13 @@ export async function POST(req: Request) {
       !existing ||
       JSON.stringify(toStringArray(existing.summary)) !== JSON.stringify(normalizedSummary) ||
       JSON.stringify(toSources(existing.sources)) !== JSON.stringify(normalizedSources) ||
+      JSON.stringify(toStringArray(existing.locations)) !== JSON.stringify(toStringArray(incoming.locations)) ||
+      JSON.stringify(toStringArray(existing.organizations)) !== JSON.stringify(toStringArray(incoming.organizations)) ||
+      JSON.stringify(toStringArray(existing.people)) !== JSON.stringify(toStringArray(incoming.people)) ||
+      JSON.stringify(toStringArray(existing.industries)) !== JSON.stringify(toStringArray(incoming.industries)) ||
+      JSON.stringify(toStringArray(existing.sports_teams)) !== JSON.stringify(toStringArray(incoming.sports_teams)) ||
+      JSON.stringify(toStringArray(existing.offices)) !== JSON.stringify(toStringArray(incoming.offices)) ||
+      JSON.stringify(toStringArray(existing.facets)) !== JSON.stringify(toStringArray(incoming.facets)) ||
       toNullableString(existing.image_path) !== normalizedImagePath;
     const contentUpdatedAt =
       contentChanged
@@ -227,6 +242,13 @@ export async function POST(req: Request) {
       tags: toStringArray(incoming.tags),
       entities: toEntities(incoming.entities),
       primary_entities: toStringArray(incoming.primary_entities),
+      locations: toStringArray(incoming.locations),
+      organizations: toStringArray(incoming.organizations),
+      people: toStringArray(incoming.people),
+      industries: toStringArray(incoming.industries),
+      sports_teams: toStringArray(incoming.sports_teams),
+      offices: toStringArray(incoming.offices),
+      facets: toStringArray(incoming.facets),
       related_story_ids: toStringArray(incoming.related_story_ids),
       comments: Number(incoming.comments ?? 0),
       urgent: Boolean(incoming.urgent),
@@ -246,8 +268,15 @@ export async function POST(req: Request) {
     if (contentChanged) {
       await upsertStoryEmbeddingRecord(story.id, {
         entities: story.entities,
+        facets: story.facets,
+        industries: story.industries,
+        locations: story.locations,
+        offices: story.offices,
+        organizations: story.organizations,
+        people: story.people,
         primary_entities: story.primary_entities,
         sources: story.sources,
+        sports_teams: story.sports_teams,
         summary: story.summary,
         tags: story.tags,
         title: story.title,

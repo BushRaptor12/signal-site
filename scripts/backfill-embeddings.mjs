@@ -171,11 +171,21 @@ function buildStoryEmbeddingInput(row) {
   const sources = toSources(row.sources);
   const entityTokens = entities.flatMap((entity) => [entity.name, ...entity.aliases]);
   const sourceTitles = sources.map((source) => [source.name, source.title].join(" - "));
+  const structuredValues = [
+    ...toStringArray(row.locations),
+    ...toStringArray(row.organizations),
+    ...toStringArray(row.people),
+    ...toStringArray(row.industries),
+    ...toStringArray(row.sports_teams),
+    ...toStringArray(row.offices),
+    ...toStringArray(row.facets),
+  ];
   const conceptPhrases = collectConceptPhrases([
     ...toStringArray(row.topics),
     ...toStringArray(row.primary_entities),
     ...entityTokens,
     ...toStringArray(row.tags),
+    ...structuredValues,
   ]);
 
   return uniqueNonEmpty([
@@ -185,6 +195,13 @@ function buildStoryEmbeddingInput(row) {
     ...toStringArray(row.primary_entities).map((entity) => `Entity ${entity}`),
     ...entityTokens.map((entity) => `Alias ${entity}`),
     ...toStringArray(row.tags).map((tag) => `Tag ${tag}`),
+    ...toStringArray(row.locations).map((value) => `Location ${value}`),
+    ...toStringArray(row.organizations).map((value) => `Organization ${value}`),
+    ...toStringArray(row.people).map((value) => `Person ${value}`),
+    ...toStringArray(row.industries).map((value) => `Industry ${value}`),
+    ...toStringArray(row.sports_teams).map((value) => `Sports team ${value}`),
+    ...toStringArray(row.offices).map((value) => `Office ${value}`),
+    ...toStringArray(row.facets).map((value) => `Facet ${value}`),
     ...sourceTitles.map((sourceTitle) => `Source ${sourceTitle}`),
     ...conceptPhrases,
   ]).join("\n");
@@ -210,7 +227,7 @@ async function generateEmbedding(value) {
 async function backfillStories() {
   const { data: stories, error } = await supabase
     .from("stories")
-    .select("id, title, summary, topics, primary_entities, entities, sources, tags")
+    .select("id, title, summary, topics, primary_entities, entities, sources, tags, locations, organizations, people, industries, sports_teams, offices, facets")
     .eq("status", "published")
     .order("updated_at", { ascending: false, nullsFirst: false });
 

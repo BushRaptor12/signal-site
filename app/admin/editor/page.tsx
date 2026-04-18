@@ -54,6 +54,13 @@ function normalizeStoryIdInput(value: string) {
   return slugify(value).slice(0, 80);
 }
 
+function normalizeStructuredList(value: string) {
+  return value
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 export default function EditorPage() {
   const searchParams = useSearchParams();
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -83,6 +90,13 @@ export default function EditorPage() {
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
   const [primaryEntities, setPrimaryEntities] = useState<string[]>([]);
+  const [locations, setLocations] = useState<string[]>([]);
+  const [organizations, setOrganizations] = useState<string[]>([]);
+  const [people, setPeople] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<string[]>([]);
+  const [sportsTeams, setSportsTeams] = useState<string[]>([]);
+  const [offices, setOffices] = useState<string[]>([]);
+  const [facets, setFacets] = useState<string[]>([]);
   const [relatedStoryIds, setRelatedStoryIds] = useState<string[]>([]);
   const [relatedStorySearch, setRelatedStorySearch] = useState("");
   const [sources, setSources] = useState<SourceEditorRow[]>(blankSources());
@@ -176,6 +190,13 @@ export default function EditorPage() {
     setTopics([]);
     setSelectedEntities([]);
     setPrimaryEntities([]);
+    setLocations([]);
+    setOrganizations([]);
+    setPeople([]);
+    setIndustries([]);
+    setSportsTeams([]);
+    setOffices([]);
+    setFacets([]);
     setRelatedStoryIds([]);
     setRelatedStorySearch("");
     setSources(blankSources());
@@ -204,6 +225,13 @@ export default function EditorPage() {
     setTopics(story.topics);
     setSelectedEntities(story.entities.map((entity) => entity.name));
     setPrimaryEntities(story.primary_entities);
+    setLocations(story.locations);
+    setOrganizations(story.organizations);
+    setPeople(story.people);
+    setIndustries(story.industries);
+    setSportsTeams(story.sports_teams);
+    setOffices(story.offices);
+    setFacets(story.facets);
     setRelatedStoryIds(story.related_story_ids);
     setRelatedStorySearch("");
     setSources(story.sources.length > 0 ? story.sources.map(toEditorSource) : blankSources());
@@ -305,12 +333,19 @@ export default function EditorPage() {
         imageFocusY,
         imagePath,
         imageUrl,
+        industries,
         pinnedStory,
+        facets,
+        locations,
+        offices,
+        organizations,
+        people,
         primaryEntities,
         relatedStoryIds,
         selectedEntities,
         slugInput,
         sources,
+        sportsTeams,
         status,
         summary,
         title,
@@ -327,12 +362,19 @@ export default function EditorPage() {
       imageFocusY,
       imagePath,
       imageUrl,
+      industries,
       pinnedStory,
+      facets,
+      locations,
+      offices,
+      organizations,
+      people,
       primaryEntities,
       relatedStoryIds,
       selectedEntities,
       slugInput,
       sources,
+      sportsTeams,
       status,
       summary,
       title,
@@ -639,8 +681,25 @@ export default function EditorPage() {
       topics: topics.map(normalize),
       entities: storyEntities,
       primary_entities: primaryEntities,
+      locations,
+      organizations,
+      people,
+      industries,
+      sports_teams: sportsTeams,
+      offices,
+      facets,
       related_story_ids: relatedStoryIds,
-      tags: [...topics.map(normalize), ...selectedEntities.map(normalize)],
+      tags: [
+        ...topics.map(normalize),
+        ...selectedEntities.map(normalize),
+        ...locations.map(normalize),
+        ...organizations.map(normalize),
+        ...people.map(normalize),
+        ...industries.map(normalize),
+        ...sportsTeams.map(normalize),
+        ...offices.map(normalize),
+        ...facets.map(normalize),
+      ],
       comments: 0,
     };
 
@@ -1201,6 +1260,85 @@ export default function EditorPage() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
+            <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Story Knowledge</div>
+            <p className="text-sm text-neutral-500">
+              Optional structured hints for matching. Add one item per line or separate values with commas.
+            </p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Locations</div>
+                <textarea
+                  value={locations.join("\n")}
+                  onChange={(e) => setLocations(normalizeStructuredList(e.target.value))}
+                  rows={4}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+                  placeholder={"California\nLos Angeles\nAnaheim"}
+                />
+              </div>
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">People</div>
+                <textarea
+                  value={people.join("\n")}
+                  onChange={(e) => setPeople(normalizeStructuredList(e.target.value))}
+                  rows={4}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+                  placeholder={"Kamala Harris\nEric Swalwell"}
+                />
+              </div>
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Organizations</div>
+                <textarea
+                  value={organizations.join("\n")}
+                  onChange={(e) => setOrganizations(normalizeStructuredList(e.target.value))}
+                  rows={4}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+                  placeholder={"Federal Reserve\nOpenAI"}
+                />
+              </div>
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Industries</div>
+                <textarea
+                  value={industries.join("\n")}
+                  onChange={(e) => setIndustries(normalizeStructuredList(e.target.value))}
+                  rows={4}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+                  placeholder={"Artificial intelligence\nBanking"}
+                />
+              </div>
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Sports Teams</div>
+                <textarea
+                  value={sportsTeams.join("\n")}
+                  onChange={(e) => setSportsTeams(normalizeStructuredList(e.target.value))}
+                  rows={4}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+                  placeholder={"Los Angeles Angels\nGolden State Warriors"}
+                />
+              </div>
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Offices</div>
+                <textarea
+                  value={offices.join("\n")}
+                  onChange={(e) => setOffices(normalizeStructuredList(e.target.value))}
+                  rows={4}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+                  placeholder={"Vice President\nGovernor"}
+                />
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Facets</div>
+              <textarea
+                value={facets.join("\n")}
+                onChange={(e) => setFacets(normalizeStructuredList(e.target.value))}
+                rows={3}
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+                placeholder={"Female politician\nCalifornia sports\nAI company"}
+              />
             </div>
           </div>
 

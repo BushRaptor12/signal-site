@@ -150,6 +150,14 @@ function storyMatchesInterest(story: StoryWithViews, query: string) {
     return true;
   }
 
+  if ((story.locations ?? []).map(normalize).includes(normalizedQuery)) return true;
+  if ((story.organizations ?? []).map(normalize).includes(normalizedQuery)) return true;
+  if ((story.people ?? []).map(normalize).includes(normalizedQuery)) return true;
+  if ((story.industries ?? []).map(normalize).includes(normalizedQuery)) return true;
+  if ((story.sports_teams ?? []).map(normalize).includes(normalizedQuery)) return true;
+  if ((story.offices ?? []).map(normalize).includes(normalizedQuery)) return true;
+  if ((story.facets ?? []).map(normalize).includes(normalizedQuery)) return true;
+
   for (const entity of story.entities ?? []) {
     if (normalize(entity.name) === normalizedQuery) return true;
     if ((entity.aliases ?? []).map(normalize).includes(normalizedQuery)) return true;
@@ -160,6 +168,13 @@ function storyMatchesInterest(story: StoryWithViews, query: string) {
     ...(story.summary ?? []),
     ...(story.topics ?? []),
     ...(story.primary_entities ?? []),
+    ...(story.locations ?? []),
+    ...(story.organizations ?? []),
+    ...(story.people ?? []),
+    ...(story.industries ?? []),
+    ...(story.sports_teams ?? []),
+    ...(story.offices ?? []),
+    ...(story.facets ?? []),
     ...(story.entities ?? []).flatMap((entity) => [entity.name, ...(entity.aliases ?? [])]),
   ].join(" ");
 

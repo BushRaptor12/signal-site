@@ -24,6 +24,13 @@ export type StoryDbRow = {
   tags?: unknown;
   entities?: unknown;
   primary_entities?: unknown;
+  locations?: unknown;
+  organizations?: unknown;
+  people?: unknown;
+  industries?: unknown;
+  sports_teams?: unknown;
+  offices?: unknown;
+  facets?: unknown;
   related_story_ids?: unknown;
   comments?: number | null;
   created_at?: string | null;
@@ -128,6 +135,13 @@ export function coerceStory(row: StoryDbRow): StoryWithViews {
     tags: toStringArray(row.tags),
     entities: toEntities(row.entities),
     primary_entities: toStringArray(row.primary_entities),
+    locations: toStringArray(row.locations),
+    organizations: toStringArray(row.organizations),
+    people: toStringArray(row.people),
+    industries: toStringArray(row.industries),
+    sports_teams: toStringArray(row.sports_teams),
+    offices: toStringArray(row.offices),
+    facets: toStringArray(row.facets),
     related_story_ids: toStringArray(row.related_story_ids),
     comments: Number(row.comments ?? 0),
     views: Number(row.views ?? 0),

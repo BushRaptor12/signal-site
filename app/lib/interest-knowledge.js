@@ -1,4 +1,4 @@
-import { KNOWLEDGE_CONCEPTS, NON_SINGULAR_TOKENS, PHRASE_INTENTS } from "@/app/lib/interest-knowledge-base";
+import { KNOWLEDGE_CONCEPTS, NON_SINGULAR_TOKENS, PHRASE_INTENTS } from "./interest-knowledge-base.js";
 
 function uniqueNonEmpty(values) {
   return [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
