@@ -14,13 +14,13 @@ type EmbeddingExtractor = (
 
 type StoryEmbeddingShape = Pick<Story | StoryWithViews, "entities" | "primary_entities" | "sources" | "summary" | "title" | "topics">;
 
-type StoryEmbeddingMatchRow = {
-  similarity?: number | string | null;
-  story_id?: string | null;
-};
-
 type StoredInterestEmbeddingRow = {
   embedding: number[] | string | null;
+};
+
+type StoredStoryEmbeddingRow = {
+  embedding: number[] | string | null;
+  story_id: string;
 };
 
 let featureExtractorPromise: Promise<EmbeddingExtractor> | null = null;
@@ -31,10 +31,6 @@ function uniqueNonEmpty(values: string[]) {
 
 function relationMissing(error: unknown, relationName: string) {
   return error instanceof Error && new RegExp(`relation .*${relationName}.* does not exist`, "i").test(error.message);
-}
-
-function functionMissing(error: unknown, functionName: string) {
-  return error instanceof Error && new RegExp(`${functionName}`, "i").test(error.message);
 }
 
 async function getFeatureExtractor() {
@@ -101,6 +97,27 @@ export function parsePgVector(value: number[] | string | null | undefined) {
     .filter((item) => Number.isFinite(item));
 
   return numbers.length > 0 ? numbers : null;
+}
+
+export function cosineSimilarity(left: number[], right: number[]) {
+  const size = Math.min(left.length, right.length);
+  let dot = 0;
+  let leftMagnitude = 0;
+  let rightMagnitude = 0;
+
+  for (let index = 0; index < size; index += 1) {
+    const leftValue = left[index] ?? 0;
+    const rightValue = right[index] ?? 0;
+    dot += leftValue * rightValue;
+    leftMagnitude += leftValue * leftValue;
+    rightMagnitude += rightValue * rightValue;
+  }
+
+  if (!leftMagnitude || !rightMagnitude) {
+    return 0;
+  }
+
+  return dot / (Math.sqrt(leftMagnitude) * Math.sqrt(rightMagnitude));
 }
 
 export async function generateEmbedding(value: string) {
@@ -229,53 +246,74 @@ export async function getSemanticStoryIdsForUser(
   const matchCountPerInterest = options?.matchCountPerInterest ?? 24;
 
   try {
-    const { data: interestRows, error: interestError } = await supabase
-      .from("user_interest_follows")
-      .select("embedding")
-      .eq("user_id", userId)
-      .eq("embedding_state", "ready")
-      .not("embedding", "is", null);
+    const [
+      { data: interestRows, error: interestError },
+      { data: storyEmbeddingRows, error: storyEmbeddingError },
+      { data: storyRows, error: storyError },
+    ] = await Promise.all([
+      supabase
+        .from("user_interest_follows")
+        .select("embedding")
+        .eq("user_id", userId)
+        .eq("embedding_state", "ready")
+        .not("embedding", "is", null),
+      supabase
+        .from("story_embeddings")
+        .select("story_id, embedding")
+        .eq("embedding_state", "ready")
+        .not("embedding", "is", null),
+      supabase.from("stories").select("id").eq("status", "published"),
+    ]);
 
     if (interestError) {
       throw new Error(interestError.message);
     }
+    if (storyEmbeddingError) {
+      throw new Error(storyEmbeddingError.message);
+    }
+    if (storyError) {
+      throw new Error(storyError.message);
+    }
+
+    const publishedStoryIds = new Set((storyRows ?? []).map((row) => String((row as { id: string }).id)));
+    const parsedInterestEmbeddings = ((interestRows ?? []) as StoredInterestEmbeddingRow[])
+      .map((row) => parsePgVector(row.embedding))
+      .filter((embedding): embedding is number[] => Boolean(embedding));
+    const parsedStoryEmbeddings = ((storyEmbeddingRows ?? []) as StoredStoryEmbeddingRow[])
+      .map((row) => ({
+        embedding: parsePgVector(row.embedding),
+        storyId: String(row.story_id),
+      }))
+      .filter(
+        (row): row is { embedding: number[]; storyId: string } =>
+          Boolean(row.embedding) && publishedStoryIds.has(row.storyId)
+      );
 
     const scoredStories = new Map<string, number>();
 
-    for (const row of (interestRows ?? []) as StoredInterestEmbeddingRow[]) {
-      const embedding = parsePgVector(row.embedding);
-      if (!embedding) continue;
+    for (const interestEmbedding of parsedInterestEmbeddings) {
+      const nearestStories = parsedStoryEmbeddings
+        .map((row) => ({
+          similarity: cosineSimilarity(interestEmbedding, row.embedding),
+          storyId: row.storyId,
+        }))
+        .filter((row) => row.similarity >= similarityThreshold)
+        .sort((left, right) => right.similarity - left.similarity)
+        .slice(0, matchCountPerInterest);
 
-      const { data: matches, error: matchError } = await supabase.rpc("match_story_embeddings", {
-        match_count: matchCountPerInterest,
-        query_embedding_text: toPgVectorLiteral(embedding),
-        similarity_threshold: similarityThreshold,
-      });
-
-      if (matchError) {
-        throw new Error(matchError.message);
-      }
-
-      for (const match of (matches ?? []) as StoryEmbeddingMatchRow[]) {
-        const storyId = match.story_id?.trim();
-        const similarity = Number(match.similarity ?? 0);
-        if (!storyId || !Number.isFinite(similarity)) continue;
-
-        const current = scoredStories.get(storyId) ?? 0;
-        if (similarity > current) {
-          scoredStories.set(storyId, similarity);
+      for (const match of nearestStories) {
+        const current = scoredStories.get(match.storyId) ?? 0;
+        if (match.similarity > current) {
+          scoredStories.set(match.storyId, match.similarity);
         }
       }
     }
 
-    return [...scoredStories.entries()]
-      .sort((left, right) => right[1] - left[1])
-      .map(([storyId]) => storyId);
+    return [...scoredStories.entries()].sort((left, right) => right[1] - left[1]).map(([storyId]) => storyId);
   } catch (error) {
     if (
       relationMissing(error, "user_interest_follows")
       || relationMissing(error, "story_embeddings")
-      || functionMissing(error, "match_story_embeddings")
     ) {
       return [];
     }
