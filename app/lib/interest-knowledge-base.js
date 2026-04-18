@@ -6,17 +6,32 @@ export const NON_SINGULAR_TOKENS = [
 export const KNOWLEDGE_CONCEPTS = [
   {
     id: "ai",
+    intent: {
+      dimension: "industry",
+      label: "AI",
+      storyFields: ["industryTerms", "organizationTerms", "topicTerms", "tagTerms", "titleTerms", "entityTerms"],
+    },
     members: ["openai", "nvidia", "microsoft", "google", "meta"],
     related: ["artificial intelligence", "machine learning", "automation", "chatbots", "models"],
     terms: ["ai", "artificial intelligence"],
   },
   {
     id: "business",
+    intent: {
+      dimension: "organization",
+      label: "Business",
+      storyFields: ["organizationTerms", "industryTerms", "topicTerms", "tagTerms", "titleTerms", "entityTerms"],
+    },
     related: ["company", "companies", "corporate", "earnings", "startup", "startups", "markets", "ceo"],
     terms: ["business", "businesses"],
   },
   {
     id: "california",
+    intent: {
+      dimension: "location",
+      label: "California",
+      storyFields: ["locationTerms", "sportsTeamTerms", "organizationTerms", "peopleTerms", "titleTerms", "entityTerms"],
+    },
     members: [
       "sacramento",
       "los angeles",
@@ -41,22 +56,42 @@ export const KNOWLEDGE_CONCEPTS = [
   },
   {
     id: "economy",
+    intent: {
+      dimension: "domain",
+      label: "Economy",
+      storyFields: ["topicTerms", "industryTerms", "tagTerms", "titleTerms", "summaryTerms", "entityTerms"],
+    },
     related: ["economic", "economics", "inflation", "jobs", "labor", "gdp", "rates", "recession", "growth", "consumer"],
     terms: ["economy"],
   },
   {
     id: "entertainment",
+    intent: {
+      dimension: "domain",
+      label: "Entertainment",
+      storyFields: ["topicTerms", "tagTerms", "titleTerms", "entityTerms", "summaryTerms"],
+    },
     related: ["hollywood", "film", "movie", "movies", "tv", "television", "music", "celebrity"],
     terms: ["entertainment"],
   },
   {
     id: "female-public-figures",
+    intent: {
+      dimension: "gender",
+      label: "Female",
+      storyFields: ["facetTerms", "peopleTerms", "titleTerms", "entityTerms"],
+    },
     members: ["kamala harris", "nikki haley", "nancy pelosi", "alexandria ocasio-cortez", "elizabeth warren"],
     related: ["female", "woman", "women"],
     terms: ["female", "woman", "women"],
   },
   {
     id: "finance",
+    intent: {
+      dimension: "domain",
+      label: "Finance",
+      storyFields: ["topicTerms", "industryTerms", "tagTerms", "titleTerms", "entityTerms", "summaryTerms"],
+    },
     related: ["bank", "banks", "banking", "wall street", "stocks", "stock market", "markets", "investing"],
     terms: ["finance"],
   },
@@ -83,6 +118,11 @@ export const KNOWLEDGE_CONCEPTS = [
   },
   {
     id: "oil",
+    intent: {
+      dimension: "commodity",
+      label: "Oil",
+      storyFields: ["industryTerms", "topicTerms", "tagTerms", "titleTerms", "entityTerms", "summaryTerms"],
+    },
     related: ["crude", "energy", "petroleum", "gas", "gasoline"],
     terms: ["oil"],
   },
@@ -93,6 +133,11 @@ export const KNOWLEDGE_CONCEPTS = [
   },
   {
     id: "politician",
+    intent: {
+      dimension: "role",
+      label: "Politician",
+      storyFields: ["officeTerms", "facetTerms", "peopleTerms", "topicTerms", "titleTerms", "entityTerms"],
+    },
     related: [
       "politics",
       "political",
@@ -113,16 +158,31 @@ export const KNOWLEDGE_CONCEPTS = [
   },
   {
     id: "politics",
+    intent: {
+      dimension: "domain",
+      label: "Politics",
+      storyFields: ["topicTerms", "officeTerms", "facetTerms", "titleTerms", "entityTerms", "summaryTerms"],
+    },
     related: ["political", "election", "elections", "campaign", "campaigns", "congress", "senate", "house", "governor", "policy"],
     terms: ["politics"],
   },
   {
     id: "shipping",
+    intent: {
+      dimension: "domain",
+      label: "Shipping",
+      storyFields: ["topicTerms", "industryTerms", "tagTerms", "titleTerms", "entityTerms", "summaryTerms"],
+    },
     related: ["maritime", "ports", "cargo", "freight", "trade route", "sea lane"],
     terms: ["shipping"],
   },
   {
     id: "sports",
+    intent: {
+      dimension: "domain",
+      label: "Sports",
+      storyFields: ["sportsTeamTerms", "topicTerms", "facetTerms", "tagTerms", "titleTerms", "entityTerms"],
+    },
     related: [
       "sport",
       "athletics",
@@ -148,6 +208,11 @@ export const KNOWLEDGE_CONCEPTS = [
   },
   {
     id: "technology",
+    intent: {
+      dimension: "domain",
+      label: "Technology",
+      storyFields: ["topicTerms", "industryTerms", "organizationTerms", "tagTerms", "titleTerms", "entityTerms"],
+    },
     related: ["tech", "software", "hardware", "chips", "chip", "semiconductor", "internet", "platform", "platforms", "apps"],
     terms: ["technology"],
   },
@@ -158,6 +223,11 @@ export const KNOWLEDGE_CONCEPTS = [
   },
   {
     id: "world",
+    intent: {
+      dimension: "scope",
+      label: "World",
+      storyFields: ["topicTerms", "locationTerms", "tagTerms", "titleTerms", "entityTerms", "summaryTerms"],
+    },
     related: ["international", "global", "foreign", "diplomatic", "geopolitics"],
     terms: ["world"],
   },

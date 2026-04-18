@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FollowedInterest } from "@/app/lib/account.server";
+import type { FollowedInterestWithMatches } from "@/app/lib/account.server";
 import { ACCOUNT_FOLLOWS_UPDATED_EVENT } from "./lib/account-events";
 import {
   STORY_COMMENT_COUNT_UPDATED_EVENT,
@@ -25,7 +25,7 @@ type SavedHomeState = {
 
 type HomePageClientProps = {
   initialAccountAuthenticated: boolean;
-  initialFollowedInterests: FollowedInterest[];
+  initialFollowedInterests: FollowedInterestWithMatches[];
   initialSemanticStoryIds: string[];
   initialFollowedStoryIds: string[];
   initialStories: StoryWithViews[];
@@ -196,7 +196,7 @@ export default function HomePageClient({
   const [visibleCount, setVisibleCount] = useState(STORY_BATCH_SIZE);
   const [accountAuthenticated, setAccountAuthenticated] = useState(initialAccountAuthenticated);
   const [followedStoryIds, setFollowedStoryIds] = useState<string[]>(initialFollowedStoryIds);
-  const [followedInterests, setFollowedInterests] = useState<FollowedInterest[]>(initialFollowedInterests);
+  const [followedInterests, setFollowedInterests] = useState<FollowedInterestWithMatches[]>(initialFollowedInterests);
   const [semanticStoryIds, setSemanticStoryIds] = useState<string[]>(initialSemanticStoryIds);
   const [loadingFollowState, setLoadingFollowState] = useState(false);
   const pendingScrollRestoreRef = useRef<{ attempts: number; scrollY: number; tabKey: TabKey } | null>(null);
@@ -350,7 +350,7 @@ export default function HomePageClient({
       const response = await fetch("/api/account/follows", { cache: "no-store" });
       const data = (await response.json().catch(() => ({}))) as {
         authenticated?: boolean;
-        interests?: FollowedInterest[];
+        interests?: FollowedInterestWithMatches[];
         semanticStoryIds?: string[];
         storyIds?: string[];
       };
@@ -401,6 +401,22 @@ export default function HomePageClient({
     () => followedInterests.map((interest) => interest.normalizedQuery).filter(Boolean),
     [followedInterests]
   );
+  const semanticInterestMatchesByStoryId = useMemo(() => {
+    const map = new Map<string, Array<{ query: string; reasons: string[] }>>();
+
+    for (const interest of followedInterests) {
+      for (const match of interest.matches ?? []) {
+        const current = map.get(match.story.id) ?? [];
+        current.push({
+          query: interest.query,
+          reasons: match.reasons,
+        });
+        map.set(match.story.id, current);
+      }
+    }
+
+    return map;
+  }, [followedInterests]);
   const topicStoriesByTab = useMemo(() => {
     const entries: Array<[string, StoryWithViews[]]> = PRESET_TOPIC_TABS.map((topic) => [
       topic,
@@ -413,10 +429,19 @@ export default function HomePageClient({
     () =>
       recentStories.filter((story) => {
         if (followedStoryIdSet.has(story.id)) return true;
+        if (semanticInterestMatchesByStoryId.has(story.id)) return true;
         if (semanticStoryIdSet.has(story.id)) return true;
         return followedInterestQueries.some((query) => storyMatchesInterest(story, query));
       }),
-    [followedInterestQueries, followedStoryIdSet, recentStories, semanticStoryIdSet]
+    [followedInterestQueries, followedStoryIdSet, recentStories, semanticInterestMatchesByStoryId, semanticStoryIdSet]
+  );
+  const followingFeedCounts = useMemo(
+    () => ({
+      interests: followedInterests.length,
+      matches: followingStories.length,
+      trackedStories: followedStoryIds.length,
+    }),
+    [followedInterests.length, followedStoryIds.length, followingStories.length]
   );
   const visible = useMemo(() => {
     if (activeTab === "following") return followingStories;
@@ -530,16 +555,32 @@ export default function HomePageClient({
               {!accountAuthenticated ? (
                 <div className="text-sm text-neutral-500">Log in to follow interests and track stories.</div>
               ) : followedInterests.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Interests:</div>
-                  {followedInterests.map((interest) => (
-                    <span
-                      key={interest.id}
-                      className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1.5 text-xs text-neutral-300"
-                    >
-                      {interest.query}
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Interests:</div>
+                    {followedInterests.map((interest) => (
+                      <span
+                        key={interest.id}
+                        className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1.5 text-xs text-neutral-300"
+                      >
+                        {interest.query}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                    <span className="rounded-full border border-[#13314b] px-3 py-1">
+                      {followingFeedCounts.interests} interests
                     </span>
-                  ))}
+                    <span className="rounded-full border border-[#13314b] px-3 py-1">
+                      {followingFeedCounts.matches} stories in feed
+                    </span>
+                    {followingFeedCounts.trackedStories > 0 ? (
+                      <span className="rounded-full border border-[#13314b] px-3 py-1">
+                        {followingFeedCounts.trackedStories} tracked
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               ) : (
                 <div className="text-sm text-neutral-500">Add interests from your account page to shape this feed.</div>
@@ -625,7 +666,12 @@ export default function HomePageClient({
             </p>
           </div>
         ) : (
-          visibleStories.map((story) => (
+          visibleStories.map((story) => {
+            const matchedInterests = semanticInterestMatchesByStoryId.get(story.id) ?? [];
+            const primaryInterestMatch = matchedInterests[0] ?? null;
+            const followedDirectly = followedStoryIdSet.has(story.id);
+
+            return (
             <div key={story.id}>
               <Link
                 href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
@@ -686,6 +732,26 @@ export default function HomePageClient({
 
                   <div className="mt-2 text-center text-sm text-neutral-500">{formatStoryDate(story.date)}</div>
 
+                  {activeTab === "following" ? (
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      {followedDirectly ? (
+                        <span className="rounded-full border border-[#8f7740]/50 bg-[#07101a] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d]">
+                          Tracked story
+                        </span>
+                      ) : null}
+                      {primaryInterestMatch ? (
+                        <span className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-300">
+                          Because you follow {primaryInterestMatch.query}
+                        </span>
+                      ) : null}
+                      {primaryInterestMatch?.reasons?.[0] ? (
+                        <span className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-neutral-400">
+                          {primaryInterestMatch.reasons[0]}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   <div className="mt-5 flex flex-wrap justify-center gap-2">
                     {(story.topics ?? []).map((topic) => (
                       <button
@@ -705,7 +771,7 @@ export default function HomePageClient({
                 </div>
               </Link>
             </div>
-          ))
+          )})
         )}
       </div>
 

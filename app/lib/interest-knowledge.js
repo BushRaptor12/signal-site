@@ -14,12 +14,22 @@ function valuesForConcept(concept) {
 }
 
 const conceptById = new Map(KNOWLEDGE_CONCEPTS.map((concept) => [concept.id, concept]));
+const termConceptIds = {};
+const phraseIntentMap = {};
+const conceptIntentMap = {};
 
 const termKnowledge = {};
 for (const concept of KNOWLEDGE_CONCEPTS) {
   const values = valuesForConcept(concept);
+  conceptIntentMap[concept.id] = {
+    id: concept.id,
+    intent: concept.intent ?? null,
+    values,
+  };
+
   for (const term of concept.terms ?? []) {
     termKnowledge[term] = uniqueNonEmpty(values.filter((value) => value !== term));
+    termConceptIds[term] = uniqueNonEmpty([...(termConceptIds[term] ?? []), concept.id]);
   }
 }
 
@@ -33,8 +43,12 @@ for (const intent of PHRASE_INTENTS) {
   ).filter((value) => value !== intent.phrase);
 
   phraseKnowledge[intent.phrase] = values;
+  phraseIntentMap[intent.phrase] = uniqueNonEmpty(intent.conceptIds);
 }
 
 export { NON_SINGULAR_TOKENS, KNOWLEDGE_CONCEPTS, PHRASE_INTENTS };
+export const CONCEPT_INTENT_MAP = conceptIntentMap;
+export const PHRASE_INTENT_MAP = phraseIntentMap;
 export const TERM_KNOWLEDGE = termKnowledge;
+export const TERM_CONCEPT_IDS = termConceptIds;
 export const PHRASE_KNOWLEDGE = phraseKnowledge;

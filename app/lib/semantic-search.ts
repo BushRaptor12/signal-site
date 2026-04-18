@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
-import { NON_SINGULAR_TOKENS, PHRASE_KNOWLEDGE, TERM_KNOWLEDGE } from "@/app/lib/interest-knowledge";
+import {
+  CONCEPT_INTENT_MAP,
+  NON_SINGULAR_TOKENS,
+  PHRASE_INTENT_MAP,
+  PHRASE_KNOWLEDGE,
+  TERM_CONCEPT_IDS,
+  TERM_KNOWLEDGE,
+} from "@/app/lib/interest-knowledge";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { Story, StoryWithViews } from "@/app/lib/types";
@@ -43,6 +50,7 @@ type ConceptGroup = {
 
 type InterestSearchProfile = {
   conceptGroups: ConceptGroup[];
+  intentDimensions: IntentDimension[];
   normalizedQuery: string;
   rawQuery: string;
   phrases: Set<string>;
@@ -54,11 +62,51 @@ type StorySearchProfile = {
   allTerms: Set<string>;
   allText: string;
   entityTerms: Set<string>;
+  facetTerms: Set<string>;
+  industryTerms: Set<string>;
+  locationTerms: Set<string>;
+  officeTerms: Set<string>;
+  organizationTerms: Set<string>;
+  peopleTerms: Set<string>;
   sourceTerms: Set<string>;
+  sportsTeamTerms: Set<string>;
   summaryTerms: Set<string>;
   tagTerms: Set<string>;
   titleTerms: Set<string>;
   topicTerms: Set<string>;
+};
+
+type StoryTermSetKey =
+  | "entityTerms"
+  | "facetTerms"
+  | "industryTerms"
+  | "locationTerms"
+  | "officeTerms"
+  | "organizationTerms"
+  | "peopleTerms"
+  | "sourceTerms"
+  | "sportsTeamTerms"
+  | "summaryTerms"
+  | "tagTerms"
+  | "titleTerms"
+  | "topicTerms";
+
+type ConceptIntentDefinition = {
+  id: string;
+  intent: {
+    dimension: string;
+    label: string;
+    storyFields: StoryTermSetKey[];
+  } | null;
+  values: string[];
+};
+
+type IntentDimension = {
+  conceptIds: string[];
+  dimension: string;
+  fields: StoryTermSetKey[];
+  label: string;
+  terms: Set<string>;
 };
 
 export type SemanticStoryMatch = {
@@ -92,6 +140,9 @@ const STOP_WORDS = new Set([
 ]);
 
 const NON_SINGULAR_TOKEN_SET = new Set<string>(NON_SINGULAR_TOKENS);
+const CONCEPT_INTENTS = CONCEPT_INTENT_MAP as Record<string, ConceptIntentDefinition>;
+const TERM_CONCEPT_MAP = TERM_CONCEPT_IDS as Record<string, string[]>;
+const PHRASE_INTENT_CONCEPT_MAP = PHRASE_INTENT_MAP as Record<string, string[]>;
 const TERM_EXPANSION_MAP = TERM_KNOWLEDGE as Record<string, string[]>;
 const PHRASE_EXPANSION_MAP = PHRASE_KNOWLEDGE as Record<string, string[]>;
 
@@ -234,6 +285,70 @@ function buildConceptGroups(normalizedQuery: string) {
   }).filter((group) => group.terms.size > 0);
 }
 
+function uniqueStrings(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function toConceptTerms(conceptIds: string[]) {
+  const terms = new Set<string>();
+
+  for (const conceptId of conceptIds) {
+    const concept = CONCEPT_INTENTS[conceptId];
+    if (!concept) continue;
+
+    for (const value of concept.values ?? []) {
+      for (const token of tokenizeText(value)) {
+        terms.add(token);
+      }
+    }
+  }
+
+  return terms;
+}
+
+function buildIntentDimensions(normalizedQuery: string) {
+  const matchedConceptIds = new Set<string>(PHRASE_INTENT_CONCEPT_MAP[normalizedQuery] ?? []);
+  const querySeeds = new Set<string>([normalizedQuery]);
+
+  for (const token of tokenizeText(normalizedQuery)) {
+    querySeeds.add(token);
+  }
+
+  for (const seed of querySeeds) {
+    for (const conceptId of TERM_CONCEPT_MAP[seed] ?? []) {
+      matchedConceptIds.add(conceptId);
+    }
+  }
+
+  const dimensions = new Map<string, IntentDimension>();
+  for (const conceptId of matchedConceptIds) {
+    const concept = CONCEPT_INTENTS[conceptId];
+    const intent = concept?.intent;
+    if (!concept || !intent) continue;
+
+    const existing = dimensions.get(intent.dimension);
+    if (!existing) {
+      dimensions.set(intent.dimension, {
+        conceptIds: [conceptId],
+        dimension: intent.dimension,
+        fields: uniqueStrings([...(intent.storyFields ?? [])]) as StoryTermSetKey[],
+        label: intent.label,
+        terms: toConceptTerms([conceptId]),
+      });
+      continue;
+    }
+
+    existing.conceptIds = uniqueStrings([...existing.conceptIds, conceptId]);
+    existing.fields = uniqueStrings([...existing.fields, ...(intent.storyFields ?? [])]) as StoryTermSetKey[];
+    existing.label = uniqueStrings([existing.label, intent.label]).join(" / ");
+    for (const term of toConceptTerms([conceptId])) {
+      existing.terms.add(term);
+    }
+  }
+
+  return [...dimensions.values()];
+}
+
 function buildInterestSearchProfile(query: string, normalizedQuery = normalizeInterestQuery(query)): InterestSearchProfile {
   const phrases = new Set<string>([normalizedQuery]);
   for (const phrase of expandConceptPhrases(normalizedQuery)) {
@@ -249,6 +364,7 @@ function buildInterestSearchProfile(query: string, normalizedQuery = normalizeIn
 
   return {
     conceptGroups: buildConceptGroups(normalizedQuery),
+    intentDimensions: buildIntentDimensions(normalizedQuery),
     normalizedQuery,
     rawQuery: query.trim(),
     phrases,
@@ -278,6 +394,13 @@ function buildStorySearchProfile(story: StoryEmbeddingShape): StorySearchProfile
   const titleTerms = createTermSet(titleValues);
   const summaryTerms = createTermSet(summaryValues);
   const topicTerms = createTermSet(topicValues);
+  const locationTerms = createTermSet(collectConceptPhrases(story.locations));
+  const organizationTerms = createTermSet(collectConceptPhrases(story.organizations));
+  const peopleTerms = createTermSet(collectConceptPhrases(story.people));
+  const industryTerms = createTermSet(collectConceptPhrases(story.industries));
+  const sportsTeamTerms = createTermSet(collectConceptPhrases(story.sports_teams));
+  const officeTerms = createTermSet(collectConceptPhrases(story.offices));
+  const facetTerms = createTermSet(collectConceptPhrases(story.facets));
   const entityTerms = createTermSet(entityValues);
   const sourceTerms = createTermSet(sourceValues);
   const tagTerms = createTermSet(tagValues);
@@ -287,6 +410,13 @@ function buildStorySearchProfile(story: StoryEmbeddingShape): StorySearchProfile
       ...titleTerms,
       ...summaryTerms,
       ...topicTerms,
+      ...locationTerms,
+      ...organizationTerms,
+      ...peopleTerms,
+      ...industryTerms,
+      ...sportsTeamTerms,
+      ...officeTerms,
+      ...facetTerms,
       ...entityTerms,
       ...sourceTerms,
       ...tagTerms,
@@ -313,7 +443,14 @@ function buildStorySearchProfile(story: StoryEmbeddingShape): StorySearchProfile
       ...tagValues,
     ].join(" ")),
     entityTerms,
+    facetTerms,
+    industryTerms,
+    locationTerms,
+    officeTerms,
+    organizationTerms,
+    peopleTerms,
     sourceTerms,
+    sportsTeamTerms,
     summaryTerms,
     tagTerms,
     titleTerms,
@@ -363,8 +500,37 @@ function countCoveredConceptGroups(conceptGroups: ConceptGroup[], storyTerms: Se
   return coveredGroups;
 }
 
+function getStoryTermsForFields(storyProfile: StorySearchProfile, fields: StoryTermSetKey[]) {
+  const terms = new Set<string>();
+
+  for (const field of fields) {
+    for (const term of storyProfile[field]) {
+      terms.add(term);
+    }
+  }
+
+  return terms;
+}
+
+function getCoveredIntentDimensions(intentDimensions: IntentDimension[], storyProfile: StorySearchProfile) {
+  const covered: IntentDimension[] = [];
+
+  for (const dimension of intentDimensions) {
+    const storyTerms = getStoryTermsForFields(storyProfile, dimension.fields);
+    for (const term of dimension.terms) {
+      if (storyTerms.has(term)) {
+        covered.push(dimension);
+        break;
+      }
+    }
+  }
+
+  return covered;
+}
+
 function buildMatchReasons(options: {
   coveredConceptLabels: string[];
+  coveredIntentLabels: string[];
   entityMatches: number;
   exactPhraseMatch: boolean;
   expandedPhraseMatches: number;
@@ -376,7 +542,11 @@ function buildMatchReasons(options: {
 }) {
   const reasons: string[] = [];
 
-  if (options.coveredConceptLabels.length >= 2) {
+  if (options.coveredIntentLabels.length >= 2) {
+    reasons.push(`Matched dimensions: ${options.coveredIntentLabels.map(toDisplayLabel).join(" + ")}`);
+  } else if (options.coveredIntentLabels.length === 1) {
+    reasons.push(`Matched dimension: ${toDisplayLabel(options.coveredIntentLabels[0] ?? "")}`);
+  } else if (options.coveredConceptLabels.length >= 2) {
     reasons.push(`Matched concepts: ${options.coveredConceptLabels.map(toDisplayLabel).join(" + ")}`);
   } else if (options.coveredConceptLabels.length === 1) {
     reasons.push(`Matched concept: ${toDisplayLabel(options.coveredConceptLabels[0] ?? "")}`);
@@ -538,8 +708,18 @@ function scoreInterestAgainstStory(
   const allMatches = countSharedTerms(interestProfile.tokens, storyProfile.allTerms);
   const coveredConceptGroups = countCoveredConceptGroups(interestProfile.conceptGroups, storyProfile.allTerms);
   const coveredConceptLabels = getCoveredConceptLabels(interestProfile.conceptGroups, storyProfile.allTerms);
+  const coveredIntentDimensions = getCoveredIntentDimensions(interestProfile.intentDimensions, storyProfile);
+  const coveredIntentLabels = coveredIntentDimensions.map((dimension) => dimension.label);
   const needsCompoundCoverage = interestProfile.conceptGroups.length >= 2;
   const hasCompoundCoverage = !needsCompoundCoverage || coveredConceptGroups >= 2;
+  const requiredIntentDimensionCount =
+    interestProfile.intentDimensions.length === 0
+      ? 0
+      : interestProfile.intentDimensions.length >= 2
+        ? Math.min(interestProfile.intentDimensions.length, 2)
+        : 1;
+  const hasRequiredIntentCoverage =
+    requiredIntentDimensionCount === 0 || coveredIntentDimensions.length >= requiredIntentDimensionCount;
   const overlapRatio = allMatches / Math.max(2, Math.min(interestProfile.tokens.size, interestProfile.wordCount <= 2 ? 5 : 7));
   const hybridScore =
     semanticSimilarity
@@ -551,13 +731,16 @@ function scoreInterestAgainstStory(
     + Math.min(summaryMatches, 3) * 0.04
     + Math.min(sourceMatches, 2) * 0.03
     + Math.min(tagMatches, 2) * 0.04
+    + Math.min(coveredIntentDimensions.length, 2) * 0.12
+    + (hasRequiredIntentCoverage && requiredIntentDimensionCount > 0 ? 0.1 : 0)
     + Math.min(interestProfile.wordCount <= 2 ? 0.22 : 0.16, overlapRatio * (interestProfile.wordCount <= 2 ? 0.3 : 0.18));
   const shortInterest = interestProfile.wordCount <= 2;
   const noEmbedding = !interestEmbedding;
   const semanticFloor = shortInterest ? Math.max(0.12, similarityThreshold - 0.04) : similarityThreshold;
   const strongSemantic = semanticSimilarity >= (shortInterest ? 0.18 : 0.22);
   const structuredSignal =
-    hasCompoundCoverage
+    hasRequiredIntentCoverage
+    && hasCompoundCoverage
     && (
       exactPhraseMatch
       || expandedPhraseMatches > 0
@@ -570,6 +753,7 @@ function scoreInterestAgainstStory(
   const minimumHybridScore = noEmbedding ? (shortInterest ? 0.28 : 0.26) : shortInterest ? 0.34 : 0.3;
   const structuredOnlyMatch =
     noEmbedding
+    && hasRequiredIntentCoverage
     && hasCompoundCoverage
     && hybridScore >= minimumHybridScore
     && (
@@ -582,10 +766,11 @@ function scoreInterestAgainstStory(
   return {
     matched:
       structuredOnlyMatch
-      || (strongSemantic && (!needsCompoundCoverage || hasCompoundCoverage || semanticSimilarity >= 0.32))
-      || ((semanticSimilarity >= semanticFloor || structuredSignal) && hybridScore >= minimumHybridScore),
+      || (strongSemantic && hasRequiredIntentCoverage && (!needsCompoundCoverage || hasCompoundCoverage || semanticSimilarity >= 0.32))
+      || ((semanticSimilarity >= semanticFloor || structuredSignal) && hybridScore >= minimumHybridScore && hasRequiredIntentCoverage),
     reasons: buildMatchReasons({
       coveredConceptLabels,
+      coveredIntentLabels,
       entityMatches,
       exactPhraseMatch,
       expandedPhraseMatches,

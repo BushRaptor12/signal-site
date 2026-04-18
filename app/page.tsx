@@ -1,4 +1,4 @@
-import { getAccountUserId, getFollowedInterests, getFollowedStoryIds, getSemanticFollowedStoryIds } from "@/app/lib/account.server";
+import { getAccountUserId, getFollowedInterestsWithMatches, getFollowedStoryIds, getSemanticFollowedStoryIds } from "@/app/lib/account.server";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
@@ -27,7 +27,7 @@ async function loadInitialStories(): Promise<StoryWithViews[]> {
 export default async function HomePage() {
   const [initialStories, userId] = await Promise.all([loadInitialStories(), getAccountUserId()]);
   const initialFollowedStoryIds = userId ? await getFollowedStoryIds(userId).catch(() => []) : [];
-  const initialFollowedInterests = userId ? await getFollowedInterests(userId).catch(() => []) : [];
+  const initialFollowedInterests = userId ? await getFollowedInterestsWithMatches(userId).catch(() => []) : [];
   const initialSemanticStoryIds = userId ? await getSemanticFollowedStoryIds(userId).catch(() => []) : [];
 
   return (

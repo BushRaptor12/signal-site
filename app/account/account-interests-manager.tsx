@@ -21,6 +21,7 @@ function toInterestGroup(interest: FollowedInterest | FollowedInterestWithMatche
 
 export default function AccountInterestsManager({ initialInterests }: AccountInterestsManagerProps) {
   const [interests, setInterests] = useState(initialInterests);
+  const [expandedInterestIds, setExpandedInterestIds] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pendingCreate, setPendingCreate] = useState(false);
@@ -87,6 +88,7 @@ export default function AccountInterestsManager({ initialInterests }: AccountInt
       }
 
       setInterests((current) => current.filter((interest) => interest.id !== id));
+      setExpandedInterestIds((current) => current.filter((interestId) => interestId !== id));
       emitAccountFollowsUpdated();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "We couldn't remove that interest.");
@@ -134,6 +136,12 @@ export default function AccountInterestsManager({ initialInterests }: AccountInt
     }
   }
 
+  function toggleInterestExpansion(id: string) {
+    setExpandedInterestIds((current) =>
+      current.includes(id) ? current.filter((interestId) => interestId !== id) : [...current, id]
+    );
+  }
+
   return (
     <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
       <div className="text-sm leading-7 text-neutral-300">
@@ -172,10 +180,12 @@ export default function AccountInterestsManager({ initialInterests }: AccountInt
       ) : (
         <div className="mt-5 space-y-4">
           {interests.map((interest) => (
-            <section
-              key={interest.id}
-              className="rounded-2xl border border-[#163754] bg-[#020b14] p-5"
-            >
+            <section key={interest.id} className="rounded-2xl border border-[#163754] bg-[#020b14] p-5">
+              {(() => {
+                const isExpanded = expandedInterestIds.includes(interest.id);
+
+                return (
+                  <>
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap items-center gap-3">
@@ -194,17 +204,26 @@ export default function AccountInterestsManager({ initialInterests }: AccountInt
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => void removeInterest(interest.id)}
-                  disabled={pendingDeleteId === interest.id}
-                  className="inline-flex rounded-full border border-[#163754] bg-[#07101a] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-300 transition hover:border-[#8f7740]/50 hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Remove
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleInterestExpansion(interest.id)}
+                    className="inline-flex rounded-full border border-[#163754] bg-[#07101a] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-300 transition hover:border-[#8f7740]/50 hover:text-neutral-100"
+                  >
+                    {isExpanded ? "Collapse" : `Expand ${interest.matches.length}`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void removeInterest(interest.id)}
+                    disabled={pendingDeleteId === interest.id}
+                    className="inline-flex rounded-full border border-[#163754] bg-[#07101a] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-300 transition hover:border-[#8f7740]/50 hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
 
-              {interest.matches.length === 0 ? (
+              {!isExpanded ? null : interest.matches.length === 0 ? (
                 <div className="mt-4 rounded-2xl border border-[#13314b] bg-[#04111b] p-4 text-sm leading-7 text-neutral-400">
                   No live matches yet for this interest. Try a more specific phrase or wait for newer stories.
                 </div>
@@ -250,6 +269,9 @@ export default function AccountInterestsManager({ initialInterests }: AccountInt
                   })}
                 </div>
               )}
+                  </>
+                );
+              })()}
             </section>
           ))}
         </div>
