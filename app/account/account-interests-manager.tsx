@@ -293,7 +293,7 @@ export default function AccountInterestsManager({
             onBlur={() => {
               window.setTimeout(() => setSuggestionsVisible(false), 120);
             }}
-            placeholder="Add an interest like California sports"
+            placeholder="Add an interest like Music"
             className="w-full rounded-xl border border-[#163754] bg-[#020b14] px-4 py-3 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/70"
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -341,10 +341,6 @@ export default function AccountInterestsManager({
         >
           {pendingCreate ? "Saving..." : "Add interest"}
         </button>
-      </div>
-
-      <div className="mt-3 text-xs uppercase tracking-[0.16em] text-neutral-500">
-        Autocomplete suggests existing topics and entities, but you can still follow any free-text interest.
       </div>
 
       {error ? <div className="mt-3 text-sm text-[#f0b7b7]">{error}</div> : null}

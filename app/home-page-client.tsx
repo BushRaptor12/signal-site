@@ -5,13 +5,13 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FollowedInterestWithMatches } from "@/app/lib/account.server";
-import { ACCOUNT_FOLLOWS_UPDATED_EVENT, emitAccountFollowsUpdated } from "./lib/account-events";
+import { ACCOUNT_FOLLOWS_UPDATED_EVENT } from "./lib/account-events";
 import {
   STORY_COMMENT_COUNT_UPDATED_EVENT,
   readStoredStoryCommentCountUpdate,
   readStoryCommentCountUpdate,
 } from "./lib/comment-events";
-import { formatStoryDate } from "./lib/dates";
+import { formatStoryDate, formatUpdatedAgo } from "./lib/dates";
 import { imageObjectPosition } from "./lib/image-focus";
 import type { StoryWithViews } from "./lib/types";
 import { normalize, TOPICS, toTitleCase } from "./lib/vocab";
@@ -181,6 +181,61 @@ function storyMatchesInterest(story: StoryWithViews, query: string) {
   return textMatchesKeyword(haystack, normalizedQuery);
 }
 
+function getTabPresentation(tab: TabKey, accountAuthenticated: boolean) {
+  if (tab === "following") {
+    return {
+      description: accountAuthenticated
+        ? "Stories matched to the interests you follow, alongside the specific stories you are actively tracking."
+        : "A personal feed for your interests and tracked stories. Log in to make it yours.",
+      eyebrow: "Personal Feed",
+      title: "Following",
+    };
+  }
+
+  if (tab === "recent") {
+    return {
+      description: "The latest published coverage in reverse-chronological order, with tracking stories staying visible above the feed.",
+      eyebrow: "Live Desk",
+      title: "Recent",
+    };
+  }
+
+  if (isPresetTopicTab(normalize(tab))) {
+    return {
+      description: `A focused stream of ${toTitleCase(normalize(tab))} coverage from the latest stories on the site.`,
+      eyebrow: "Topic Feed",
+      title: toTitleCase(normalize(tab)),
+    };
+  }
+
+  return {
+    description: "The most resonant stories on the site right now, balancing attention, freshness, and staying power.",
+    eyebrow: "Front Page",
+    title: "Popular",
+  };
+}
+
+function getStoryDeckLabel(tab: TabKey, index: number) {
+  if (index === 0) return "Lead story";
+  if (tab === "popular") return `Popular ${String(index + 1).padStart(2, "0")}`;
+  if (tab === "recent") return `Recent ${String(index + 1).padStart(2, "0")}`;
+  if (tab === "following") return `Following ${String(index + 1).padStart(2, "0")}`;
+  if (isPresetTopicTab(normalize(tab))) return `${toTitleCase(normalize(tab))} ${String(index + 1).padStart(2, "0")}`;
+  return `Story ${String(index + 1).padStart(2, "0")}`;
+}
+
+function getStoryUpdateLabel(story: StoryWithViews) {
+  const updatedValue = story.content_updated_at ?? story.created_at ?? "";
+  if (updatedValue) {
+    const relative = formatUpdatedAgo(updatedValue);
+    if (relative && relative !== "recently") {
+      return `Updated ${relative}`;
+    }
+  }
+
+  return formatStoryDate(story.date);
+}
+
 export default function HomePageClient({
   initialAccountAuthenticated,
   initialFollowedInterests,
@@ -199,7 +254,6 @@ export default function HomePageClient({
   const [followedInterests, setFollowedInterests] = useState<FollowedInterestWithMatches[]>(initialFollowedInterests);
   const [semanticStoryIds, setSemanticStoryIds] = useState<string[]>(initialSemanticStoryIds);
   const [loadingFollowState, setLoadingFollowState] = useState(false);
-  const [pendingHideKey, setPendingHideKey] = useState<string | null>(null);
   const pendingScrollRestoreRef = useRef<{ attempts: number; scrollY: number; tabKey: TabKey } | null>(null);
 
   useEffect(() => {
@@ -459,47 +513,10 @@ export default function HomePageClient({
   }, [activeTab, followingStories, recentStories, topicStoriesByTab]);
   const visibleStories = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
   const canLoadMore = visibleCount < visible.length;
-
-  async function hideStoryForInterest(interestQuery: string, storyId: string) {
-    const matchedInterest = followedInterests.find((interest) => interest.query === interestQuery);
-    if (!matchedInterest || pendingHideKey) return;
-
-    const pendingKey = `${matchedInterest.id}:${storyId}`;
-    setPendingHideKey(pendingKey);
-
-    try {
-      const response = await fetch(
-        `/api/account/interests/${encodeURIComponent(matchedInterest.id)}/stories/${encodeURIComponent(storyId)}`,
-        {
-          method: "POST",
-        }
-      );
-      const data = (await response.json().catch(() => ({}))) as { error?: string };
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "We couldn't hide that story for this interest.");
-      }
-
-      setFollowedInterests((current) =>
-        current.map((interest) =>
-          interest.id === matchedInterest.id
-            ? {
-                ...interest,
-                hiddenCount: interest.hiddenCount + 1,
-                hiddenStoryIds: [...new Set([...(interest.hiddenStoryIds ?? []), storyId])],
-                matches: interest.matches.filter((match) => match.story.id !== storyId),
-              }
-            : interest
-        )
-      );
-      setSemanticStoryIds((current) => current.filter((value) => value !== storyId));
-      emitAccountFollowsUpdated();
-    } catch {
-      // keep the UI stable; the interests page still exposes the same control path
-    } finally {
-      setPendingHideKey(null);
-    }
-  }
+  const tabPresentation = useMemo(
+    () => getTabPresentation(activeTab, accountAuthenticated),
+    [accountAuthenticated, activeTab]
+  );
 
   useEffect(() => {
     const pending = pendingScrollRestoreRef.current;
@@ -570,8 +587,8 @@ export default function HomePageClient({
         </div>
       </div>
 
-      <div className="mx-auto mb-4 flex max-w-4xl items-center justify-between gap-4">
-        <div className="flex space-x-3 overflow-x-auto pb-2">
+      <div className="mx-auto mb-6 max-w-4xl overflow-hidden rounded-[30px] border border-[#163754] bg-[radial-gradient(circle_at_top,#143350_0%,#071420_42%,#04101a_100%)] px-6 py-6 shadow-[0_28px_70px_rgba(0,0,0,0.36)]">
+        <div className="flex flex-wrap gap-3">
           {[...BUILTIN_TAB_KEYS, ...PRESET_TOPIC_TABS].map((tab) => (
             <button
               key={tab}
@@ -579,8 +596,8 @@ export default function HomePageClient({
               onClick={() => setActiveTabAndUrl(tab)}
               className={`whitespace-nowrap rounded-full border px-5 py-2 text-sm transition ${
                 activeTab === tab
-                  ? "border-neutral-100 bg-neutral-100 text-neutral-900"
-                  : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
+                  ? "border-[#d9c18d] bg-[#f3e7c7] text-[#09111a] shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
+                  : "border-[#214765] bg-[#07111a]/80 text-[#d7e2ef] hover:border-[#39607d] hover:bg-[#0a1724]"
               }`}
             >
               {toTitleCase(tab)}
@@ -588,74 +605,66 @@ export default function HomePageClient({
           ))}
         </div>
 
+        <div className="mt-6 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8ea8c1]">{tabPresentation.eyebrow}</div>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-neutral-100 md:text-[2.4rem]">{tabPresentation.title}</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-300">{tabPresentation.description}</p>
+          </div>
+
+          <div className="rounded-2xl border border-[#1f405c] bg-[#06111a]/80 px-4 py-3 text-xs uppercase tracking-[0.18em] text-[#8ea8c1]">
+            {activeTab === "following"
+              ? "Personalized by interests and tracking"
+              : activeTab === "popular"
+                ? "Ranked by momentum and attention"
+                : activeTab === "recent"
+                  ? "Ordered by newest coverage"
+                  : "Filtered to one editorial lane"}
+          </div>
+        </div>
       </div>
 
-      <div className="mx-auto mb-6 min-h-[120px] max-w-4xl">
+      <div className="mx-auto mb-6 max-w-4xl">
         {activeTab === "following" ? (
-          <div className="space-y-4">
-            <div className="flex min-h-[44px] items-start justify-between gap-4">
-              <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
-                {trackingStories.map((story) => (
-                  <Link
-                    key={story.id}
-                    href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
-                    onClick={() => persistHomeState()}
-                    className="min-w-0 text-[17px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
-                  >
-                    {story.title}
-                  </Link>
-                ))}
-              </div>
-
-              {accountAuthenticated ? (
+          <div className="flex min-h-[44px] items-start justify-between gap-4">
+            <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
+              {trackingStories.map((story) => (
                 <Link
-                  href="/account/interests"
-                  className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+                  key={story.id}
+                  href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
+                  onClick={() => persistHomeState()}
+                  className="min-w-0 text-[17px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
                 >
-                  Manage interests
+                  {story.title}
                 </Link>
-              ) : <div className="w-[150px]" />}
+              ))}
             </div>
 
-            <div className="min-h-[56px]">
-              {!accountAuthenticated ? (
-                <div className="text-sm text-neutral-500">Log in to follow interests and track stories.</div>
-              ) : followedInterests.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Interests:</div>
-                  {followedInterests.map((interest) => (
-                    <span
-                      key={interest.id}
-                      className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1.5 text-xs text-neutral-300"
-                    >
-                      {interest.query}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm text-neutral-500">Add interests from your interests page to shape this feed.</div>
-              )}
-            </div>
+            {accountAuthenticated ? (
+              <Link
+                href="/account/interests"
+                className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+              >
+                Manage interests
+              </Link>
+            ) : <div className="w-[150px]" />}
           </div>
         ) : activeTab === "popular" || activeTab === "recent" || isPresetTopicTab(normalize(activeTab)) ? trackingStories.length > 0 ? (
-          <div className="space-y-4">
-            <div className="flex min-h-[44px] items-center justify-between gap-4">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
-                {trackingStories.map((story) => (
-                  <Link
-                    key={story.id}
-                    href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
-                    onClick={() => persistHomeState()}
-                    className="min-w-0 text-[17px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
-                  >
-                    {story.title}
-                  </Link>
-                ))}
-              </div>
+          <div className="flex min-h-[44px] items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
+              {trackingStories.map((story) => (
+                <Link
+                  key={story.id}
+                  href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
+                  onClick={() => persistHomeState()}
+                  className="min-w-0 text-[17px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
+                >
+                  {story.title}
+                </Link>
+              ))}
             </div>
-            <div className="min-h-[56px]" />
           </div>
         ) : null : null}
       </div>
@@ -704,12 +713,13 @@ export default function HomePageClient({
             </p>
           </div>
         ) : (
-          visibleStories.map((story) => {
+          visibleStories.map((story, index) => {
             const matchedInterests = semanticInterestMatchesByStoryId.get(story.id) ?? [];
             const fallbackInterest = followedInterests.find((interest) => storyMatchesInterest(story, interest.query));
             const lexicalInterestMatch = matchedInterests[0] ?? (fallbackInterest ? { query: fallbackInterest.query, reasons: [] } : null);
             const primaryInterestMatch = lexicalInterestMatch && lexicalInterestMatch.query ? lexicalInterestMatch : null;
             const followedDirectly = followedStoryIdSet.has(story.id);
+            const isLeadCard = index === 0;
             const followBadges = [
               followedDirectly
                 ? (
@@ -732,39 +742,61 @@ export default function HomePageClient({
                   )
                 : null,
             ].filter(Boolean);
-            const primaryInterest = primaryInterestMatch
-              ? followedInterests.find((interest) => interest.query === primaryInterestMatch.query)
-              : null;
-            const pendingNotRelevant = primaryInterest ? pendingHideKey === `${primaryInterest.id}:${story.id}` : false;
-
             return (
             <div key={story.id}>
                 <div
-                  className={`relative rounded-2xl border bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
+                  className={`relative overflow-hidden rounded-[28px] border bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
                     story.urgent ? "border-red-500/70 hover:border-red-400" : "border-[#0d2438] hover:border-[#163754]"
                   }`}
                 >
+              <div
+                aria-hidden="true"
+                className={`pointer-events-none absolute inset-x-0 top-0 h-28 ${
+                  story.urgent
+                    ? "bg-gradient-to-b from-red-500/12 via-red-500/5 to-transparent"
+                    : isLeadCard
+                      ? "bg-gradient-to-b from-[#1d476a]/18 via-[#15324d]/8 to-transparent"
+                      : "bg-gradient-to-b from-[#10263b]/12 to-transparent"
+                }`}
+              />
               <Link
                 href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
                 onClick={() => persistHomeState()}
-                className="block"
+                className="relative block"
               >
+                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-[#224865] bg-[#071420] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9bb6cf]">
+                        {getStoryDeckLabel(activeTab, index)}
+                      </span>
+                      {story.urgent ? (
+                        <span className="rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-red-300">
+                          Urgent
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                      {getStoryUpdateLabel(story)}
+                    </div>
+                  </div>
+
                   {story.image_url ? (
                     story.image_display === "contain" ? (
-                      <div className="mb-6 overflow-hidden rounded-xl bg-transparent">
-                        <div className="flex justify-center p-3">
+                      <div className="mb-7 overflow-hidden rounded-[24px] border border-[#10283d] bg-[#02101a]">
+                        <div className="flex justify-center p-4">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={story.image_url}
                             alt={story.title}
                             loading="lazy"
-                            className="block max-h-[28rem] max-w-full rounded-lg object-contain"
+                            className="block max-h-[32rem] max-w-full rounded-xl object-contain"
                           />
                         </div>
                       </div>
                     ) : (
-                      <div className="mb-6 overflow-hidden rounded-xl bg-[#020b14]">
-                        <div className="relative aspect-[4/3] md:aspect-[16/10]">
+                      <div className="mb-7 overflow-hidden rounded-[24px] border border-[#10283d] bg-[#020b14]">
+                        <div className={`relative ${isLeadCard ? "aspect-[4/3] md:aspect-[16/9]" : "aspect-[4/3] md:aspect-[16/10]"}`}>
                           <Image
                             src={story.image_url}
                             alt={story.title}
@@ -779,45 +811,32 @@ export default function HomePageClient({
                   ) : null}
 
                   <h2
-                    className={`text-center font-semibold ${
-                      story.urgent ? "text-3xl tracking-wide text-red-400 md:text-4xl" : "text-2xl"
+                    className={`text-center font-semibold tracking-tight ${
+                      story.urgent
+                        ? "text-3xl text-red-400 md:text-4xl"
+                        : isLeadCard
+                          ? "text-[2.05rem] md:text-[2.45rem]"
+                          : "text-2xl"
                     }`}
                   >
                     {story.title}
                   </h2>
 
-                  <div className="mx-auto mt-4 max-w-2xl space-y-2 text-center text-neutral-400">
+                  <div className="mx-auto mt-4 max-w-[42rem] space-y-2 text-center text-[15px] leading-7 text-neutral-300">
                     {(story.summary ?? []).map((line, index) => (
                       <p key={index}>{line}</p>
                     ))}
                   </div>
 
-                  <div className="mt-5 text-center text-sm text-neutral-500">
-                    {story.views} {story.views === 1 ? "view" : "views"} | {story.comments} comments
+                  <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                    <span>{story.views} {story.views === 1 ? "view" : "views"}</span>
+                    <span>{story.comments} comments</span>
+                    <span>{formatStoryDate(story.date)}</span>
                   </div>
-
-                  <div className="mt-2 text-center text-sm text-neutral-500">{formatStoryDate(story.date)}</div>
 
                   {activeTab === "following" && followBadges.length > 0 ? (
                     <div className="mt-4 flex flex-wrap justify-center gap-2">
                       {followBadges}
-                    </div>
-                  ) : null}
-
-                  {activeTab === "following" && primaryInterestMatch ? (
-                    <div className="mt-4 flex justify-center">
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          void hideStoryForInterest(primaryInterestMatch.query, story.id);
-                        }}
-                        disabled={pendingNotRelevant}
-                        className="rounded-full border border-[#163754] bg-[#020b14] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-300 transition hover:border-[#8f7740]/50 hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {pendingNotRelevant ? "Hiding" : "Not relevant"}
-                      </button>
                     </div>
                   ) : null}
 
@@ -831,7 +850,7 @@ export default function HomePageClient({
                           event.stopPropagation();
                           setActiveTabAndUrl(normalize(topic));
                         }}
-                        className="rounded-full border border-neutral-700 px-2 py-1 text-xs text-neutral-300 transition hover:bg-neutral-800"
+                        className="rounded-full border border-[#214765] bg-[#07111a] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-300 transition hover:border-[#3a617e] hover:bg-[#0a1724]"
                       >
                         {toTitleCase(normalize(topic))}
                       </button>
