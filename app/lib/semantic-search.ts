@@ -30,6 +30,7 @@ type StoredStoryEmbeddingRow = {
 };
 
 type InterestSearchProfile = {
+  conceptGroups: Set<string>[];
   normalizedQuery: string;
   rawQuery: string;
   phrases: Set<string>;
@@ -206,6 +207,27 @@ function createTermSet(values: string[]) {
   return terms;
 }
 
+function buildConceptGroups(normalizedQuery: string) {
+  const rawTokens = normalizeInterestQuery(normalizedQuery)
+    .split(/[^a-z0-9]+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .filter((token) => !STOP_WORDS.has(token));
+
+  return rawTokens.map((token) => {
+    const group = new Set<string>();
+    for (const term of tokenizeText(token)) {
+      group.add(term);
+    }
+    for (const phrase of expandConceptPhrases(token)) {
+      for (const term of tokenizeText(phrase)) {
+        group.add(term);
+      }
+    }
+    return group;
+  }).filter((group) => group.size > 0);
+}
+
 function buildInterestSearchProfile(query: string, normalizedQuery = normalizeInterestQuery(query)): InterestSearchProfile {
   const phrases = new Set<string>([normalizedQuery]);
   for (const phrase of expandConceptPhrases(normalizedQuery)) {
@@ -220,6 +242,7 @@ function buildInterestSearchProfile(query: string, normalizedQuery = normalizeIn
   }
 
   return {
+    conceptGroups: buildConceptGroups(normalizedQuery),
     normalizedQuery,
     rawQuery: query.trim(),
     phrases,
@@ -286,6 +309,21 @@ function countSharedTerms(left: Set<string>, right: Set<string>) {
   }
 
   return count;
+}
+
+function countCoveredConceptGroups(conceptGroups: Set<string>[], storyTerms: Set<string>) {
+  let coveredGroups = 0;
+
+  for (const group of conceptGroups) {
+    for (const term of group) {
+      if (storyTerms.has(term)) {
+        coveredGroups += 1;
+        break;
+      }
+    }
+  }
+
+  return coveredGroups;
 }
 
 export function toEmbeddingState(value: string | null | undefined): EmbeddingState {
@@ -397,6 +435,9 @@ function scoreInterestAgainstStory(
   const sourceMatches = countSharedTerms(interestProfile.tokens, storyProfile.sourceTerms);
   const tagMatches = countSharedTerms(interestProfile.tokens, storyProfile.tagTerms);
   const allMatches = countSharedTerms(interestProfile.tokens, storyProfile.allTerms);
+  const coveredConceptGroups = countCoveredConceptGroups(interestProfile.conceptGroups, storyProfile.allTerms);
+  const needsCompoundCoverage = interestProfile.conceptGroups.length >= 2;
+  const hasCompoundCoverage = !needsCompoundCoverage || coveredConceptGroups >= 2;
   const overlapRatio = allMatches / Math.max(2, Math.min(interestProfile.tokens.size, interestProfile.wordCount <= 2 ? 5 : 7));
   const hybridScore =
     semanticSimilarity
@@ -414,16 +455,20 @@ function scoreInterestAgainstStory(
   const semanticFloor = shortInterest ? Math.max(0.12, similarityThreshold - 0.04) : similarityThreshold;
   const strongSemantic = semanticSimilarity >= (shortInterest ? 0.18 : 0.22);
   const structuredSignal =
-    exactPhraseMatch
-    || expandedPhraseMatches > 0
-    || titleMatches > 0
-    || topicMatches > 0
-    || entityMatches > 0
-    || tagMatches > 0
-    || allMatches >= (shortInterest ? 2 : 3);
+    hasCompoundCoverage
+    && (
+      exactPhraseMatch
+      || expandedPhraseMatches > 0
+      || titleMatches > 0
+      || topicMatches > 0
+      || entityMatches > 0
+      || tagMatches > 0
+      || allMatches >= (shortInterest ? 2 : 3)
+    );
   const minimumHybridScore = noEmbedding ? (shortInterest ? 0.28 : 0.26) : shortInterest ? 0.34 : 0.3;
   const structuredOnlyMatch =
     noEmbedding
+    && hasCompoundCoverage
     && hybridScore >= minimumHybridScore
     && (
       exactPhraseMatch
@@ -435,7 +480,7 @@ function scoreInterestAgainstStory(
   return {
     matched:
       structuredOnlyMatch
-      || strongSemantic
+      || (strongSemantic && (!needsCompoundCoverage || hasCompoundCoverage || semanticSimilarity >= 0.32))
       || ((semanticSimilarity >= semanticFloor || structuredSignal) && hybridScore >= minimumHybridScore),
     score: hybridScore,
   };
