@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAccountUserId, getFollowedInterests, getFollowedStoryIds } from "@/app/lib/account.server";
+import { getAccountUserId, getFollowedInterests, getFollowedStoryIds, getSemanticFollowedStoryIds } from "@/app/lib/account.server";
 
 export async function GET() {
   try {
@@ -8,14 +8,20 @@ export async function GET() {
       return NextResponse.json({
         authenticated: false,
         interests: [],
+        semanticStoryIds: [],
         storyIds: [],
       });
     }
 
-    const [storyIds, interests] = await Promise.all([getFollowedStoryIds(userId), getFollowedInterests(userId)]);
+    const [storyIds, interests, semanticStoryIds] = await Promise.all([
+      getFollowedStoryIds(userId),
+      getFollowedInterests(userId),
+      getSemanticFollowedStoryIds(userId),
+    ]);
     return NextResponse.json({
       authenticated: true,
       interests,
+      semanticStoryIds,
       storyIds,
     });
   } catch (error) {

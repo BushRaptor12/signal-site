@@ -2,7 +2,14 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { createClient, type User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { queueUsernameReview } from "@/app/lib/notifications.server";
-import { normalizeInterestQuery, SENTENCE_TRANSFORMER_MODEL, toEmbeddingState, type EmbeddingState } from "@/app/lib/semantic-search";
+import {
+  getSemanticStoryIdsForUser,
+  normalizeInterestQuery,
+  SENTENCE_TRANSFORMER_MODEL,
+  toEmbeddingState,
+  updateInterestEmbeddingRecord,
+  type EmbeddingState,
+} from "@/app/lib/semantic-search";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { StoryWithViews } from "@/app/lib/types";
@@ -606,7 +613,11 @@ export async function createInterestFollow(userId: string, query: string) {
   }
 
   if (existing) {
-    return toFollowedInterest(existing as UserInterestFollowRow);
+    const followedInterest = toFollowedInterest(existing as UserInterestFollowRow);
+    if (followedInterest.embeddingState !== "ready") {
+      await updateInterestEmbeddingRecord(followedInterest.id, followedInterest.query);
+    }
+    return followedInterest;
   }
 
   const nowIso = new Date().toISOString();
@@ -628,7 +639,9 @@ export async function createInterestFollow(userId: string, query: string) {
     throw new Error(friendlyInterestError(error.message, "We couldn't save that interest."));
   }
 
-  return toFollowedInterest(data as UserInterestFollowRow);
+  const followedInterest = toFollowedInterest(data as UserInterestFollowRow);
+  await updateInterestEmbeddingRecord(followedInterest.id, followedInterest.query);
+  return followedInterest;
 }
 
 export async function removeInterestFollow(userId: string, interestId: string) {
@@ -943,4 +956,8 @@ export async function getAccountDashboard(userId: string): Promise<AccountDashbo
       .filter((value): value is FollowedStory => Boolean(value)),
     profile: toAccountProfile(profileData as UserProfileRow),
   };
+}
+
+export async function getSemanticFollowedStoryIds(userId: string) {
+  return getSemanticStoryIdsForUser(userId);
 }

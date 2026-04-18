@@ -26,6 +26,7 @@ type SavedHomeState = {
 type HomePageClientProps = {
   initialAccountAuthenticated: boolean;
   initialFollowedInterests: FollowedInterest[];
+  initialSemanticStoryIds: string[];
   initialFollowedStoryIds: string[];
   initialStories: StoryWithViews[];
 };
@@ -168,6 +169,7 @@ function storyMatchesInterest(story: StoryWithViews, query: string) {
 export default function HomePageClient({
   initialAccountAuthenticated,
   initialFollowedInterests,
+  initialSemanticStoryIds,
   initialFollowedStoryIds,
   initialStories,
 }: HomePageClientProps) {
@@ -180,6 +182,7 @@ export default function HomePageClient({
   const [accountAuthenticated, setAccountAuthenticated] = useState(initialAccountAuthenticated);
   const [followedStoryIds, setFollowedStoryIds] = useState<string[]>(initialFollowedStoryIds);
   const [followedInterests, setFollowedInterests] = useState<FollowedInterest[]>(initialFollowedInterests);
+  const [semanticStoryIds, setSemanticStoryIds] = useState<string[]>(initialSemanticStoryIds);
   const [loadingFollowState, setLoadingFollowState] = useState(false);
   const pendingScrollRestoreRef = useRef<{ attempts: number; scrollY: number; tabKey: TabKey } | null>(null);
 
@@ -333,16 +336,19 @@ export default function HomePageClient({
       const data = (await response.json().catch(() => ({}))) as {
         authenticated?: boolean;
         interests?: FollowedInterest[];
+        semanticStoryIds?: string[];
         storyIds?: string[];
       };
 
       setAccountAuthenticated(Boolean(data.authenticated));
       setFollowedStoryIds(Array.isArray(data.storyIds) ? data.storyIds.map((value) => String(value)) : []);
       setFollowedInterests(Array.isArray(data.interests) ? data.interests : []);
+      setSemanticStoryIds(Array.isArray(data.semanticStoryIds) ? data.semanticStoryIds.map((value) => String(value)) : []);
     } catch {
       setAccountAuthenticated(false);
       setFollowedStoryIds([]);
       setFollowedInterests([]);
+      setSemanticStoryIds([]);
     } finally {
       setLoadingFollowState(false);
     }
@@ -375,6 +381,7 @@ export default function HomePageClient({
     [stories]
   );
   const followedStoryIdSet = useMemo(() => new Set(followedStoryIds), [followedStoryIds]);
+  const semanticStoryIdSet = useMemo(() => new Set(semanticStoryIds), [semanticStoryIds]);
   const followedInterestQueries = useMemo(
     () => followedInterests.map((interest) => interest.normalizedQuery).filter(Boolean),
     [followedInterests]
@@ -391,9 +398,10 @@ export default function HomePageClient({
     () =>
       recentStories.filter((story) => {
         if (followedStoryIdSet.has(story.id)) return true;
+        if (semanticStoryIdSet.has(story.id)) return true;
         return followedInterestQueries.some((query) => storyMatchesInterest(story, query));
       }),
-    [followedInterestQueries, followedStoryIdSet, recentStories]
+    [followedInterestQueries, followedStoryIdSet, recentStories, semanticStoryIdSet]
   );
   const visible = useMemo(() => {
     if (activeTab === "following") return followingStories;
