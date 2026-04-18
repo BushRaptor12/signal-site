@@ -181,49 +181,6 @@ function storyMatchesInterest(story: StoryWithViews, query: string) {
   return textMatchesKeyword(haystack, normalizedQuery);
 }
 
-function getTabPresentation(tab: TabKey, accountAuthenticated: boolean) {
-  if (tab === "following") {
-    return {
-      description: accountAuthenticated
-        ? "Stories matched to the interests you follow, alongside the specific stories you are actively tracking."
-        : "A personal feed for your interests and tracked stories. Log in to make it yours.",
-      eyebrow: "Personal Feed",
-      title: "Following",
-    };
-  }
-
-  if (tab === "recent") {
-    return {
-      description: "The latest published coverage in reverse-chronological order, with tracking stories staying visible above the feed.",
-      eyebrow: "Live Desk",
-      title: "Recent",
-    };
-  }
-
-  if (isPresetTopicTab(normalize(tab))) {
-    return {
-      description: `A focused stream of ${toTitleCase(normalize(tab))} coverage from the latest stories on the site.`,
-      eyebrow: "Topic Feed",
-      title: toTitleCase(normalize(tab)),
-    };
-  }
-
-  return {
-    description: "The most resonant stories on the site right now, balancing attention, freshness, and staying power.",
-    eyebrow: "Front Page",
-    title: "Popular",
-  };
-}
-
-function getStoryDeckLabel(tab: TabKey, index: number) {
-  if (index === 0) return "Lead story";
-  if (tab === "popular") return `Popular ${String(index + 1).padStart(2, "0")}`;
-  if (tab === "recent") return `Recent ${String(index + 1).padStart(2, "0")}`;
-  if (tab === "following") return `Following ${String(index + 1).padStart(2, "0")}`;
-  if (isPresetTopicTab(normalize(tab))) return `${toTitleCase(normalize(tab))} ${String(index + 1).padStart(2, "0")}`;
-  return `Story ${String(index + 1).padStart(2, "0")}`;
-}
-
 function getStoryUpdateLabel(story: StoryWithViews) {
   const updatedValue = story.content_updated_at ?? story.created_at ?? "";
   if (updatedValue) {
@@ -513,10 +470,6 @@ export default function HomePageClient({
   }, [activeTab, followingStories, recentStories, topicStoriesByTab]);
   const visibleStories = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
   const canLoadMore = visibleCount < visible.length;
-  const tabPresentation = useMemo(
-    () => getTabPresentation(activeTab, accountAuthenticated),
-    [accountAuthenticated, activeTab]
-  );
 
   useEffect(() => {
     const pending = pendingScrollRestoreRef.current;
@@ -587,8 +540,8 @@ export default function HomePageClient({
         </div>
       </div>
 
-      <div className="mx-auto mb-6 max-w-4xl overflow-hidden rounded-[30px] border border-[#163754] bg-[radial-gradient(circle_at_top,#143350_0%,#071420_42%,#04101a_100%)] px-6 py-6 shadow-[0_28px_70px_rgba(0,0,0,0.36)]">
-        <div className="flex flex-wrap gap-3">
+      <div className="mx-auto mb-4 flex max-w-4xl items-center justify-between gap-4">
+        <div className="flex space-x-3 overflow-x-auto pb-2">
           {[...BUILTIN_TAB_KEYS, ...PRESET_TOPIC_TABS].map((tab) => (
             <button
               key={tab}
@@ -596,31 +549,13 @@ export default function HomePageClient({
               onClick={() => setActiveTabAndUrl(tab)}
               className={`whitespace-nowrap rounded-full border px-5 py-2 text-sm transition ${
                 activeTab === tab
-                  ? "border-[#d9c18d] bg-[#f3e7c7] text-[#09111a] shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
-                  : "border-[#214765] bg-[#07111a]/80 text-[#d7e2ef] hover:border-[#39607d] hover:bg-[#0a1724]"
+                  ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                  : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
               }`}
             >
               {toTitleCase(tab)}
             </button>
           ))}
-        </div>
-
-        <div className="mt-6 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8ea8c1]">{tabPresentation.eyebrow}</div>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-neutral-100 md:text-[2.4rem]">{tabPresentation.title}</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-300">{tabPresentation.description}</p>
-          </div>
-
-          <div className="rounded-2xl border border-[#1f405c] bg-[#06111a]/80 px-4 py-3 text-xs uppercase tracking-[0.18em] text-[#8ea8c1]">
-            {activeTab === "following"
-              ? "Personalized by interests and tracking"
-              : activeTab === "popular"
-                ? "Ranked by momentum and attention"
-                : activeTab === "recent"
-                  ? "Ordered by newest coverage"
-                  : "Filtered to one editorial lane"}
-          </div>
         </div>
       </div>
 
@@ -764,18 +699,7 @@ export default function HomePageClient({
                 onClick={() => persistHomeState()}
                 className="relative block"
               >
-                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full border border-[#224865] bg-[#071420] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9bb6cf]">
-                        {getStoryDeckLabel(activeTab, index)}
-                      </span>
-                      {story.urgent ? (
-                        <span className="rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-red-300">
-                          Urgent
-                        </span>
-                      ) : null}
-                    </div>
-
+                  <div className="mb-5 flex flex-wrap items-center justify-end gap-3">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
                       {getStoryUpdateLabel(story)}
                     </div>
@@ -783,8 +707,8 @@ export default function HomePageClient({
 
                   {story.image_url ? (
                     story.image_display === "contain" ? (
-                      <div className="mb-7 overflow-hidden rounded-[24px] border border-[#10283d] bg-[#02101a]">
-                        <div className="flex justify-center p-4">
+                      <div className="mb-7 overflow-hidden rounded-[24px] bg-transparent">
+                        <div className="flex justify-center">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={story.image_url}
@@ -795,7 +719,7 @@ export default function HomePageClient({
                         </div>
                       </div>
                     ) : (
-                      <div className="mb-7 overflow-hidden rounded-[24px] border border-[#10283d] bg-[#020b14]">
+                      <div className="mb-7 overflow-hidden rounded-[24px] bg-transparent">
                         <div className={`relative ${isLeadCard ? "aspect-[4/3] md:aspect-[16/9]" : "aspect-[4/3] md:aspect-[16/10]"}`}>
                           <Image
                             src={story.image_url}
