@@ -249,6 +249,7 @@ export async function POST(req: Request) {
         primary_entities: story.primary_entities,
         sources: story.sources,
         summary: story.summary,
+        tags: story.tags,
         title: story.title,
         topics: story.topics,
       });

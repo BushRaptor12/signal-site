@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import type { Story, StoryWithViews } from "@/app/lib/types";
+import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import { supabaseServer } from "@/app/lib/supabase.server";
+import type { Story, StoryWithViews } from "@/app/lib/types";
 
 export const SENTENCE_TRANSFORMER_MODEL = "all-MiniLM-L6-v2";
 const SENTENCE_TRANSFORMER_REPO = "Xenova/all-MiniLM-L6-v2";
@@ -12,10 +13,15 @@ type EmbeddingExtractor = (
   options: { normalize: true; pooling: "mean" }
 ) => Promise<{ data: Float32Array | number[] }>;
 
-type StoryEmbeddingShape = Pick<Story | StoryWithViews, "entities" | "primary_entities" | "sources" | "summary" | "title" | "topics">;
+type StoryEmbeddingShape = Pick<
+  Story | StoryWithViews,
+  "entities" | "primary_entities" | "sources" | "summary" | "tags" | "title" | "topics"
+>;
 
 type StoredInterestEmbeddingRow = {
   embedding: number[] | string | null;
+  normalized_query: string | null;
+  query: string | null;
 };
 
 type StoredStoryEmbeddingRow = {
@@ -23,7 +29,81 @@ type StoredStoryEmbeddingRow = {
   story_id: string;
 };
 
+type InterestSearchProfile = {
+  normalizedQuery: string;
+  phrases: Set<string>;
+  tokens: Set<string>;
+  wordCount: number;
+};
+
+type StorySearchProfile = {
+  allTerms: Set<string>;
+  allText: string;
+  entityTerms: Set<string>;
+  sourceTerms: Set<string>;
+  summaryTerms: Set<string>;
+  tagTerms: Set<string>;
+  titleTerms: Set<string>;
+  topicTerms: Set<string>;
+};
+
 let featureExtractorPromise: Promise<EmbeddingExtractor> | null = null;
+
+const STOP_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "at",
+  "for",
+  "from",
+  "in",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "with",
+]);
+
+const CONCEPT_EXPANSIONS: Record<string, string[]> = {
+  ai: ["artificial intelligence", "machine learning", "openai", "nvidia", "automation", "chatbots", "models"],
+  "artificial intelligence": ["ai", "machine learning", "openai", "nvidia", "chatbots", "models"],
+  business: ["businesses", "company", "companies", "corporate", "earnings", "startup", "startups", "markets", "ceo"],
+  businesses: ["business", "company", "companies", "corporate", "earnings", "startup", "startups", "markets", "ceo"],
+  california: [
+    "sacramento",
+    "los angeles",
+    "san francisco",
+    "bay area",
+    "silicon valley",
+    "san diego",
+    "oakland",
+    "anaheim",
+    "golden state warriors",
+    "lakers",
+    "dodgers",
+    "49ers",
+    "giants",
+    "padres",
+    "angels",
+    "kings",
+    "clippers",
+  ],
+  economy: ["economic", "economics", "inflation", "jobs", "labor", "gdp", "rates", "recession", "growth", "consumer"],
+  entertainment: ["hollywood", "film", "movie", "movies", "tv", "television", "music", "celebrity"],
+  finance: ["bank", "banks", "banking", "wall street", "stocks", "stock market", "markets", "investing"],
+  google: ["alphabet", "search", "android", "ai"],
+  microsoft: ["windows", "azure", "enterprise software", "ai"],
+  nvidia: ["ai", "chips", "semiconductors", "gpu", "gpus"],
+  oil: ["crude", "energy", "petroleum", "gas", "gasoline"],
+  openai: ["ai", "artificial intelligence", "chatgpt", "models"],
+  politics: ["political", "election", "elections", "campaign", "campaigns", "congress", "senate", "house", "governor", "policy"],
+  shipping: ["maritime", "ports", "cargo", "freight", "trade route", "sea lane"],
+  sports: ["sport", "athletics", "team", "teams", "league", "leagues", "game", "games", "season", "playoffs", "nba", "nfl", "mlb", "nhl", "soccer", "football", "basketball", "baseball", "hockey"],
+  technology: ["tech", "software", "hardware", "chips", "chip", "semiconductor", "internet", "platform", "platforms", "apps"],
+  trump: ["donald trump", "president trump", "white house"],
+  world: ["international", "global", "foreign", "diplomatic", "geopolitics"],
+};
 
 function uniqueNonEmpty(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
@@ -50,6 +130,162 @@ export function normalizeInterestQuery(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function singularizeToken(token: string) {
+  if (token.endsWith("ies") && token.length > 4) {
+    return `${token.slice(0, -3)}y`;
+  }
+
+  if (token.endsWith("es") && token.length > 4) {
+    return token.slice(0, -2);
+  }
+
+  if (token.endsWith("s") && token.length > 3 && !token.endsWith("ss")) {
+    return token.slice(0, -1);
+  }
+
+  return token;
+}
+
+function tokenizeText(value: string) {
+  const tokens = normalizeInterestQuery(value)
+    .replace(/&/g, " and ")
+    .split(/[^a-z0-9]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+  const output = new Set<string>();
+
+  for (const token of tokens) {
+    if (STOP_WORDS.has(token)) continue;
+    output.add(token);
+
+    const singular = singularizeToken(token);
+    if (singular && !STOP_WORDS.has(singular)) {
+      output.add(singular);
+    }
+  }
+
+  return output;
+}
+
+function expandConceptPhrases(value: string) {
+  const normalizedValue = normalizeInterestQuery(value);
+  const output = new Set<string>();
+  const seeds = new Set<string>([normalizedValue]);
+
+  for (const token of tokenizeText(normalizedValue)) {
+    seeds.add(token);
+  }
+
+  for (const seed of seeds) {
+    const expansions = CONCEPT_EXPANSIONS[seed] ?? [];
+    for (const expansion of expansions) {
+      const normalizedExpansion = normalizeInterestQuery(expansion);
+      if (normalizedExpansion) {
+        output.add(normalizedExpansion);
+      }
+    }
+  }
+
+  return [...output];
+}
+
+function collectConceptPhrases(values: string[]) {
+  return uniqueNonEmpty(values.flatMap((value) => [value, ...expandConceptPhrases(value)]));
+}
+
+function createTermSet(values: string[]) {
+  const terms = new Set<string>();
+
+  for (const value of values) {
+    for (const token of tokenizeText(value)) {
+      terms.add(token);
+    }
+  }
+
+  return terms;
+}
+
+function buildInterestSearchProfile(query: string, normalizedQuery = normalizeInterestQuery(query)): InterestSearchProfile {
+  const phrases = new Set<string>([normalizedQuery]);
+  for (const phrase of expandConceptPhrases(normalizedQuery)) {
+    phrases.add(phrase);
+  }
+
+  const tokens = new Set<string>();
+  for (const phrase of phrases) {
+    for (const token of tokenizeText(phrase)) {
+      tokens.add(token);
+    }
+  }
+
+  return {
+    normalizedQuery,
+    phrases,
+    tokens,
+    wordCount: tokenizeText(normalizedQuery).size,
+  };
+}
+
+function buildStorySearchProfile(story: StoryEmbeddingShape): StorySearchProfile {
+  const sourceTitles = story.sources.map((source) => [source.name, source.title ?? ""].join(" - "));
+  const entityTokens = story.entities.flatMap((entity) => [entity.name, ...entity.aliases]);
+  const titleValues = collectConceptPhrases([story.title]);
+  const summaryValues = collectConceptPhrases(story.summary);
+  const topicValues = collectConceptPhrases(story.topics);
+  const entityValues = collectConceptPhrases([...story.primary_entities, ...entityTokens]);
+  const sourceValues = collectConceptPhrases(sourceTitles);
+  const tagValues = collectConceptPhrases(story.tags);
+  const titleTerms = createTermSet(titleValues);
+  const summaryTerms = createTermSet(summaryValues);
+  const topicTerms = createTermSet(topicValues);
+  const entityTerms = createTermSet(entityValues);
+  const sourceTerms = createTermSet(sourceValues);
+  const tagTerms = createTermSet(tagValues);
+
+  return {
+    allTerms: new Set<string>([
+      ...titleTerms,
+      ...summaryTerms,
+      ...topicTerms,
+      ...entityTerms,
+      ...sourceTerms,
+      ...tagTerms,
+    ]),
+    allText: normalizeInterestQuery([
+      story.title,
+      ...story.summary,
+      ...story.topics,
+      ...story.primary_entities,
+      ...entityTokens,
+      ...story.tags,
+      ...sourceTitles,
+      ...titleValues,
+      ...summaryValues,
+      ...topicValues,
+      ...entityValues,
+      ...tagValues,
+    ].join(" ")),
+    entityTerms,
+    sourceTerms,
+    summaryTerms,
+    tagTerms,
+    titleTerms,
+    topicTerms,
+  };
+}
+
+function countSharedTerms(left: Set<string>, right: Set<string>) {
+  let count = 0;
+
+  for (const term of left) {
+    if (right.has(term)) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
 export function toEmbeddingState(value: string | null | undefined): EmbeddingState {
   if (value === "ready" || value === "error") {
     return value;
@@ -58,17 +294,37 @@ export function toEmbeddingState(value: string | null | undefined): EmbeddingSta
   return "pending";
 }
 
+export function buildInterestEmbeddingInput(query: string) {
+  const normalizedQuery = normalizeInterestQuery(query);
+  const searchProfile = buildInterestSearchProfile(query, normalizedQuery);
+  const expansionPhrases = [...searchProfile.phrases].filter((phrase) => phrase !== normalizedQuery);
+
+  if (searchProfile.wordCount <= 3 && expansionPhrases.length > 0) {
+    return uniqueNonEmpty([query.trim(), ...expansionPhrases]).join("\n");
+  }
+
+  return query.trim();
+}
+
 export function buildStoryEmbeddingInput(story: StoryEmbeddingShape) {
   const sourceTitles = story.sources.map((source) => [source.name, source.title ?? ""].join(" - "));
   const entityTokens = story.entities.flatMap((entity) => [entity.name, ...entity.aliases]);
-
-  return uniqueNonEmpty([
-    story.title,
-    ...story.summary,
+  const conceptPhrases = collectConceptPhrases([
     ...story.topics,
     ...story.primary_entities,
     ...entityTokens,
-    ...sourceTitles,
+    ...story.tags,
+  ]);
+
+  return uniqueNonEmpty([
+    `Headline ${story.title}`,
+    ...story.summary.map((line) => `Summary ${line}`),
+    ...story.topics.map((topic) => `Topic ${topic}`),
+    ...story.primary_entities.map((entity) => `Entity ${entity}`),
+    ...entityTokens.map((entity) => `Alias ${entity}`),
+    ...story.tags.map((tag) => `Tag ${tag}`),
+    ...sourceTitles.map((sourceTitle) => `Source ${sourceTitle}`),
+    ...conceptPhrases,
   ]).join("\n");
 }
 
@@ -120,6 +376,56 @@ export function cosineSimilarity(left: number[], right: number[]) {
   return dot / (Math.sqrt(leftMagnitude) * Math.sqrt(rightMagnitude));
 }
 
+function scoreInterestAgainstStory(
+  interestEmbedding: number[],
+  interestProfile: InterestSearchProfile,
+  storyEmbedding: number[],
+  storyProfile: StorySearchProfile,
+  similarityThreshold: number
+) {
+  const semanticSimilarity = cosineSimilarity(interestEmbedding, storyEmbedding);
+  const exactPhraseMatch = storyProfile.allText.includes(interestProfile.normalizedQuery);
+  const expandedPhraseMatches = [...interestProfile.phrases]
+    .filter((phrase) => phrase !== interestProfile.normalizedQuery && phrase.includes(" ") && storyProfile.allText.includes(phrase))
+    .length;
+  const titleMatches = countSharedTerms(interestProfile.tokens, storyProfile.titleTerms);
+  const topicMatches = countSharedTerms(interestProfile.tokens, storyProfile.topicTerms);
+  const entityMatches = countSharedTerms(interestProfile.tokens, storyProfile.entityTerms);
+  const summaryMatches = countSharedTerms(interestProfile.tokens, storyProfile.summaryTerms);
+  const sourceMatches = countSharedTerms(interestProfile.tokens, storyProfile.sourceTerms);
+  const tagMatches = countSharedTerms(interestProfile.tokens, storyProfile.tagTerms);
+  const allMatches = countSharedTerms(interestProfile.tokens, storyProfile.allTerms);
+  const overlapRatio = allMatches / Math.max(2, Math.min(interestProfile.tokens.size, interestProfile.wordCount <= 2 ? 5 : 7));
+  const hybridScore =
+    semanticSimilarity
+    + (exactPhraseMatch ? 0.2 : 0)
+    + Math.min(expandedPhraseMatches, 2) * 0.08
+    + Math.min(titleMatches, 3) * 0.08
+    + Math.min(topicMatches, 2) * 0.1
+    + Math.min(entityMatches, 3) * 0.09
+    + Math.min(summaryMatches, 3) * 0.04
+    + Math.min(sourceMatches, 2) * 0.03
+    + Math.min(tagMatches, 2) * 0.04
+    + Math.min(interestProfile.wordCount <= 2 ? 0.22 : 0.16, overlapRatio * (interestProfile.wordCount <= 2 ? 0.3 : 0.18));
+  const shortInterest = interestProfile.wordCount <= 2;
+  const semanticFloor = shortInterest ? Math.max(0.12, similarityThreshold - 0.04) : similarityThreshold;
+  const strongSemantic = semanticSimilarity >= (shortInterest ? 0.18 : 0.22);
+  const structuredSignal =
+    exactPhraseMatch
+    || expandedPhraseMatches > 0
+    || titleMatches > 0
+    || topicMatches > 0
+    || entityMatches > 0
+    || tagMatches > 0
+    || allMatches >= (shortInterest ? 2 : 3);
+  const minimumHybridScore = shortInterest ? 0.34 : 0.3;
+
+  return {
+    matched: strongSemantic || ((semanticSimilarity >= semanticFloor || structuredSignal) && hybridScore >= minimumHybridScore),
+    score: hybridScore,
+  };
+}
+
 export async function generateEmbedding(value: string) {
   const extractor = await getFeatureExtractor();
   const result = await extractor(value, {
@@ -135,7 +441,7 @@ export async function updateInterestEmbeddingRecord(interestId: string, query: s
   const nowIso = new Date().toISOString();
 
   try {
-    const embedding = await generateEmbedding(query);
+    const embedding = await generateEmbedding(buildInterestEmbeddingInput(query));
     const { error } = await supabase
       .from("user_interest_follows")
       .update({
@@ -253,7 +559,7 @@ export async function getSemanticStoryIdsForUser(
     ] = await Promise.all([
       supabase
         .from("user_interest_follows")
-        .select("embedding")
+        .select("query, normalized_query, embedding")
         .eq("user_id", userId)
         .eq("embedding_state", "ready")
         .not("embedding", "is", null),
@@ -262,7 +568,7 @@ export async function getSemanticStoryIdsForUser(
         .select("story_id, embedding")
         .eq("embedding_state", "ready")
         .not("embedding", "is", null),
-      supabase.from("stories").select("id").eq("status", "published"),
+      supabase.from("stories").select("*").eq("status", "published"),
     ]);
 
     if (interestError) {
@@ -275,10 +581,23 @@ export async function getSemanticStoryIdsForUser(
       throw new Error(storyError.message);
     }
 
-    const publishedStoryIds = new Set((storyRows ?? []).map((row) => String((row as { id: string }).id)));
+    const publishedStories = ((storyRows ?? []) as StoryDbRow[]).map(coerceStory);
+    const publishedStoryIds = new Set(publishedStories.map((story) => story.id));
     const parsedInterestEmbeddings = ((interestRows ?? []) as StoredInterestEmbeddingRow[])
-      .map((row) => parsePgVector(row.embedding))
-      .filter((embedding): embedding is number[] => Boolean(embedding));
+      .map((row) => {
+        const embedding = parsePgVector(row.embedding);
+        const query = String(row.query ?? "").trim();
+        const normalizedQuery = normalizeInterestQuery(String(row.normalized_query ?? query));
+        if (!embedding || !query || !normalizedQuery) {
+          return null;
+        }
+
+        return {
+          embedding,
+          profile: buildInterestSearchProfile(query, normalizedQuery),
+        };
+      })
+      .filter((row): row is { embedding: number[]; profile: InterestSearchProfile } => Boolean(row));
     const parsedStoryEmbeddings = ((storyEmbeddingRows ?? []) as StoredStoryEmbeddingRow[])
       .map((row) => ({
         embedding: parsePgVector(row.embedding),
@@ -288,33 +607,47 @@ export async function getSemanticStoryIdsForUser(
         (row): row is { embedding: number[]; storyId: string } =>
           Boolean(row.embedding) && publishedStoryIds.has(row.storyId)
       );
-
+    const storyProfiles = new Map<string, StorySearchProfile>(
+      publishedStories.map((story) => [story.id, buildStorySearchProfile(story)])
+    );
     const scoredStories = new Map<string, number>();
 
-    for (const interestEmbedding of parsedInterestEmbeddings) {
+    for (const interest of parsedInterestEmbeddings) {
       const nearestStories = parsedStoryEmbeddings
-        .map((row) => ({
-          similarity: cosineSimilarity(interestEmbedding, row.embedding),
-          storyId: row.storyId,
-        }))
-        .filter((row) => row.similarity >= similarityThreshold)
-        .sort((left, right) => right.similarity - left.similarity)
+        .map((row) => {
+          const storyProfile = storyProfiles.get(row.storyId);
+          if (!storyProfile) return null;
+
+          const { matched, score } = scoreInterestAgainstStory(
+            interest.embedding,
+            interest.profile,
+            row.embedding,
+            storyProfile,
+            similarityThreshold
+          );
+
+          if (!matched) return null;
+
+          return {
+            score,
+            storyId: row.storyId,
+          };
+        })
+        .filter((row): row is { score: number; storyId: string } => Boolean(row))
+        .sort((left, right) => right.score - left.score)
         .slice(0, matchCountPerInterest);
 
       for (const match of nearestStories) {
         const current = scoredStories.get(match.storyId) ?? 0;
-        if (match.similarity > current) {
-          scoredStories.set(match.storyId, match.similarity);
+        if (match.score > current) {
+          scoredStories.set(match.storyId, match.score);
         }
       }
     }
 
     return [...scoredStories.entries()].sort((left, right) => right[1] - left[1]).map(([storyId]) => storyId);
   } catch (error) {
-    if (
-      relationMissing(error, "user_interest_follows")
-      || relationMissing(error, "story_embeddings")
-    ) {
+    if (relationMissing(error, "user_interest_follows") || relationMissing(error, "story_embeddings")) {
       return [];
     }
 

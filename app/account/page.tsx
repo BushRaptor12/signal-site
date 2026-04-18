@@ -123,7 +123,7 @@ export default async function AccountPage() {
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Interests</div>
               <h3 className="mt-2 text-xl font-semibold text-neutral-100">Subjects you want the site to keep finding</h3>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-400">
-                Add interests here instead of making custom homepage tabs. The Following feed uses these saved interests to pull in related stories.
+                Add interests here instead of making custom homepage tabs. Short phrases like California sports or AI businesses now get expanded and matched against related stories.
               </p>
               <AccountInterestsManager initialInterests={account.followedInterests} />
             </div>

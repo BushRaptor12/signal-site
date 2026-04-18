@@ -20,6 +20,129 @@ const extractor = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2"
   quantized: true,
 });
 
+const STOP_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "at",
+  "for",
+  "from",
+  "in",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "with",
+]);
+
+const CONCEPT_EXPANSIONS = {
+  ai: ["artificial intelligence", "machine learning", "openai", "nvidia", "automation", "chatbots", "models"],
+  "artificial intelligence": ["ai", "machine learning", "openai", "nvidia", "chatbots", "models"],
+  business: ["businesses", "company", "companies", "corporate", "earnings", "startup", "startups", "markets", "ceo"],
+  businesses: ["business", "company", "companies", "corporate", "earnings", "startup", "startups", "markets", "ceo"],
+  california: [
+    "sacramento",
+    "los angeles",
+    "san francisco",
+    "bay area",
+    "silicon valley",
+    "san diego",
+    "oakland",
+    "anaheim",
+    "golden state warriors",
+    "lakers",
+    "dodgers",
+    "49ers",
+    "giants",
+    "padres",
+    "angels",
+    "kings",
+    "clippers",
+  ],
+  economy: ["economic", "economics", "inflation", "jobs", "labor", "gdp", "rates", "recession", "growth", "consumer"],
+  entertainment: ["hollywood", "film", "movie", "movies", "tv", "television", "music", "celebrity"],
+  finance: ["bank", "banks", "banking", "wall street", "stocks", "stock market", "markets", "investing"],
+  google: ["alphabet", "search", "android", "ai"],
+  microsoft: ["windows", "azure", "enterprise software", "ai"],
+  nvidia: ["ai", "chips", "semiconductors", "gpu", "gpus"],
+  oil: ["crude", "energy", "petroleum", "gas", "gasoline"],
+  openai: ["ai", "artificial intelligence", "chatgpt", "models"],
+  politics: ["political", "election", "elections", "campaign", "campaigns", "congress", "senate", "house", "governor", "policy"],
+  shipping: ["maritime", "ports", "cargo", "freight", "trade route", "sea lane"],
+  sports: ["sport", "athletics", "team", "teams", "league", "leagues", "game", "games", "season", "playoffs", "nba", "nfl", "mlb", "nhl", "soccer", "football", "basketball", "baseball", "hockey"],
+  technology: ["tech", "software", "hardware", "chips", "chip", "semiconductor", "internet", "platform", "platforms", "apps"],
+  trump: ["donald trump", "president trump", "white house"],
+  world: ["international", "global", "foreign", "diplomatic", "geopolitics"],
+};
+
+function normalizeInterestQuery(value) {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function singularizeToken(token) {
+  if (token.endsWith("ies") && token.length > 4) {
+    return `${token.slice(0, -3)}y`;
+  }
+
+  if (token.endsWith("es") && token.length > 4) {
+    return token.slice(0, -2);
+  }
+
+  if (token.endsWith("s") && token.length > 3 && !token.endsWith("ss")) {
+    return token.slice(0, -1);
+  }
+
+  return token;
+}
+
+function tokenizeText(value) {
+  const tokens = normalizeInterestQuery(value)
+    .replace(/&/g, " and ")
+    .split(/[^a-z0-9]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+  const output = new Set();
+
+  for (const token of tokens) {
+    if (STOP_WORDS.has(token)) continue;
+    output.add(token);
+
+    const singular = singularizeToken(token);
+    if (singular && !STOP_WORDS.has(singular)) {
+      output.add(singular);
+    }
+  }
+
+  return output;
+}
+
+function expandConceptPhrases(value) {
+  const normalizedValue = normalizeInterestQuery(value);
+  const output = new Set();
+  const seeds = new Set([normalizedValue]);
+
+  for (const token of tokenizeText(normalizedValue)) {
+    seeds.add(token);
+  }
+
+  for (const seed of seeds) {
+    const expansions = CONCEPT_EXPANSIONS[seed] ?? [];
+    for (const expansion of expansions) {
+      const normalizedExpansion = normalizeInterestQuery(expansion);
+      if (normalizedExpansion) {
+        output.add(normalizedExpansion);
+      }
+    }
+  }
+
+  return [...output];
+}
+
+function uniqueNonEmpty(values) {
+  return [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
+}
+
 function toStringArray(value) {
   return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
 }
@@ -50,21 +173,46 @@ function toSources(value) {
     .filter((item) => item && item.name);
 }
 
-function uniqueNonEmpty(values) {
-  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+function collectConceptPhrases(values) {
+  return uniqueNonEmpty(values.flatMap((value) => [value, ...expandConceptPhrases(value)]));
+}
+
+function buildInterestEmbeddingInput(query) {
+  const normalizedQuery = normalizeInterestQuery(query);
+  const phrases = new Set([normalizedQuery]);
+
+  for (const phrase of expandConceptPhrases(normalizedQuery)) {
+    phrases.add(phrase);
+  }
+
+  if (tokenizeText(normalizedQuery).size <= 3 && phrases.size > 1) {
+    return uniqueNonEmpty([String(query ?? "").trim(), ...phrases]).join("\n");
+  }
+
+  return String(query ?? "").trim();
 }
 
 function buildStoryEmbeddingInput(row) {
   const entities = toEntities(row.entities);
   const sources = toSources(row.sources);
-
-  return uniqueNonEmpty([
-    String(row.title ?? ""),
-    ...toStringArray(row.summary),
+  const entityTokens = entities.flatMap((entity) => [entity.name, ...entity.aliases]);
+  const sourceTitles = sources.map((source) => [source.name, source.title].join(" - "));
+  const conceptPhrases = collectConceptPhrases([
     ...toStringArray(row.topics),
     ...toStringArray(row.primary_entities),
-    ...entities.flatMap((entity) => [entity.name, ...entity.aliases]),
-    ...sources.map((source) => [source.name, source.title].join(" - ")),
+    ...entityTokens,
+    ...toStringArray(row.tags),
+  ]);
+
+  return uniqueNonEmpty([
+    `Headline ${String(row.title ?? "")}`,
+    ...toStringArray(row.summary).map((line) => `Summary ${line}`),
+    ...toStringArray(row.topics).map((topic) => `Topic ${topic}`),
+    ...toStringArray(row.primary_entities).map((entity) => `Entity ${entity}`),
+    ...entityTokens.map((entity) => `Alias ${entity}`),
+    ...toStringArray(row.tags).map((tag) => `Tag ${tag}`),
+    ...sourceTitles.map((sourceTitle) => `Source ${sourceTitle}`),
+    ...conceptPhrases,
   ]).join("\n");
 }
 
@@ -88,7 +236,7 @@ async function generateEmbedding(value) {
 async function backfillStories() {
   const { data: stories, error } = await supabase
     .from("stories")
-    .select("id, title, summary, topics, primary_entities, entities, sources")
+    .select("id, title, summary, topics, primary_entities, entities, sources, tags")
     .eq("status", "published")
     .order("updated_at", { ascending: false, nullsFirst: false });
 
@@ -142,7 +290,7 @@ async function backfillStories() {
 async function backfillInterests() {
   const { data: interests, error } = await supabase
     .from("user_interest_follows")
-    .select("id, query, embedding_state, embedding")
+    .select("id, query")
     .order("updated_at", { ascending: false });
 
   if (error) {
@@ -151,11 +299,7 @@ async function backfillInterests() {
 
   let updatedCount = 0;
   for (const interest of interests ?? []) {
-    if (interest.embedding_state === "ready" && interest.embedding) {
-      continue;
-    }
-
-    const embedding = await generateEmbedding(String(interest.query ?? ""));
+    const embedding = await generateEmbedding(buildInterestEmbeddingInput(String(interest.query ?? "")));
     const { error: updateError } = await supabase
       .from("user_interest_follows")
       .update({

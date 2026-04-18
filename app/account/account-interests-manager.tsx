@@ -86,14 +86,14 @@ export default function AccountInterestsManager({ initialInterests }: AccountInt
   return (
     <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
       <div className="text-sm leading-7 text-neutral-300">
-        Add the subjects you want to follow here. The Following feed will pull in stories related to these interests.
+        Add short subjects you want to follow here. The Following feed will pull in stories related to interests like California sports, AI businesses, or oil shipping.
       </div>
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Add an interest, like Rare earth supply chains"
+          placeholder="Add an interest, like California sports"
           className="min-w-0 flex-1 rounded-xl border border-[#163754] bg-[#020b14] px-4 py-3 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/70"
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -116,7 +116,7 @@ export default function AccountInterestsManager({ initialInterests }: AccountInt
 
       {interests.length === 0 ? (
         <div className="mt-5 text-sm leading-7 text-neutral-400">
-          No interests followed yet. Add one to start shaping your Following feed.
+          No interests followed yet. Add a short interest to start shaping your Following feed.
         </div>
       ) : (
         <div className="mt-5 flex flex-wrap gap-3">
