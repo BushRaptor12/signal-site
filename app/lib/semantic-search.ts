@@ -20,6 +20,7 @@ type StoryEmbeddingShape = Pick<
 >;
 
 type StoredInterestEmbeddingRow = {
+  id?: number | string | null;
   embedding: number[] | string | null;
   normalized_query: string | null;
   query: string | null;
@@ -30,8 +31,18 @@ type StoredStoryEmbeddingRow = {
   story_id: string;
 };
 
+type StoredInterestStoryFeedbackRow = {
+  interest_id: number | string;
+  story_id: string;
+};
+
+type ConceptGroup = {
+  label: string;
+  terms: Set<string>;
+};
+
 type InterestSearchProfile = {
-  conceptGroups: Set<string>[];
+  conceptGroups: ConceptGroup[];
   normalizedQuery: string;
   rawQuery: string;
   phrases: Set<string>;
@@ -48,6 +59,18 @@ type StorySearchProfile = {
   tagTerms: Set<string>;
   titleTerms: Set<string>;
   topicTerms: Set<string>;
+};
+
+export type SemanticStoryMatch = {
+  reasons: string[];
+  score: number;
+  storyId: string;
+};
+
+export type SemanticInterestStoryMatches = {
+  hiddenCount: number;
+  interestId: string;
+  matches: SemanticStoryMatch[];
 };
 
 let featureExtractorPromise: Promise<EmbeddingExtractor> | null = null;
@@ -74,6 +97,10 @@ const PHRASE_EXPANSION_MAP = PHRASE_KNOWLEDGE as Record<string, string[]>;
 
 function uniqueNonEmpty(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function toDisplayLabel(value: string) {
+  return value.replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function relationMissing(error: unknown, relationName: string) {
@@ -191,17 +218,20 @@ function buildConceptGroups(normalizedQuery: string) {
     .filter((token) => !STOP_WORDS.has(token));
 
   return rawTokens.map((token) => {
-    const group = new Set<string>();
+    const terms = new Set<string>();
     for (const term of tokenizeText(token)) {
-      group.add(term);
+      terms.add(term);
     }
     for (const phrase of expandConceptPhrases(token)) {
       for (const term of tokenizeText(phrase)) {
-        group.add(term);
+        terms.add(term);
       }
     }
-    return group;
-  }).filter((group) => group.size > 0);
+    return {
+      label: token,
+      terms,
+    };
+  }).filter((group) => group.terms.size > 0);
 }
 
 function buildInterestSearchProfile(query: string, normalizedQuery = normalizeInterestQuery(query)): InterestSearchProfile {
@@ -303,11 +333,26 @@ function countSharedTerms(left: Set<string>, right: Set<string>) {
   return count;
 }
 
-function countCoveredConceptGroups(conceptGroups: Set<string>[], storyTerms: Set<string>) {
+function getCoveredConceptLabels(conceptGroups: ConceptGroup[], storyTerms: Set<string>) {
+  const covered: string[] = [];
+
+  for (const group of conceptGroups) {
+    for (const term of group.terms) {
+      if (storyTerms.has(term)) {
+        covered.push(group.label);
+        break;
+      }
+    }
+  }
+
+  return covered;
+}
+
+function countCoveredConceptGroups(conceptGroups: ConceptGroup[], storyTerms: Set<string>) {
   let coveredGroups = 0;
 
   for (const group of conceptGroups) {
-    for (const term of group) {
+    for (const term of group.terms) {
       if (storyTerms.has(term)) {
         coveredGroups += 1;
         break;
@@ -316,6 +361,53 @@ function countCoveredConceptGroups(conceptGroups: Set<string>[], storyTerms: Set
   }
 
   return coveredGroups;
+}
+
+function buildMatchReasons(options: {
+  coveredConceptLabels: string[];
+  entityMatches: number;
+  exactPhraseMatch: boolean;
+  expandedPhraseMatches: number;
+  semanticSimilarity: number;
+  sourceMatches: number;
+  tagMatches: number;
+  titleMatches: number;
+  topicMatches: number;
+}) {
+  const reasons: string[] = [];
+
+  if (options.coveredConceptLabels.length >= 2) {
+    reasons.push(`Matched concepts: ${options.coveredConceptLabels.map(toDisplayLabel).join(" + ")}`);
+  } else if (options.coveredConceptLabels.length === 1) {
+    reasons.push(`Matched concept: ${toDisplayLabel(options.coveredConceptLabels[0] ?? "")}`);
+  }
+
+  if (options.exactPhraseMatch) {
+    reasons.push("Exact phrase");
+  } else if (options.expandedPhraseMatches > 0) {
+    reasons.push("Expanded phrase");
+  }
+
+  if (options.topicMatches > 0) {
+    reasons.push("Topics");
+  }
+  if (options.entityMatches > 0) {
+    reasons.push("Entities and story knowledge");
+  }
+  if (options.titleMatches > 0) {
+    reasons.push("Headline");
+  }
+  if (options.tagMatches > 0) {
+    reasons.push("Tags");
+  }
+  if (options.sourceMatches > 0) {
+    reasons.push("Source titles");
+  }
+  if (options.semanticSimilarity >= 0.22) {
+    reasons.push("Semantic similarity");
+  }
+
+  return uniqueNonEmpty(reasons).slice(0, 3);
 }
 
 export function toEmbeddingState(value: string | null | undefined): EmbeddingState {
@@ -445,6 +537,7 @@ function scoreInterestAgainstStory(
   const tagMatches = countSharedTerms(interestProfile.tokens, storyProfile.tagTerms);
   const allMatches = countSharedTerms(interestProfile.tokens, storyProfile.allTerms);
   const coveredConceptGroups = countCoveredConceptGroups(interestProfile.conceptGroups, storyProfile.allTerms);
+  const coveredConceptLabels = getCoveredConceptLabels(interestProfile.conceptGroups, storyProfile.allTerms);
   const needsCompoundCoverage = interestProfile.conceptGroups.length >= 2;
   const hasCompoundCoverage = !needsCompoundCoverage || coveredConceptGroups >= 2;
   const overlapRatio = allMatches / Math.max(2, Math.min(interestProfile.tokens.size, interestProfile.wordCount <= 2 ? 5 : 7));
@@ -491,6 +584,17 @@ function scoreInterestAgainstStory(
       structuredOnlyMatch
       || (strongSemantic && (!needsCompoundCoverage || hasCompoundCoverage || semanticSimilarity >= 0.32))
       || ((semanticSimilarity >= semanticFloor || structuredSignal) && hybridScore >= minimumHybridScore),
+    reasons: buildMatchReasons({
+      coveredConceptLabels,
+      entityMatches,
+      exactPhraseMatch,
+      expandedPhraseMatches,
+      semanticSimilarity,
+      sourceMatches,
+      tagMatches,
+      titleMatches,
+      topicMatches,
+    }),
     score: hybridScore,
   };
 }
@@ -609,9 +713,10 @@ export async function upsertStoryEmbeddingRecord(storyId: string, story: StoryEm
   }
 }
 
-export async function getSemanticStoryIdsForUser(
+export async function getSemanticStoryMatchesForUser(
   userId: string,
   options?: {
+    interestIds?: string[];
     matchCountPerInterest?: number;
     similarityThreshold?: number;
   }
@@ -619,17 +724,20 @@ export async function getSemanticStoryIdsForUser(
   const supabase = supabaseServer();
   const similarityThreshold = options?.similarityThreshold ?? 0.18;
   const matchCountPerInterest = options?.matchCountPerInterest ?? 24;
+  const interestIds = uniqueNonEmpty((options?.interestIds ?? []).map((value) => String(value)));
 
   try {
-    const [
-      { data: interestRows, error: interestError },
-      { data: storyEmbeddingRows, error: storyEmbeddingError },
-      { data: storyRows, error: storyError },
-    ] = await Promise.all([
-      supabase
-        .from("user_interest_follows")
-        .select("query, normalized_query, embedding")
-        .eq("user_id", userId),
+    let interestQuery = supabase
+      .from("user_interest_follows")
+      .select("id, query, normalized_query, embedding")
+      .eq("user_id", userId);
+
+    if (interestIds.length > 0) {
+      interestQuery = interestQuery.in("id", interestIds.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0));
+    }
+
+    const [{ data: interestRows, error: interestError }, { data: storyEmbeddingRows, error: storyEmbeddingError }, { data: storyRows, error: storyError }] = await Promise.all([
+      interestQuery,
       supabase
         .from("story_embeddings")
         .select("story_id, embedding")
@@ -648,30 +756,56 @@ export async function getSemanticStoryIdsForUser(
       throw new Error(storyError.message);
     }
 
+    let hiddenRows: StoredInterestStoryFeedbackRow[] = [];
+    try {
+      let feedbackQuery = supabase
+        .from("user_interest_story_feedback")
+        .select("interest_id, story_id")
+        .eq("user_id", userId)
+        .eq("feedback", "hidden");
+
+      if (interestIds.length > 0) {
+        feedbackQuery = feedbackQuery.in("interest_id", interestIds.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0));
+      }
+
+      const { data, error } = await feedbackQuery;
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      hiddenRows = (data ?? []) as StoredInterestStoryFeedbackRow[];
+    } catch (error) {
+      if (!relationMissing(error, "user_interest_story_feedback")) {
+        throw error;
+      }
+    }
+
     const publishedStories = ((storyRows ?? []) as StoryDbRow[]).map(coerceStory);
     const publishedStoryIds = new Set(publishedStories.map((story) => story.id));
-    const parsedInterestEmbeddings: Array<{ embedding: number[] | null; profile: InterestSearchProfile }> = ((interestRows ?? []) as StoredInterestEmbeddingRow[])
+    const hiddenStoryIdsByInterest = new Map<string, Set<string>>();
+    for (const row of hiddenRows) {
+      const interestId = String(row.interest_id);
+      const current = hiddenStoryIdsByInterest.get(interestId) ?? new Set<string>();
+      current.add(String(row.story_id));
+      hiddenStoryIdsByInterest.set(interestId, current);
+    }
+    const parsedInterestEmbeddings: Array<{ embedding: number[] | null; interestId: string; profile: InterestSearchProfile }> = ((interestRows ?? []) as StoredInterestEmbeddingRow[])
       .map((row) => {
         const embedding = parsePgVector(row.embedding);
+        const interestId = String(row.id ?? "");
         const query = String(row.query ?? "").trim();
         const normalizedQuery = normalizeInterestQuery(String(row.normalized_query ?? query));
-        if (!embedding || !query || !normalizedQuery) {
-          if (!query || !normalizedQuery) {
-            return null;
-          }
-
-          return {
-            embedding: null,
-            profile: buildInterestSearchProfile(query, normalizedQuery),
-          };
+        if (!interestId || !query || !normalizedQuery) {
+          return null;
         }
 
         return {
           embedding: embedding ?? null,
+          interestId,
           profile: buildInterestSearchProfile(query, normalizedQuery),
         };
       })
-      .filter((row): row is { embedding: number[] | null; profile: InterestSearchProfile } => row !== null);
+      .filter((row): row is { embedding: number[] | null; interestId: string; profile: InterestSearchProfile } => row !== null);
     const parsedStoryEmbeddings = ((storyEmbeddingRows ?? []) as StoredStoryEmbeddingRow[])
       .map((row) => ({
         embedding: parsePgVector(row.embedding),
@@ -684,15 +818,20 @@ export async function getSemanticStoryIdsForUser(
     const storyProfiles = new Map<string, StorySearchProfile>(
       publishedStories.map((story) => [story.id, buildStorySearchProfile(story)])
     );
-    const scoredStories = new Map<string, number>();
+    const matchGroups: SemanticInterestStoryMatches[] = [];
 
     for (const interest of parsedInterestEmbeddings) {
+      const hiddenStoryIds = hiddenStoryIdsByInterest.get(interest.interestId) ?? new Set<string>();
       const nearestStories = parsedStoryEmbeddings
         .map((row) => {
+          if (hiddenStoryIds.has(row.storyId)) {
+            return null;
+          }
+
           const storyProfile = storyProfiles.get(row.storyId);
           if (!storyProfile) return null;
 
-          const { matched, score } = scoreInterestAgainstStory(
+          const { matched, reasons, score } = scoreInterestAgainstStory(
             interest.embedding,
             interest.profile,
             row.embedding,
@@ -703,28 +842,55 @@ export async function getSemanticStoryIdsForUser(
           if (!matched) return null;
 
           return {
+            reasons,
             score,
             storyId: row.storyId,
           };
         })
-        .filter((row): row is { score: number; storyId: string } => Boolean(row))
+        .filter((row): row is { reasons: string[]; score: number; storyId: string } => Boolean(row))
         .sort((left, right) => right.score - left.score)
         .slice(0, matchCountPerInterest);
 
-      for (const match of nearestStories) {
-        const current = scoredStories.get(match.storyId) ?? 0;
-        if (match.score > current) {
-          scoredStories.set(match.storyId, match.score);
-        }
-      }
+      matchGroups.push({
+        hiddenCount: hiddenStoryIds.size,
+        interestId: interest.interestId,
+        matches: nearestStories,
+      });
     }
 
-    return [...scoredStories.entries()].sort((left, right) => right[1] - left[1]).map(([storyId]) => storyId);
+    return matchGroups;
   } catch (error) {
-    if (relationMissing(error, "user_interest_follows") || relationMissing(error, "story_embeddings")) {
-      return [];
+    if (
+      relationMissing(error, "user_interest_follows")
+      || relationMissing(error, "story_embeddings")
+      || relationMissing(error, "user_interest_story_feedback")
+    ) {
+      return [] as SemanticInterestStoryMatches[];
     }
 
     throw error;
   }
+}
+
+export async function getSemanticStoryIdsForUser(
+  userId: string,
+  options?: {
+    interestIds?: string[];
+    matchCountPerInterest?: number;
+    similarityThreshold?: number;
+  }
+) {
+  const groups = await getSemanticStoryMatchesForUser(userId, options);
+  const scoredStories = new Map<string, number>();
+
+  for (const group of groups) {
+    for (const match of group.matches) {
+      const current = scoredStories.get(match.storyId) ?? 0;
+      if (match.score > current) {
+        scoredStories.set(match.storyId, match.score);
+      }
+    }
+  }
+
+  return [...scoredStories.entries()].sort((left, right) => right[1] - left[1]).map(([storyId]) => storyId);
 }

@@ -3,6 +3,7 @@ import { createClient, type User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { queueUsernameReview } from "@/app/lib/notifications.server";
 import {
+  getSemanticStoryMatchesForUser,
   getSemanticStoryIdsForUser,
   normalizeInterestQuery,
   SENTENCE_TRANSFORMER_MODEL,
@@ -94,6 +95,17 @@ export type FollowedInterest = {
   updatedAt: string;
 };
 
+export type FollowedInterestStoryMatch = {
+  reasons: string[];
+  score: number;
+  story: StoryWithViews;
+};
+
+export type FollowedInterestWithMatches = FollowedInterest & {
+  hiddenCount: number;
+  matches: FollowedInterestStoryMatch[];
+};
+
 export type AccountComment = {
   body: string;
   createdAt: string;
@@ -105,7 +117,7 @@ export type AccountComment = {
 export type AccountDashboard = {
   commentCount: number;
   comments: AccountComment[];
-  followedInterests: FollowedInterest[];
+  followedInterests: FollowedInterestWithMatches[];
   followedStories: FollowedStory[];
   profile: AccountProfile;
 };
@@ -521,6 +533,60 @@ export async function getFollowedInterests(userId: string) {
   return ((data ?? []) as UserInterestFollowRow[]).map(toFollowedInterest);
 }
 
+async function getStoriesById(storyIds: string[]) {
+  if (storyIds.length === 0) {
+    return new Map<string, StoryWithViews>();
+  }
+
+  const supabase = supabaseServer();
+  const { data, error } = await supabase.from("stories").select("*").in("id", storyIds);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const storiesById = new Map<string, StoryWithViews>();
+  for (const row of (data ?? []) as StoryDbRow[]) {
+    const story = coerceStory(row);
+    storiesById.set(story.id, story);
+  }
+
+  return storiesById;
+}
+
+export async function getFollowedInterestsWithMatches(userId: string, interests?: FollowedInterest[]) {
+  const followedInterests = interests ?? (await getFollowedInterests(userId));
+  if (followedInterests.length === 0) {
+    return [] as FollowedInterestWithMatches[];
+  }
+
+  const matchGroups = await getSemanticStoryMatchesForUser(userId, {
+    interestIds: followedInterests.map((interest) => interest.id),
+  });
+  const storyIds = [...new Set(matchGroups.flatMap((group) => group.matches.map((match) => match.storyId)))];
+  const storiesById = await getStoriesById(storyIds);
+  const matchesByInterestId = new Map(matchGroups.map((group) => [group.interestId, group] as const));
+
+  return followedInterests.map((interest) => {
+    const group = matchesByInterestId.get(interest.id);
+    return {
+      ...interest,
+      hiddenCount: group?.hiddenCount ?? 0,
+      matches: (group?.matches ?? [])
+        .map((match) => {
+          const story = storiesById.get(match.storyId);
+          return story
+            ? {
+                reasons: match.reasons,
+                score: match.score,
+                story,
+              }
+            : null;
+        })
+        .filter((value): value is FollowedInterestStoryMatch => Boolean(value)),
+    };
+  });
+}
+
 export async function getSeenStoryIds(userId: string, storyIds?: string[]) {
   if (!userId) return [];
   if (storyIds && storyIds.length === 0) return [];
@@ -654,6 +720,39 @@ export async function removeInterestFollow(userId: string, interestId: string) {
   const { error } = await supabase.from("user_interest_follows").delete().eq("user_id", userId).eq("id", numericId);
   if (error) {
     throw new Error(friendlyInterestError(error.message, "We couldn't remove that interest."));
+  }
+}
+
+export async function hideInterestStoryMatch(userId: string, interestId: string, storyId: string) {
+  const numericInterestId = Number(interestId);
+  if (!Number.isInteger(numericInterestId) || numericInterestId <= 0) {
+    throw new Error("Interest id is invalid.");
+  }
+
+  const trimmedStoryId = storyId.trim();
+  if (!trimmedStoryId) {
+    throw new Error("Story id is required.");
+  }
+
+  const supabase = supabaseServer();
+  const nowIso = new Date().toISOString();
+  const { error } = await supabase.from("user_interest_story_feedback").upsert(
+    {
+      feedback: "hidden",
+      interest_id: numericInterestId,
+      story_id: trimmedStoryId,
+      updated_at: nowIso,
+      user_id: userId,
+    },
+    { onConflict: "user_id,interest_id,story_id", ignoreDuplicates: false }
+  );
+
+  if (error) {
+    if (/relation .*user_interest_story_feedback.* does not exist/i.test(error.message)) {
+      throw new Error("Interest feedback is not set up yet. Run the new SQL migration first.");
+    }
+
+    throw new Error(friendlyInterestError(error.message, "We couldn't hide that story for this interest."));
   }
 }
 
@@ -912,6 +1011,7 @@ export async function getAccountDashboard(userId: string): Promise<AccountDashbo
     throw new Error("This account profile could not be found.");
   }
 
+  const followedInterests = await getFollowedInterestsWithMatches(userId, interestResult);
   const storyIds = new Set<string>();
   for (const row of (followRows ?? []) as UserStoryFollowRow[]) {
     storyIds.add(row.story_id);
@@ -919,19 +1019,13 @@ export async function getAccountDashboard(userId: string): Promise<AccountDashbo
   for (const comment of commentHistory.comments) {
     storyIds.add(comment.storyId);
   }
-
-  const storiesById = new Map<string, StoryWithViews>();
-  if (storyIds.size > 0) {
-    const { data: storyRows, error: storyError } = await supabase.from("stories").select("*").in("id", [...storyIds]);
-    if (storyError) {
-      throw new Error(storyError.message);
-    }
-
-    for (const row of (storyRows ?? []) as StoryDbRow[]) {
-      const story = coerceStory(row);
-      storiesById.set(story.id, story);
+  for (const interest of followedInterests) {
+    for (const match of interest.matches) {
+      storyIds.add(match.story.id);
     }
   }
+
+  const storiesById = await getStoriesById([...storyIds]);
 
   return {
     commentCount: commentHistory.totalCount,
@@ -942,7 +1036,7 @@ export async function getAccountDashboard(userId: string): Promise<AccountDashbo
       storyId: comment.storyId,
       storyTitle: comment.storyTitle ?? storiesById.get(comment.storyId)?.title ?? null,
     })),
-    followedInterests: interestResult,
+    followedInterests,
     followedStories: ((followRows ?? []) as UserStoryFollowRow[])
       .map((row) => {
         const story = storiesById.get(row.story_id);
