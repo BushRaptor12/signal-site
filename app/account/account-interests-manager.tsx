@@ -8,6 +8,7 @@ import type { FollowedInterest, FollowedInterestWithMatches } from "@/app/lib/ac
 
 type AccountInterestsManagerProps = {
   initialInterests: FollowedInterestWithMatches[];
+  storyLinkFrom?: string;
 };
 
 function toInterestGroup(interest: FollowedInterest | FollowedInterestWithMatches) {
@@ -19,7 +20,10 @@ function toInterestGroup(interest: FollowedInterest | FollowedInterestWithMatche
   } satisfies FollowedInterestWithMatches;
 }
 
-export default function AccountInterestsManager({ initialInterests }: AccountInterestsManagerProps) {
+export default function AccountInterestsManager({
+  initialInterests,
+  storyLinkFrom = "account-interests",
+}: AccountInterestsManagerProps) {
   const [interests, setInterests] = useState(initialInterests);
   const [expandedInterestIds, setExpandedInterestIds] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
@@ -62,6 +66,7 @@ export default function AccountInterestsManager({ initialInterests }: AccountInt
 
         return [nextInterest, ...current];
       });
+      setExpandedInterestIds((current) => [...new Set([nextInterest.id, ...current])]);
       setDraft("");
       emitAccountFollowsUpdated();
     } catch (createError) {
@@ -145,7 +150,7 @@ export default function AccountInterestsManager({ initialInterests }: AccountInt
   return (
     <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
       <div className="text-sm leading-7 text-neutral-300">
-        Add subjects you want to follow here. Review what each interest is pulling in and hide bad matches without deleting the interest.
+        Add subjects you want to follow here. Expand one when you want to review matched stories or hide bad matches.
       </div>
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -179,101 +184,90 @@ export default function AccountInterestsManager({ initialInterests }: AccountInt
         </div>
       ) : (
         <div className="mt-5 space-y-4">
-          {interests.map((interest) => (
-            <section key={interest.id} className="rounded-2xl border border-[#163754] bg-[#020b14] p-5">
-              {(() => {
-                const isExpanded = expandedInterestIds.includes(interest.id);
+          {interests.map((interest) => {
+            const isExpanded = expandedInterestIds.includes(interest.id);
 
-                return (
-                  <>
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <div className="flex flex-wrap items-center gap-3">
+            return (
+              <section key={interest.id} className="rounded-2xl border border-[#163754] bg-[#020b14] p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
                     <h4 className="text-lg font-semibold text-neutral-100">{interest.query}</h4>
-                    <div className="rounded-full border border-[#163754] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-neutral-500">
-                      {interest.matches.length} live matches
+                    <div className="mt-2 text-xs uppercase tracking-[0.18em] text-neutral-500">
+                      {pendingDeleteId === interest.id ? "Removing" : `Updated ${formatUpdatedAt(interest.updatedAt)}`}
                     </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleInterestExpansion(interest.id)}
+                      className="inline-flex rounded-full border border-[#163754] bg-[#07101a] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-300 transition hover:border-[#8f7740]/50 hover:text-neutral-100"
+                    >
+                      {isExpanded ? "Collapse" : "Expand"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void removeInterest(interest.id)}
+                      disabled={pendingDeleteId === interest.id}
+                      className="inline-flex rounded-full border border-[#163754] bg-[#07101a] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-300 transition hover:border-[#8f7740]/50 hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+
+                {!isExpanded ? null : interest.matches.length === 0 ? (
+                  <div className="mt-4 rounded-2xl border border-[#13314b] bg-[#04111b] p-4 text-sm leading-7 text-neutral-400">
+                    No live matches yet for this interest. Try a more specific phrase or wait for newer stories.
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
                     {interest.hiddenCount > 0 ? (
-                      <div className="rounded-full border border-[#163754] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-neutral-500">
-                        {interest.hiddenCount} hidden
+                      <div className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+                        Hidden matches: {interest.hiddenCount}
                       </div>
                     ) : null}
-                  </div>
-                  <div className="mt-2 text-xs uppercase tracking-[0.18em] text-neutral-500">
-                    {pendingDeleteId === interest.id ? "Removing" : `Updated ${formatUpdatedAt(interest.updatedAt)}`}
-                  </div>
-                </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleInterestExpansion(interest.id)}
-                    className="inline-flex rounded-full border border-[#163754] bg-[#07101a] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-300 transition hover:border-[#8f7740]/50 hover:text-neutral-100"
-                  >
-                    {isExpanded ? "Collapse" : `Expand ${interest.matches.length}`}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void removeInterest(interest.id)}
-                    disabled={pendingDeleteId === interest.id}
-                    className="inline-flex rounded-full border border-[#163754] bg-[#07101a] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-300 transition hover:border-[#8f7740]/50 hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
+                    {interest.matches.map((match) => {
+                      const matchKey = `${interest.id}:${match.story.id}`;
+                      const pendingHide = pendingHideKey === matchKey;
 
-              {!isExpanded ? null : interest.matches.length === 0 ? (
-                <div className="mt-4 rounded-2xl border border-[#13314b] bg-[#04111b] p-4 text-sm leading-7 text-neutral-400">
-                  No live matches yet for this interest. Try a more specific phrase or wait for newer stories.
-                </div>
-              ) : (
-                <div className="mt-4 space-y-3">
-                  {interest.matches.map((match) => {
-                    const matchKey = `${interest.id}:${match.story.id}`;
-                    const pendingHide = pendingHideKey === matchKey;
-
-                    return (
-                      <div
-                        key={match.story.id}
-                        className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-4">
-                          <div className="min-w-0 flex-1">
-                            <Link
-                              href={`/story/${match.story.id}?from=account`}
-                              className="text-base font-semibold text-neutral-100 transition hover:text-[#d7c08d]"
-                            >
-                              {match.story.title}
-                            </Link>
-                            {match.story.summary[0] ? (
-                              <p className="mt-2 text-sm leading-6 text-neutral-400">{match.story.summary[0]}</p>
-                            ) : null}
-                            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.16em] text-neutral-500">
-                              <span>{formatStoryDate(match.story.date)}</span>
-                              {match.reasons.length > 0 ? <span>{match.reasons.join(" · ")}</span> : null}
+                      return (
+                        <div key={match.story.id} className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div className="min-w-0 flex-1">
+                              <Link
+                                href={`/story/${match.story.id}?from=${encodeURIComponent(storyLinkFrom)}`}
+                                className="text-base font-semibold text-neutral-100 transition hover:text-[#d7c08d]"
+                              >
+                                {match.story.title}
+                              </Link>
+                              {match.story.summary[0] ? (
+                                <p className="mt-2 text-sm leading-6 text-neutral-400">{match.story.summary[0]}</p>
+                              ) : null}
+                              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.16em] text-neutral-500">
+                                <span>{formatStoryDate(match.story.date)}</span>
+                                {match.reasons.length > 0 ? <span>{match.reasons.join(" | ")}</span> : null}
+                              </div>
                             </div>
-                          </div>
 
-                          <button
-                            type="button"
-                            onClick={() => void hideMatch(interest.id, match.story.id)}
-                            disabled={pendingHide}
-                            className="inline-flex rounded-full border border-[#163754] bg-[#020b14] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-300 transition hover:border-[#8f7740]/50 hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {pendingHide ? "Hiding" : "Hide match"}
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => void hideMatch(interest.id, match.story.id)}
+                              disabled={pendingHide}
+                              className="inline-flex rounded-full border border-[#163754] bg-[#020b14] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-300 transition hover:border-[#8f7740]/50 hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {pendingHide ? "Hiding" : "Hide match"}
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-                  </>
-                );
-              })()}
-            </section>
-          ))}
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            );
+          })}
         </div>
       )}
     </div>

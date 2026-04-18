@@ -435,14 +435,6 @@ export default function HomePageClient({
       }),
     [followedInterestQueries, followedStoryIdSet, recentStories, semanticInterestMatchesByStoryId, semanticStoryIdSet]
   );
-  const followingFeedCounts = useMemo(
-    () => ({
-      interests: followedInterests.length,
-      matches: followingStories.length,
-      trackedStories: followedStoryIds.length,
-    }),
-    [followedInterests.length, followedStoryIds.length, followingStories.length]
-  );
   const visible = useMemo(() => {
     if (activeTab === "following") return followingStories;
     if (activeTab === "recent") return recentStories;
@@ -541,17 +533,28 @@ export default function HomePageClient({
           ))}
         </div>
 
-        {activeTab === "following" && accountAuthenticated ? (
-          <Link href="/account" className="text-sm text-neutral-400 transition hover:text-neutral-200">
-            Manage interests
-          </Link>
-        ) : null}
       </div>
 
       <div className="mx-auto mb-6 min-h-[44px] max-w-4xl">
         {activeTab === "following" ? (
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="min-h-[44px] flex-1">
+            <div className="min-h-[44px] flex-1 space-y-4">
+              {trackingStories.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
+                  {trackingStories.map((story) => (
+                    <Link
+                      key={story.id}
+                      href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
+                      onClick={() => persistHomeState()}
+                      className="min-w-0 text-[17px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
+                    >
+                      {story.title}
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
+
               {!accountAuthenticated ? (
                 <div className="text-sm text-neutral-500">Log in to follow interests and track stories.</div>
               ) : followedInterests.length > 0 ? (
@@ -567,40 +570,19 @@ export default function HomePageClient({
                       </span>
                     ))}
                   </div>
-
-                  <div className="flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
-                    <span className="rounded-full border border-[#13314b] px-3 py-1">
-                      {followingFeedCounts.interests} interests
-                    </span>
-                    <span className="rounded-full border border-[#13314b] px-3 py-1">
-                      {followingFeedCounts.matches} stories in feed
-                    </span>
-                    {followingFeedCounts.trackedStories > 0 ? (
-                      <span className="rounded-full border border-[#13314b] px-3 py-1">
-                        {followingFeedCounts.trackedStories} tracked
-                      </span>
-                    ) : null}
-                  </div>
                 </div>
               ) : (
-                <div className="text-sm text-neutral-500">Add interests from your account page to shape this feed.</div>
+                <div className="text-sm text-neutral-500">Add interests from your interests page to shape this feed.</div>
               )}
             </div>
 
-            {trackingStories.length > 0 ? (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
-                {trackingStories.map((story) => (
-                  <Link
-                    key={story.id}
-                    href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
-                    onClick={() => persistHomeState()}
-                    className="min-w-0 text-[17px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
-                  >
-                    {story.title}
-                  </Link>
-                ))}
-              </div>
+            {accountAuthenticated ? (
+              <Link
+                href="/account/interests"
+                className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+              >
+                Manage interests
+              </Link>
             ) : null}
           </div>
         ) : activeTab === "popular" || activeTab === "recent" || isPresetTopicTab(normalize(activeTab)) ? trackingStories.length > 0 ? (
@@ -632,7 +614,7 @@ export default function HomePageClient({
           <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
             <h2 className="text-2xl font-semibold text-neutral-100">Log in to use Following</h2>
             <p className="mt-3 text-neutral-400">
-              Save interests from your account page and track specific stories from their story pages.
+              Save interests from your interests page and track specific stories from their story pages.
             </p>
             <Link
               href="/account/login"
@@ -645,13 +627,13 @@ export default function HomePageClient({
           <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
             <h2 className="text-2xl font-semibold text-neutral-100">Nothing followed yet</h2>
             <p className="mt-3 text-neutral-400">
-              Add interests from your account page or track a story to populate this feed.
+              Add interests from your interests page or track a story to populate this feed.
             </p>
             <Link
-              href="/account"
+              href="/account/interests"
               className="mt-6 inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
             >
-              Open account
+              Manage interests
             </Link>
           </div>
         ) : visible.length === 0 ? (
@@ -742,11 +724,6 @@ export default function HomePageClient({
                       {primaryInterestMatch ? (
                         <span className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-300">
                           Because you follow {primaryInterestMatch.query}
-                        </span>
-                      ) : null}
-                      {primaryInterestMatch?.reasons?.[0] ? (
-                        <span className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-neutral-400">
-                          {primaryInterestMatch.reasons[0]}
                         </span>
                       ) : null}
                     </div>

@@ -6,7 +6,6 @@ import { getAccountDashboard, getAccountUserId } from "@/app/lib/account.server"
 import { DEFAULT_OG_IMAGE, SITE_NAME } from "@/app/lib/seo";
 import PageBrandHeader from "@/app/page-brand-header";
 import AccountCommentsHistory from "./account-comments-history";
-import AccountInterestsManager from "./account-interests-manager";
 
 export const metadata: Metadata = {
   title: "Account",
@@ -109,30 +108,48 @@ export default async function AccountPage() {
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
           <section className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Following</div>
                 <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Interests and stories you follow</h2>
               </div>
-              <div className="rounded-full border border-[#13314b] px-3 py-1 text-xs text-neutral-400">
-                {account.followedInterests.length + account.followedStories.length}
-              </div>
+              <Link
+                href="/account/interests"
+                className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+              >
+                Manage interests
+              </Link>
             </div>
 
             <div className="mt-6">
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Interests</div>
-              <h3 className="mt-2 text-xl font-semibold text-neutral-100">Subjects you want the site to keep finding</h3>
-              <AccountInterestsManager initialInterests={account.followedInterests} />
+              <h3 className="mt-2 text-xl font-semibold text-neutral-100">Subjects shaping your Following feed</h3>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-400">
+                Use the separate interests page to add subjects, review matched stories, and hide bad matches without crowding the account dashboard.
+              </p>
+              {account.followedInterests.length > 0 ? (
+                <div className="mt-5 flex flex-wrap gap-3">
+                  {account.followedInterests.map((interest) => (
+                    <span
+                      key={interest.id}
+                      className="rounded-full border border-[#163754] bg-[#020b14] px-4 py-2 text-sm text-neutral-200"
+                    >
+                      {interest.query}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-5 rounded-2xl border border-[#13314b] bg-[#04111b] p-5 text-sm leading-7 text-neutral-400">
+                  No interests followed yet. Add a few from the interests page to shape your Following feed.
+                </div>
+              )}
             </div>
 
             <div className="mt-8">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracked stories</div>
                   <h3 className="mt-2 text-xl font-semibold text-neutral-100">Specific stories you are tracking</h3>
-                </div>
-                <div className="rounded-full border border-[#13314b] px-3 py-1 text-xs text-neutral-400">
-                  {account.followedStories.length}
                 </div>
               </div>
 
