@@ -67,6 +67,11 @@ const STOP_WORDS = new Set([
   "with",
 ]);
 
+const NON_SINGULAR_TOKENS = new Set([
+  "angeles",
+  "angels",
+]);
+
 const CONCEPT_EXPANSIONS: Record<string, string[]> = {
   ai: ["artificial intelligence", "machine learning", "openai", "nvidia", "automation", "chatbots", "models"],
   "artificial intelligence": ["ai", "machine learning", "openai", "nvidia", "chatbots", "models"],
@@ -133,6 +138,10 @@ export function normalizeInterestQuery(value: string) {
 }
 
 function singularizeToken(token: string) {
+  if (NON_SINGULAR_TOKENS.has(token)) {
+    return token;
+  }
+
   if (token.endsWith("ies") && token.length > 4) {
     return `${token.slice(0, -3)}y`;
   }
