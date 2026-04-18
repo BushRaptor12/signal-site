@@ -451,6 +451,14 @@ export default function EditorPage() {
     setSources((prev) => [...prev, createSourceRow()]);
   }
 
+  function removeSourceRow(index: number) {
+    setSources((prev) => {
+      if (index < 0 || index >= prev.length) return prev;
+      if (prev.length === 1) return [createSourceRow()];
+      return prev.filter((_, currentIndex) => currentIndex !== index);
+    });
+  }
+
   function moveSourceRow(index: number, direction: "up" | "down") {
     setSources((prev) => {
       const targetIndex = direction === "up" ? index - 1 : index + 1;
@@ -1778,6 +1786,13 @@ export default function EditorPage() {
                       className="rounded-full border border-neutral-700 px-3 py-1 text-neutral-300 hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Move down
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeSourceRow(index)}
+                      className="rounded-full border border-[#5b2a2a] px-3 py-1 text-[#f0c8c8] hover:bg-[#190b0c]"
+                    >
+                      Remove
                     </button>
                     <span>Edit the dropdown anytime to override.</span>
                   </div>

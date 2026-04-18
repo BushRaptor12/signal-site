@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatUpdatedAt } from "@/app/lib/dates";
-import type { AdminDashboardData, AdminManagedUser } from "@/app/lib/admin-tools";
+import type { AdminDashboardData, AdminInterestSignal, AdminManagedUser } from "@/app/lib/admin-tools";
 import type { CommunitySettings } from "@/app/lib/community-settings";
 import type { StaffRole } from "@/app/lib/account.server";
 
@@ -38,6 +38,7 @@ function SummaryCard({ label, value }: { label: string; value: number }) {
 
 export default function AdminDashboardClient({ initialData, initialUsers }: AdminDashboardClientProps) {
   const [settings, setSettings] = useState<CommunitySettings>(initialData.communitySettings);
+  const [interestSignals, setInterestSignals] = useState<AdminInterestSignal[]>(initialData.recentInterestSignals);
   const [users, setUsers] = useState<AdminManagedUser[]>(initialUsers);
   const [userSearchDraft, setUserSearchDraft] = useState("");
   const [userSearch, setUserSearch] = useState("");
@@ -141,6 +142,52 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
     }
   }
 
+  async function addInterestAsEntity(signal: AdminInterestSignal) {
+    const actionKey = `entity:${signal.normalizedQuery}`;
+    setBusyAction(actionKey);
+    setError("");
+    setStatus("");
+
+    try {
+      const response = await fetch("/api/entities", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          aliases: [],
+          name: signal.query,
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        entity?: { name?: string };
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(data.error ?? "We couldn't create that entity.");
+      }
+
+      const entityName = data.entity?.name?.trim() || signal.query;
+      setInterestSignals((current) =>
+        current.map((item) =>
+          item.normalizedQuery === signal.normalizedQuery
+            ? {
+                ...item,
+                entityMatchName: entityName,
+                entityMatchType: "entity",
+                query: entityName,
+              }
+            : item
+        )
+      );
+      setStatus(`Added ${entityName} to entities.`);
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : "We couldn't create that entity.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-neutral-900 p-8 text-neutral-100">
       <div className="mx-auto max-w-7xl">
@@ -157,11 +204,17 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
             <Link href="/admin/editor" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
               Story editor
             </Link>
+            <Link href="/admin/entities" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
+              Entities
+            </Link>
             <Link href="/admin/moderation" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
               Moderation
             </Link>
             <Link href="/admin/briefing" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
               Briefing manager
+            </Link>
+            <Link href="#reader-interests" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
+              Reader interests
             </Link>
             <Link href="/notifications" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
               Notifications
@@ -273,6 +326,72 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
         </div>
 
         <div className="mt-8 grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
+          <section
+            id="reader-interests"
+            className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Reader Interests</div>
+                <h2 className="mt-2 text-2xl font-semibold text-neutral-100">What people are trying to follow</h2>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-400">
+                  Use this to spot recurring interests and promote them into your entity system when they should be first-class concepts.
+                </p>
+              </div>
+              <Link
+                href="/admin/entities"
+                className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white"
+              >
+                Open manager
+              </Link>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              {interestSignals.map((signal) => {
+                const actionKey = `entity:${signal.normalizedQuery}`;
+                const isBusy = busyAction === actionKey;
+
+                return (
+                  <div key={signal.normalizedQuery} className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <div className="text-base font-medium text-neutral-100">{signal.query}</div>
+                        <div className="mt-2 text-xs uppercase tracking-[0.16em] text-neutral-500">
+                          {signal.readerCount} reader{signal.readerCount === 1 ? "" : "s"} • Updated {formatUpdatedAt(signal.updatedAt)}
+                        </div>
+                        <div className="mt-3 text-sm text-neutral-400">
+                          {signal.entityMatchType === "entity"
+                            ? `Already an entity: ${signal.entityMatchName}`
+                            : signal.entityMatchType === "alias"
+                              ? `Already covered as an alias on ${signal.entityMatchName}`
+                              : "Not in entities yet."}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {signal.entityMatchType === "none" ? (
+                          <button
+                            type="button"
+                            onClick={() => void addInterestAsEntity(signal)}
+                            disabled={isBusy}
+                            className="rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isBusy ? "Adding..." : "Add as entity"}
+                          </button>
+                        ) : (
+                          <span className="rounded-full border border-[#163754] px-3 py-2 text-xs uppercase tracking-[0.16em] text-neutral-300">
+                            {signal.entityMatchType === "entity" ? "Entity exists" : "Alias exists"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {interestSignals.length === 0 ? <div className="text-sm text-neutral-500">No reader interests found yet.</div> : null}
+            </div>
+          </section>
+
           <section className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
             <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Story QA</div>
             <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Attention Needed</h2>

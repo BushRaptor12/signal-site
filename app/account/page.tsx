@@ -223,6 +223,12 @@ export default async function AccountPage() {
                 Open editor
               </Link>
               <Link
+                href="/admin/entities"
+                className="inline-flex rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
+              >
+                Open entities
+              </Link>
+              <Link
                 href="/admin/briefing"
                 className="inline-flex rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
               >

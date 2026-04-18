@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { emitAccountFollowsUpdated } from "@/app/lib/account-events";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import type { FollowedInterest, FollowedInterestWithMatches } from "@/app/lib/account.server";
@@ -14,6 +14,12 @@ type AccountInterestsManagerProps = {
 type KeywordDraftState = {
   excludeKeywords: string;
   matchKeywords: string;
+};
+
+type InterestSuggestion = {
+  hint: string | null;
+  kind: "entity" | "topic";
+  value: string;
 };
 
 function toInterestGroup(interest: FollowedInterest | FollowedInterestWithMatches) {
@@ -47,6 +53,48 @@ export default function AccountInterestsManager({
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [pendingHideKey, setPendingHideKey] = useState<string | null>(null);
   const [pendingUpdateId, setPendingUpdateId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<InterestSuggestion[]>([]);
+  const [suggestionsVisible, setSuggestionsVisible] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+
+  useEffect(() => {
+    const trimmedDraft = draft.trim();
+    if (!suggestionsVisible || !trimmedDraft) {
+      setSuggestions([]);
+      setLoadingSuggestions(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setLoadingSuggestions(true);
+      try {
+        const response = await fetch(`/api/account/interests/suggestions?q=${encodeURIComponent(trimmedDraft)}`, {
+          cache: "no-store",
+        });
+        const data = (await response.json().catch(() => ({}))) as {
+          suggestions?: InterestSuggestion[];
+        };
+
+        if (!cancelled) {
+          setSuggestions(Array.isArray(data.suggestions) ? data.suggestions : []);
+        }
+      } catch {
+        if (!cancelled) {
+          setSuggestions([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingSuggestions(false);
+        }
+      }
+    }, 140);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [draft, suggestionsVisible]);
 
   async function addInterest() {
     const trimmedDraft = draft.trim();
@@ -91,6 +139,8 @@ export default function AccountInterestsManager({
       }));
       setExpandedInterestIds((current) => [...new Set([nextInterest.id, ...current])]);
       setDraft("");
+      setSuggestions([]);
+      setSuggestionsVisible(false);
       emitAccountFollowsUpdated();
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "We couldn't save that interest.");
@@ -235,18 +285,54 @@ export default function AccountInterestsManager({
       </div>
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-        <input
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder="Add an interest like California sports"
-          className="min-w-0 flex-1 rounded-xl border border-[#163754] bg-[#020b14] px-4 py-3 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/70"
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              void addInterest();
-            }
-          }}
-        />
+        <div className="relative min-w-0 flex-1">
+          <input
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onFocus={() => setSuggestionsVisible(true)}
+            onBlur={() => {
+              window.setTimeout(() => setSuggestionsVisible(false), 120);
+            }}
+            placeholder="Add an interest like California sports"
+            className="w-full rounded-xl border border-[#163754] bg-[#020b14] px-4 py-3 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/70"
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void addInterest();
+              }
+            }}
+          />
+
+          {suggestionsVisible && (loadingSuggestions || suggestions.length > 0 || draft.trim()) ? (
+            <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 rounded-2xl border border-[#163754] bg-[#04111b] p-2 shadow-[0_18px_40px_rgba(0,0,0,0.45)]">
+              {loadingSuggestions ? (
+                <div className="px-3 py-2 text-sm text-neutral-400">Loading suggestions...</div>
+              ) : suggestions.length > 0 ? (
+                <div className="space-y-1">
+                  {suggestions.map((suggestion) => (
+                    <button
+                      key={`${suggestion.kind}:${suggestion.value}`}
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setDraft(suggestion.value);
+                        setSuggestionsVisible(false);
+                      }}
+                      className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition hover:bg-[#081521]"
+                    >
+                      <span className="text-sm text-neutral-100">{suggestion.value}</span>
+                      <span className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">
+                        {suggestion.hint ?? suggestion.kind}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-3 py-2 text-sm text-neutral-500">No existing entity or topic suggestions. You can still add free text.</div>
+              )}
+            </div>
+          ) : null}
+        </div>
         <button
           type="button"
           onClick={() => void addInterest()}
@@ -255,6 +341,10 @@ export default function AccountInterestsManager({
         >
           {pendingCreate ? "Saving..." : "Add interest"}
         </button>
+      </div>
+
+      <div className="mt-3 text-xs uppercase tracking-[0.16em] text-neutral-500">
+        Autocomplete suggests existing topics and entities, but you can still follow any free-text interest.
       </div>
 
       {error ? <div className="mt-3 text-sm text-[#f0b7b7]">{error}</div> : null}

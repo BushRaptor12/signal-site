@@ -23,6 +23,19 @@ type StoryLiteRow = Pick<
   "id" | "title" | "status" | "summary" | "sources" | "image_path" | "image_url" | "topics" | "entities" | "updated_at" | "created_at" | "beacon_include"
 >;
 
+type InterestSignalRow = {
+  created_at: string;
+  normalized_query: string;
+  query: string;
+  updated_at: string;
+  user_id: string;
+};
+
+type EntityLookupRow = {
+  aliases: string[] | null;
+  name: string;
+};
+
 export type AdminManagedUser = {
   adminGrantedAt: string | null;
   commentCount: number;
@@ -72,9 +85,24 @@ export type AdminDashboardRecentRevision = {
   storyId: string;
 };
 
+export type AdminInterestSignal = {
+  entityMatchName: string | null;
+  entityMatchType: "alias" | "entity" | "none";
+  normalizedQuery: string;
+  query: string;
+  readerCount: number;
+  updatedAt: string;
+};
+
+export type AdminEntity = {
+  aliases: string[];
+  name: string;
+};
+
 export type AdminDashboardData = {
   attentionStories: AdminDashboardStoryIssue[];
   communitySettings: Awaited<ReturnType<typeof getCommunitySettings>>;
+  recentInterestSignals: AdminInterestSignal[];
   recentComments: AdminDashboardRecentComment[];
   recentRevisions: AdminDashboardRecentRevision[];
   recentSignups: AdminDashboardRecentSignup[];
@@ -96,6 +124,10 @@ function sanitizeSearchTerm(value: string) {
 
 function normalizeSourceUrl(value: string) {
   return value.trim().replace(/\/+$/, "").toLowerCase();
+}
+
+function normalizeInterestLookupValue(value: string) {
+  return value.trim().toLowerCase();
 }
 
 function toManagedUser(row: UserProfileAdminRow, stats?: { commentCount?: number; openReportCount?: number }): AdminManagedUser {
@@ -294,6 +326,113 @@ function getStoryIssues(row: StoryLiteRow) {
   return issues;
 }
 
+export async function listAdminEntities(limit = 400) {
+  const supabase = supabaseServer();
+  const { data, error } = await supabase.from("entities").select("name, aliases").order("name", { ascending: true }).limit(limit);
+
+  if (error) {
+    if (/relation .*entities.* does not exist/i.test(error.message)) {
+      return [] as AdminEntity[];
+    }
+
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as EntityLookupRow[]).map((entity) => ({
+    aliases: Array.isArray(entity.aliases) ? entity.aliases.map(String).filter(Boolean) : [],
+    name: entity.name,
+  }));
+}
+
+export async function listAdminInterestSignals(limit = 12) {
+  const supabase = supabaseServer();
+  const [{ data: interestData, error: interestError }, entities] = await Promise.all([
+    supabase
+      .from("user_interest_follows")
+      .select("user_id, query, normalized_query, created_at, updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(400),
+    listAdminEntities(400),
+  ]);
+
+  if (interestError) {
+    if (/relation .*user_interest_follows.* does not exist/i.test(interestError.message)) {
+      return [] as AdminInterestSignal[];
+    }
+
+    throw new Error(interestError.message);
+  }
+
+  const entityNamesByKey = new Map<string, string>();
+  const entityAliasesByKey = new Map<string, string>();
+  for (const entity of entities) {
+    const normalizedName = normalizeInterestLookupValue(entity.name);
+    if (normalizedName && !entityNamesByKey.has(normalizedName)) {
+      entityNamesByKey.set(normalizedName, entity.name);
+    }
+
+    for (const alias of entity.aliases ?? []) {
+      const normalizedAlias = normalizeInterestLookupValue(alias);
+      if (normalizedAlias && !entityAliasesByKey.has(normalizedAlias)) {
+        entityAliasesByKey.set(normalizedAlias, entity.name);
+      }
+    }
+  }
+
+  const groupedSignals = new Map<
+    string,
+    {
+      normalizedQuery: string;
+      query: string;
+      readerIds: Set<string>;
+      updatedAt: string;
+    }
+  >();
+
+  for (const row of (interestData ?? []) as InterestSignalRow[]) {
+    const normalizedQuery = normalizeInterestLookupValue(row.normalized_query || row.query);
+    if (!normalizedQuery) continue;
+
+    const existing = groupedSignals.get(normalizedQuery);
+    if (!existing) {
+      groupedSignals.set(normalizedQuery, {
+        normalizedQuery,
+        query: row.query,
+        readerIds: new Set([row.user_id]),
+        updatedAt: row.updated_at,
+      });
+      continue;
+    }
+
+    existing.readerIds.add(row.user_id);
+    if (new Date(row.updated_at).getTime() >= new Date(existing.updatedAt).getTime()) {
+      existing.query = row.query;
+      existing.updatedAt = row.updated_at;
+    }
+  }
+
+  return [...groupedSignals.values()]
+    .sort((left, right) => {
+      const updatedDiff = new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+      if (updatedDiff !== 0) return updatedDiff;
+      return right.readerIds.size - left.readerIds.size;
+    })
+    .slice(0, Math.max(1, Math.min(limit, 30)))
+    .map((signal) => {
+      const exactEntityName = entityNamesByKey.get(signal.normalizedQuery) ?? null;
+      const aliasEntityName = exactEntityName ? null : (entityAliasesByKey.get(signal.normalizedQuery) ?? null);
+
+      return {
+        entityMatchName: exactEntityName ?? aliasEntityName,
+        entityMatchType: exactEntityName ? "entity" : aliasEntityName ? "alias" : "none",
+        normalizedQuery: signal.normalizedQuery,
+        query: signal.query,
+        readerCount: signal.readerIds.size,
+        updatedAt: signal.updatedAt,
+      } satisfies AdminInterestSignal;
+    });
+}
+
 export async function getAdminDashboardData(adminUserId: string): Promise<AdminDashboardData> {
   const supabase = supabaseServer();
   const startOfDay = new Date();
@@ -311,6 +450,7 @@ export async function getAdminDashboardData(adminUserId: string): Promise<AdminD
     { data: recentSignupsData, error: recentSignupsError },
     { data: recentRevisionsData, error: revisionsError },
     communitySettings,
+    recentInterestSignals,
   ] = await Promise.all([
     supabase
       .from("stories")
@@ -336,6 +476,7 @@ export async function getAdminDashboardData(adminUserId: string): Promise<AdminD
       .order("created_at", { ascending: false })
       .limit(8),
     getCommunitySettings(),
+    listAdminInterestSignals(12),
   ]);
 
   if (storyError) throw new Error(storyError.message);
@@ -398,6 +539,7 @@ export async function getAdminDashboardData(adminUserId: string): Promise<AdminD
   return {
     attentionStories,
     communitySettings,
+    recentInterestSignals,
     recentComments: recentComments.map((comment) => ({
       body: comment.body,
       createdAt: comment.created_at,
