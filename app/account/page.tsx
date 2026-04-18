@@ -6,6 +6,7 @@ import { getAccountDashboard, getAccountUserId } from "@/app/lib/account.server"
 import { DEFAULT_OG_IMAGE, SITE_NAME } from "@/app/lib/seo";
 import PageBrandHeader from "@/app/page-brand-header";
 import AccountCommentsHistory from "./account-comments-history";
+import AccountInterestsManager from "./account-interests-manager";
 
 export const metadata: Metadata = {
   title: "Account",
@@ -82,7 +83,7 @@ export default async function AccountPage() {
               <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Account</div>
               <h1 className="mt-3 text-4xl font-semibold text-neutral-100">{account.profile.username}</h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-neutral-300">
-                Reader profile for followed stories, comment history, and settings.
+                Reader profile for followed interests, tracked stories, comment history, and settings.
               </p>
               <div className="mt-4 text-sm text-neutral-500">Joined: {formatUpdatedAt(account.profile.createdAt)}</div>
             </div>
@@ -111,35 +112,56 @@ export default async function AccountPage() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Following</div>
-                <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Stories you follow</h2>
+                <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Interests and stories you follow</h2>
               </div>
               <div className="rounded-full border border-[#13314b] px-3 py-1 text-xs text-neutral-400">
-                {account.followedStories.length}
+                {account.followedInterests.length + account.followedStories.length}
               </div>
             </div>
 
-            {account.followedStories.length === 0 ? (
-              <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-5 text-sm leading-7 text-neutral-400">
-                You are not following any stories yet. Follow stories from their story pages and they will appear here.
+            <div className="mt-6">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Interests</div>
+              <h3 className="mt-2 text-xl font-semibold text-neutral-100">Subjects you want the site to keep finding</h3>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-400">
+                Add interests here instead of making custom homepage tabs. The Following feed uses these saved interests to pull in related stories.
+              </p>
+              <AccountInterestsManager initialInterests={account.followedInterests} />
+            </div>
+
+            <div className="mt-8">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracked stories</div>
+                  <h3 className="mt-2 text-xl font-semibold text-neutral-100">Specific stories you are tracking</h3>
+                </div>
+                <div className="rounded-full border border-[#13314b] px-3 py-1 text-xs text-neutral-400">
+                  {account.followedStories.length}
+                </div>
               </div>
-            ) : (
-              <div className="mt-6 space-y-4">
-                {account.followedStories.map(({ followedAt, story }) => (
-                  <Link
-                    key={story.id}
-                    href={`/story/${story.id}?from=account`}
-                    className="block rounded-2xl border border-[#13314b] bg-[#04111b] p-5 transition hover:border-[#8f7740]/60"
-                  >
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                      Following since {formatUpdatedAt(followedAt)}
-                    </div>
-                    <h3 className="mt-3 text-xl font-semibold text-neutral-100">{story.title}</h3>
-                    {story.summary[0] ? <p className="mt-3 text-sm leading-6 text-neutral-400">{story.summary[0]}</p> : null}
-                    <div className="mt-4 text-sm text-neutral-500">{formatStoryDate(story.date)}</div>
-                  </Link>
-                ))}
-              </div>
-            )}
+
+              {account.followedStories.length === 0 ? (
+                <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-5 text-sm leading-7 text-neutral-400">
+                  You are not tracking any stories yet. Use the story page action to keep a specific story in Following.
+                </div>
+              ) : (
+                <div className="mt-6 space-y-4">
+                  {account.followedStories.map(({ followedAt, story }) => (
+                    <Link
+                      key={story.id}
+                      href={`/story/${story.id}?from=account`}
+                      className="block rounded-2xl border border-[#13314b] bg-[#04111b] p-5 transition hover:border-[#8f7740]/60"
+                    >
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                        Tracking since {formatUpdatedAt(followedAt)}
+                      </div>
+                      <h3 className="mt-3 text-xl font-semibold text-neutral-100">{story.title}</h3>
+                      {story.summary[0] ? <p className="mt-3 text-sm leading-6 text-neutral-400">{story.summary[0]}</p> : null}
+                      <div className="mt-4 text-sm text-neutral-500">{formatStoryDate(story.date)}</div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </section>
 
           <section className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">

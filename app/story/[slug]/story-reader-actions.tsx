@@ -89,7 +89,7 @@ export default function StoryReaderActions({
         href="/account/login"
         className="rounded-full border border-[#0d2438] bg-[#020b14] px-4 py-2 text-xs font-semibold text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
       >
-        Log in to follow
+        Log in to track
       </Link>
     );
   }
@@ -105,7 +105,7 @@ export default function StoryReaderActions({
           : "border border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:border-[#163754] hover:bg-[#03101b]"
       }`}
     >
-      {pending ? "Saving..." : following ? "Following" : "Follow Story"}
+      {pending ? "Saving..." : following ? "Tracking" : "Track Story"}
     </button>
   );
 }

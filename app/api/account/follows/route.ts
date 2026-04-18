@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAccountUserId, getFollowedStoryIds } from "@/app/lib/account.server";
+import { getAccountUserId, getFollowedInterests, getFollowedStoryIds } from "@/app/lib/account.server";
 
 export async function GET() {
   try {
@@ -7,13 +7,15 @@ export async function GET() {
     if (!userId) {
       return NextResponse.json({
         authenticated: false,
+        interests: [],
         storyIds: [],
       });
     }
 
-    const storyIds = await getFollowedStoryIds(userId);
+    const [storyIds, interests] = await Promise.all([getFollowedStoryIds(userId), getFollowedInterests(userId)]);
     return NextResponse.json({
       authenticated: true,
+      interests,
       storyIds,
     });
   } catch (error) {

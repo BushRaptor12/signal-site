@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { createClient, type User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { queueUsernameReview } from "@/app/lib/notifications.server";
+import { normalizeInterestQuery, SENTENCE_TRANSFORMER_MODEL, toEmbeddingState, type EmbeddingState } from "@/app/lib/semantic-search";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { StoryWithViews } from "@/app/lib/types";
@@ -44,6 +45,15 @@ type UserStorySeenRow = {
   story_id: string;
 };
 
+type UserInterestFollowRow = {
+  created_at: string;
+  embedding_state?: string | null;
+  id: number | string;
+  normalized_query: string;
+  query: string;
+  updated_at: string;
+};
+
 export type StaffRole = "admin" | "moderator" | "reader";
 export type CommentModerationStatus = "active" | "banned" | "muted";
 
@@ -68,6 +78,15 @@ export type FollowedStory = {
   story: StoryWithViews;
 };
 
+export type FollowedInterest = {
+  createdAt: string;
+  embeddingState: EmbeddingState;
+  id: string;
+  normalizedQuery: string;
+  query: string;
+  updatedAt: string;
+};
+
 export type AccountComment = {
   body: string;
   createdAt: string;
@@ -79,6 +98,7 @@ export type AccountComment = {
 export type AccountDashboard = {
   commentCount: number;
   comments: AccountComment[];
+  followedInterests: FollowedInterest[];
   followedStories: FollowedStory[];
   profile: AccountProfile;
 };
@@ -171,6 +191,14 @@ function friendlyAuthError(message: string, fallback: string) {
 
   if (/relation .* does not exist/i.test(message)) {
     return "Account tables are not set up yet. Run the account SQL migration first.";
+  }
+
+  return fallback;
+}
+
+function friendlyInterestError(message: string, fallback: string) {
+  if (/relation .*user_interest_follows.* does not exist/i.test(message)) {
+    return "Interest follows are not set up yet. Run the new interest SQL migration first.";
   }
 
   return fallback;
@@ -280,6 +308,17 @@ function toAccountProfile(row: UserProfileRow): AccountProfile {
     updatedAt: row.updated_at,
     userId: row.user_id,
     username: row.username,
+  };
+}
+
+function toFollowedInterest(row: UserInterestFollowRow): FollowedInterest {
+  return {
+    createdAt: row.created_at,
+    embeddingState: toEmbeddingState(row.embedding_state),
+    id: String(row.id),
+    normalizedQuery: row.normalized_query,
+    query: row.query,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -456,6 +495,25 @@ export async function getFollowedStoryIds(userId: string) {
   return ((data ?? []) as UserStoryFollowRow[]).map((row) => row.story_id);
 }
 
+export async function getFollowedInterests(userId: string) {
+  const supabase = supabaseServer();
+  const { data, error } = await supabase
+    .from("user_interest_follows")
+    .select("id, query, normalized_query, embedding_state, created_at, updated_at")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    if (/relation .* does not exist/i.test(error.message)) {
+      return [] as FollowedInterest[];
+    }
+
+    throw new Error(friendlyInterestError(error.message, "We couldn't load followed interests."));
+  }
+
+  return ((data ?? []) as UserInterestFollowRow[]).map(toFollowedInterest);
+}
+
 export async function getSeenStoryIds(userId: string, storyIds?: string[]) {
   if (!userId) return [];
   if (storyIds && storyIds.length === 0) return [];
@@ -521,6 +579,68 @@ export async function setStoryFollow(userId: string, storyId: string, following:
   const { error } = await supabase.from("user_story_follows").delete().eq("user_id", userId).eq("story_id", storyId);
   if (error) {
     throw new Error(friendlyAuthError(error.message, "We couldn't update this follow."));
+  }
+}
+
+export async function createInterestFollow(userId: string, query: string) {
+  const trimmedQuery = query.trim().replace(/\s+/g, " ");
+  const normalizedQuery = normalizeInterestQuery(trimmedQuery);
+  if (!trimmedQuery || !normalizedQuery) {
+    throw new Error("Interest text is required.");
+  }
+
+  if (trimmedQuery.length > 120) {
+    throw new Error("Interests must be 120 characters or fewer.");
+  }
+
+  const supabase = supabaseServer();
+  const { data: existing, error: existingError } = await supabase
+    .from("user_interest_follows")
+    .select("id, query, normalized_query, embedding_state, created_at, updated_at")
+    .eq("user_id", userId)
+    .eq("normalized_query", normalizedQuery)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(friendlyInterestError(existingError.message, "We couldn't save that interest."));
+  }
+
+  if (existing) {
+    return toFollowedInterest(existing as UserInterestFollowRow);
+  }
+
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("user_interest_follows")
+    .insert({
+      user_id: userId,
+      query: trimmedQuery,
+      normalized_query: normalizedQuery,
+      embedding_model: SENTENCE_TRANSFORMER_MODEL,
+      embedding_state: "pending",
+      embedding_updated_at: nowIso,
+      updated_at: nowIso,
+    })
+    .select("id, query, normalized_query, embedding_state, created_at, updated_at")
+    .single();
+
+  if (error) {
+    throw new Error(friendlyInterestError(error.message, "We couldn't save that interest."));
+  }
+
+  return toFollowedInterest(data as UserInterestFollowRow);
+}
+
+export async function removeInterestFollow(userId: string, interestId: string) {
+  const numericId = Number(interestId);
+  if (!Number.isInteger(numericId) || numericId <= 0) {
+    throw new Error("Interest id is invalid.");
+  }
+
+  const supabase = supabaseServer();
+  const { error } = await supabase.from("user_interest_follows").delete().eq("user_id", userId).eq("id", numericId);
+  if (error) {
+    throw new Error(friendlyInterestError(error.message, "We couldn't remove that interest."));
   }
 }
 
@@ -758,10 +878,12 @@ export async function getAccountDashboard(userId: string): Promise<AccountDashbo
   const [
     { data: profileData, error: profileError },
     { data: followRows, error: followError },
+    interestResult,
     commentHistory,
   ] = await Promise.all([
     supabase.from("user_profiles").select("*").eq("user_id", userId).maybeSingle(),
     supabase.from("user_story_follows").select("story_id, created_at").eq("user_id", userId).order("created_at", { ascending: false }),
+    getFollowedInterests(userId),
     listAccountCommentHistory(userId, { limit: 5, offset: 0 }),
   ]);
 
@@ -807,6 +929,7 @@ export async function getAccountDashboard(userId: string): Promise<AccountDashbo
       storyId: comment.storyId,
       storyTitle: comment.storyTitle ?? storiesById.get(comment.storyId)?.title ?? null,
     })),
+    followedInterests: interestResult,
     followedStories: ((followRows ?? []) as UserStoryFollowRow[])
       .map((row) => {
         const story = storiesById.get(row.story_id);

@@ -5,6 +5,7 @@ import { getAdminAccountFromRequest, requestHasAdminAccess } from "@/app/lib/adm
 import { sendUrgentNotificationsForStory } from "@/app/lib/notifications.server";
 import { deleteStoryImage, isStoryImagePath, storyImagePublicUrl } from "@/app/lib/story-images";
 import { recordStoryRevision } from "@/app/lib/story-revisions";
+import { upsertStoryEmbeddingRecord } from "@/app/lib/semantic-search";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { BriefingPosition, StoryImageDisplay, StoryStatus, StoryWithViews } from "@/app/lib/types";
 import {
@@ -241,6 +242,17 @@ export async function POST(req: Request) {
 
     const { error } = await supabase.from("stories").upsert(story, { onConflict: "id" });
     if (error) throw error;
+
+    if (contentChanged) {
+      await upsertStoryEmbeddingRecord(story.id, {
+        entities: story.entities,
+        primary_entities: story.primary_entities,
+        sources: story.sources,
+        summary: story.summary,
+        title: story.title,
+        topics: story.topics,
+      });
+    }
 
     await recordStoryRevision({
       action: "saved",
