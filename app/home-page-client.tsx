@@ -664,7 +664,7 @@ export default function HomePageClient({
                 ? (
                     <span
                       key="tracked"
-                      className="rounded-full border border-[#8f7740]/50 bg-[#07101a] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d]"
+                      className="rounded-full border border-[#8f7740]/35 bg-[#07101a]/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#d7c08d]"
                     >
                       Tracked story
                     </span>
@@ -674,7 +674,7 @@ export default function HomePageClient({
                 ? (
                     <span
                       key="interest"
-                      className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-300"
+                      className="rounded-full border border-[#163754]/70 bg-[#020b14]/75 px-3 py-1 text-[11px] font-semibold tracking-[0.01em] text-neutral-300"
                     >
                       Because you follow {primaryInterestMatch.query}
                     </span>
@@ -684,18 +684,18 @@ export default function HomePageClient({
             return (
             <div key={story.id}>
                 <div
-                  className={`relative overflow-hidden rounded-[28px] border bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
-                    story.urgent ? "border-red-500/70 hover:border-red-400" : "border-[#0d2438] hover:border-[#163754]"
+                  className={`relative overflow-hidden rounded-[20px] border bg-[var(--surface)] p-7 shadow-[0_16px_36px_rgba(0,0,0,0.24)] transition ${
+                    story.urgent ? "border-red-500/60 hover:border-red-400" : "border-[#10263b] hover:border-[#163754]"
                   }`}
                 >
               <div
                 aria-hidden="true"
-                className={`pointer-events-none absolute inset-x-0 top-0 h-16 ${
+                className={`pointer-events-none absolute inset-x-0 top-0 h-10 ${
                   story.urgent
-                    ? "bg-gradient-to-b from-red-500/8 via-red-500/[0.03] to-transparent"
+                    ? "bg-gradient-to-b from-red-500/6 to-transparent"
                     : isLeadCard
-                      ? "bg-gradient-to-b from-[#1d476a]/10 via-[#15324d]/[0.03] to-transparent"
-                      : "bg-gradient-to-b from-[#10263b]/6 to-transparent"
+                      ? "bg-gradient-to-b from-[#1d476a]/6 to-transparent"
+                      : "bg-gradient-to-b from-[#10263b]/4 to-transparent"
                 }`}
               />
               <Link
@@ -704,14 +704,14 @@ export default function HomePageClient({
                 className="relative block"
               >
                   <div className="mb-5 flex flex-wrap items-center justify-end gap-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
                       {getStoryUpdateLabel(story)}
                     </div>
                   </div>
 
                   {shouldShowStoryImageOnHomepage(story) ? (
                     story.image_display === "contain" ? (
-                      <div className="mb-7 overflow-hidden rounded-[24px] bg-transparent">
+                      <div className="mb-7 overflow-hidden rounded-[16px] bg-transparent">
                         <div className="flex justify-center">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
@@ -723,7 +723,7 @@ export default function HomePageClient({
                         </div>
                       </div>
                     ) : (
-                      <div className="mb-7 overflow-hidden rounded-[24px] bg-transparent">
+                      <div className="mb-7 overflow-hidden rounded-[16px] bg-transparent">
                         <div className={`relative ${isLeadCard ? "aspect-[4/3] md:aspect-[16/9]" : "aspect-[4/3] md:aspect-[16/10]"}`}>
                           <Image
                             src={story.image_url!}
@@ -756,7 +756,7 @@ export default function HomePageClient({
                     ))}
                   </div>
 
-                  <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                  <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
                     <span>{story.views} {story.views === 1 ? "view" : "views"}</span>
                     <span>{story.comments} comments</span>
                     <span>{formatStoryDate(story.date)}</span>
@@ -778,7 +778,7 @@ export default function HomePageClient({
                           event.stopPropagation();
                           setActiveTabAndUrl(normalize(topic));
                         }}
-                        className="rounded-full border border-[#214765] bg-[#07111a] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-300 transition hover:border-[#3a617e] hover:bg-[#0a1724]"
+                        className="rounded-full border border-[#214765]/85 bg-[#07111a]/75 px-3 py-1.5 text-[11px] font-semibold tracking-[0.01em] text-neutral-300 transition hover:border-[#3a617e] hover:bg-[#0a1724]"
                       >
                         {toTitleCase(normalize(topic))}
                       </button>

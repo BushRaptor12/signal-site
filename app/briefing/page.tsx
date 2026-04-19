@@ -54,7 +54,7 @@ type BriefingMetaRow = {
 
 function SeenBadge() {
   return (
-    <div className="pointer-events-none absolute bottom-4 right-5 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+    <div className="pointer-events-none absolute bottom-4 right-5 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d]">
       <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-none stroke-current stroke-[1.8]">
         <path d="M1.5 12s3.75-6 10.5-6 10.5 6 10.5 6-3.75 6-10.5 6S1.5 12 1.5 12Z" />
         <circle cx="12" cy="12" r="3.25" />
@@ -85,7 +85,7 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
           <Link
             key={story.id}
             href={`/story/${story.id}?from=briefing`}
-            className="relative block rounded-[22px] border border-neutral-800 bg-neutral-950/55 p-6 shadow-[0_16px_36px_rgba(0,0,0,0.22)] transition hover:border-neutral-700"
+            className="relative block rounded-[26px] border border-[#0d2438] bg-[var(--surface)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#163754]"
           >
             {shouldShowStoryImageOnBriefing(story) ? (
               story.image_display === "contain" ? (
@@ -117,12 +117,12 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
             ) : null}
             <div className={seen ? "pb-10 opacity-90" : ""}>
               <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
                   {formatStoryDate(story.date)}
                 </div>
                 <StoryUpdatedStamp story={story} />
               </div>
-              <div className="text-2xl font-semibold leading-tight text-neutral-100 transition hover:text-neutral-200">
+              <div className="text-2xl font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d]">
                 {displayHeadline(story)}
               </div>
               {story.summary[0] ? <p className="mt-3 text-sm leading-6 text-neutral-400">{story.summary[0]}</p> : null}
@@ -165,6 +165,22 @@ export default async function BriefingPage() {
     return (
       <main className="min-h-screen bg-transparent p-8 text-neutral-100">
         <div className="mx-auto max-w-6xl">
+          <div className="mb-8 flex justify-center">
+            <div className="flex flex-col items-center text-center">
+              <Link href="/" aria-label="Go to The Beacon home page">
+                <Image
+                  src="/psbeacon.png"
+                  alt="The Briefing"
+                  width={1920}
+                  height={1080}
+                  priority
+                  className="h-auto w-full max-w-[420px] md:max-w-[520px]"
+                />
+              </Link>
+              <p className="mt-3 text-neutral-400">Multi-source news. Clear perspective.</p>
+            </div>
+          </div>
+
           <header className="mb-8">
             <div className="flex items-center justify-between gap-4">
               <BackLink href="/" />
@@ -179,7 +195,7 @@ export default async function BriefingPage() {
           </header>
 
           {!lead ? (
-            <div className="mt-8 rounded-2xl border border-neutral-800 bg-neutral-950/55 px-6 py-10 text-center shadow-[0_16px_36px_rgba(0,0,0,0.22)]">
+            <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-6 py-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
               <h2 className="text-3xl font-semibold text-neutral-100">Nothing queued yet</h2>
               <p className="mt-3 text-base text-neutral-400">
                 Mark stories in the editor with `Show this story in The Briefing` to publish them here.
@@ -189,18 +205,18 @@ export default async function BriefingPage() {
             <>
               <Link
                 href={`/story/${lead.id}?from=briefing`}
-                className={`relative block rounded-[24px] border bg-neutral-950/60 p-8 shadow-[0_18px_42px_rgba(0,0,0,0.24)] transition ${
+                className={`relative block rounded-[30px] border bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
                   leadUsesAlertStyle
-                    ? "border-red-500/45 hover:border-red-400/75"
-                    : "border-neutral-800 hover:border-neutral-700"
+                    ? "border-red-500/55 hover:border-red-400"
+                    : "border-[#17324b] hover:border-[#274765]"
                 }`}
               >
                 <div
                   aria-hidden="true"
                   className={`pointer-events-none absolute inset-x-0 top-0 h-20 ${
                     leadUsesAlertStyle
-                      ? "bg-gradient-to-b from-red-500/8 via-red-500/[0.02] to-transparent"
-                      : "bg-gradient-to-b from-white/[0.03] via-white/[0.015] to-transparent"
+                      ? "bg-gradient-to-b from-red-500/10 via-red-500/[0.04] to-transparent"
+                      : "bg-gradient-to-b from-[#17324b]/10 via-[#17324b]/[0.03] to-transparent"
                   }`}
                 />
                 {shouldShowStoryImageOnBriefing(lead) ? (
@@ -233,14 +249,14 @@ export default async function BriefingPage() {
                 ) : null}
                 <div className={`relative ${seenStoryIds.has(lead.id) ? "pb-10 opacity-90" : ""}`}>
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                       {formatStoryDate(lead.date)}
                     </div>
                     <StoryUpdatedStamp story={lead} />
                   </div>
                   <div
                     className={`font-semibold leading-[0.95] transition md:text-6xl ${
-                      leadUsesAlertStyle ? "text-4xl text-red-400 hover:text-red-300" : "text-[2.9rem] text-neutral-100 hover:text-neutral-200"
+                      leadUsesAlertStyle ? "text-4xl text-red-400 hover:text-red-300" : "text-[2.9rem] text-neutral-100 hover:text-[#d7c08d]"
                     }`}
                   >
                     {displayHeadline(lead)}
@@ -273,7 +289,7 @@ export default async function BriefingPage() {
 
     return (
       <main className="min-h-screen bg-transparent p-8 text-neutral-100">
-        <div className="mx-auto max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-950/55 p-8 shadow-[0_16px_36px_rgba(0,0,0,0.22)]">
+        <div className="mx-auto max-w-4xl rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">The Briefing</div>
           <h1 className="mt-3 text-3xl font-semibold text-neutral-100">Could not load stories</h1>
           <p className="mt-3 text-neutral-400">{message}</p>
