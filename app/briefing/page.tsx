@@ -87,11 +87,11 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
             href={`/story/${story.id}?from=briefing`}
             className="relative flex flex-col justify-start rounded-[26px] border border-[#0d2438] bg-[var(--surface)] p-6 text-left shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#163754]"
           >
+            <div className="absolute right-6 top-6">
+              <StoryUpdatedStamp story={story} />
+            </div>
             <div className={seen ? "flex flex-col justify-start pb-10 opacity-90" : "flex flex-col justify-start"}>
-              <div className="mb-3 flex justify-end">
-                <StoryUpdatedStamp story={story} />
-              </div>
-              <div className="text-2xl font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d]">
+              <div className="pr-28 text-2xl font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d]">
                 {displayHeadline(story)}
               </div>
               {story.summary[0] ? <p className="mt-3 text-sm leading-6 text-neutral-400">{story.summary[0]}</p> : null}
