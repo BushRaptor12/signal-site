@@ -85,9 +85,9 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
           <Link
             key={story.id}
             href={`/story/${story.id}?from=briefing`}
-            className="relative block rounded-[26px] border border-[#0d2438] bg-[var(--surface)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#163754]"
+            className="relative flex flex-col justify-start rounded-[26px] border border-[#0d2438] bg-[var(--surface)] p-6 text-left shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#163754]"
           >
-            <div className={seen ? "pb-10 opacity-90" : ""}>
+            <div className={seen ? "flex flex-col justify-start pb-10 opacity-90" : "flex flex-col justify-start"}>
               <div className="mb-3 flex justify-end">
                 <StoryUpdatedStamp story={story} />
               </div>
