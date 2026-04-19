@@ -2,6 +2,7 @@ export type Lean = "Left" | "Center" | "Right";
 export type BriefingPosition = "lead" | "left" | "right";
 export type StoryImageDisplay = "cover" | "contain";
 export type StoryStatus = "draft" | "published" | "archived";
+export type BriefingLeadStyle = "default" | "alert";
 
 export type Source = {
   name: string;
@@ -27,8 +28,11 @@ export type Story = {
   image_focus_x?: number | null;
   image_focus_y?: number | null;
   image_display?: StoryImageDisplay | null;
+  image_show_on_homepage?: boolean;
+  image_show_on_briefing?: boolean;
   urgent: boolean;
   beacon_include: boolean;
+  beacon_lead_style?: BriefingLeadStyle | null;
   beacon_rank?: number | null;
   beacon_position?: BriefingPosition | null;
   beacon_order?: number | null;

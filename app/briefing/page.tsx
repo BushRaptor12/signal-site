@@ -44,6 +44,10 @@ function displayHeadline(story: StoryWithViews) {
   return story.beacon_headline?.trim() || story.title;
 }
 
+function shouldShowStoryImageOnBriefing(story: StoryWithViews) {
+  return Boolean(story.image_url) && (story.image_show_on_briefing ?? true);
+}
+
 type BriefingMetaRow = {
   updated_at: string | null;
 };
@@ -60,6 +64,17 @@ function SeenBadge() {
   );
 }
 
+function StoryUpdatedStamp({ story }: { story: StoryWithViews }) {
+  const value = story.content_updated_at ?? story.updated_at ?? story.created_at ?? null;
+  if (!value) return null;
+
+  return (
+    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+      {formatUpdatedAt(value)}
+    </div>
+  );
+}
+
 function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; seenStoryIds: Set<string> }) {
   return (
     <div className="space-y-6">
@@ -70,15 +85,15 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
           <Link
             key={story.id}
             href={`/story/${story.id}?from=briefing`}
-            className="relative block rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#163754]"
+            className="relative block rounded-[26px] border border-[#0d2438] bg-[var(--surface)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#163754]"
           >
-            {story.image_url ? (
+            {shouldShowStoryImageOnBriefing(story) ? (
               story.image_display === "contain" ? (
                 <div className="mb-5 overflow-hidden rounded-xl bg-transparent">
                   <div className="flex justify-center p-3">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={story.image_url}
+                      src={story.image_url!}
                       alt={displayHeadline(story)}
                       loading="lazy"
                       className="block max-h-[22rem] max-w-full rounded-lg object-contain"
@@ -86,10 +101,10 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
                   </div>
                 </div>
               ) : (
-                <div className="mb-5 overflow-hidden rounded-xl bg-[#01060b]">
+                <div className="mb-5 overflow-hidden rounded-xl bg-transparent">
                   <div className="relative aspect-[4/3]">
                     <Image
-                      src={story.image_url}
+                      src={story.image_url!}
                       alt={displayHeadline(story)}
                       fill
                       sizes="(max-width: 768px) 100vw, 560px"
@@ -101,13 +116,16 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
               )
             ) : null}
             <div className={seen ? "pb-10 opacity-90" : ""}>
-              <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                {formatStoryDate(story.date)}
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                  {formatStoryDate(story.date)}
+                </div>
+                <StoryUpdatedStamp story={story} />
               </div>
-              <div className="text-2xl font-semibold leading-tight text-neutral-100 transition hover:text-red-400">
+              <div className="text-2xl font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d]">
                 {displayHeadline(story)}
               </div>
-              {story.summary[0] && <p className="mt-3 text-sm leading-6 text-neutral-400">{story.summary[0]}</p>}
+              {story.summary[0] ? <p className="mt-3 text-sm leading-6 text-neutral-400">{story.summary[0]}</p> : null}
             </div>
             {seen ? <SeenBadge /> : null}
           </Link>
@@ -142,6 +160,7 @@ export default async function BriefingPage() {
         ? null
         : ((metaData as BriefingMetaRow | null)?.updated_at ?? null);
     const { lead, leftColumn, rightColumn } = buildBriefingLayout(stories);
+    const leadUsesAlertStyle = lead?.beacon_lead_style === "alert";
 
     return (
       <main className="min-h-screen bg-transparent p-8 text-neutral-100">
@@ -163,14 +182,24 @@ export default async function BriefingPage() {
           </div>
           <div className="mb-8 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80" />
 
-          <div className="mb-8">
-            <div className="flex items-center justify-between gap-4">
-              <BackLink href="/" />
-              <div className="text-sm text-neutral-400">
-                Updated: {latestUpdatedAt ? formatUpdatedAt(latestUpdatedAt) : "--"}
+          <section className="mb-8 rounded-[28px] border border-[#13314b] bg-[linear-gradient(180deg,rgba(7,18,28,0.92)_0%,rgba(4,12,19,0.92)_100%)] px-6 py-6 shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
+            <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8ea8c1]">Daily Edition</div>
+                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-neutral-100 md:text-[2.5rem]">The Briefing</h1>
+                <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-300">
+                  The site&apos;s ranked digest of the biggest stories, organized for a quick top-down read instead of an endless feed.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 md:block">
+                <BackLink href="/" />
+                <div className="text-sm text-neutral-400">
+                  Updated: {latestUpdatedAt ? formatUpdatedAt(latestUpdatedAt) : "--"}
+                </div>
               </div>
             </div>
-          </div>
+          </section>
 
           {!lead ? (
             <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-6 py-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
@@ -181,27 +210,40 @@ export default async function BriefingPage() {
             </div>
           ) : (
             <>
+              <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8ea8c1]">Lead story</div>
               <Link
                 href={`/story/${lead.id}?from=briefing`}
-                className="relative mt-8 block rounded-2xl border border-red-500/70 bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-red-400"
+                className={`relative block rounded-[30px] border bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
+                  leadUsesAlertStyle
+                    ? "border-red-500/55 hover:border-red-400"
+                    : "border-[#17324b] hover:border-[#274765]"
+                }`}
               >
-                {lead.image_url ? (
+                <div
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute inset-x-0 top-0 h-20 ${
+                    leadUsesAlertStyle
+                      ? "bg-gradient-to-b from-red-500/10 via-red-500/[0.04] to-transparent"
+                      : "bg-gradient-to-b from-[#17324b]/10 via-[#17324b]/[0.03] to-transparent"
+                  }`}
+                />
+                {shouldShowStoryImageOnBriefing(lead) ? (
                   lead.image_display === "contain" ? (
-                    <div className="mb-6 overflow-hidden rounded-2xl bg-transparent">
-                      <div className="flex justify-center p-4">
+                    <div className="relative mb-6 overflow-hidden rounded-2xl bg-transparent">
+                      <div className="flex justify-center p-2">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={lead.image_url}
+                          src={lead.image_url!}
                           alt={displayHeadline(lead)}
                           className="block max-h-[36rem] max-w-full rounded-xl object-contain"
                         />
                       </div>
                     </div>
                   ) : (
-                    <div className="mb-6 overflow-hidden rounded-2xl bg-[#01060b]">
+                    <div className="relative mb-6 overflow-hidden rounded-2xl bg-transparent">
                       <div className="relative aspect-[4/3] md:aspect-[16/10]">
                         <Image
-                          src={lead.image_url}
+                          src={lead.image_url!}
                           alt={displayHeadline(lead)}
                           fill
                           priority
@@ -213,31 +255,38 @@ export default async function BriefingPage() {
                     </div>
                   )
                 ) : null}
-                <div className={seenStoryIds.has(lead.id) ? "pb-10 opacity-90" : ""}>
-                  <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
-                    {formatStoryDate(lead.date)}
+                <div className={`relative ${seenStoryIds.has(lead.id) ? "pb-10 opacity-90" : ""}`}>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                      {formatStoryDate(lead.date)}
+                    </div>
+                    <StoryUpdatedStamp story={lead} />
                   </div>
-                  <div className="text-4xl font-semibold leading-[0.95] text-red-400 transition hover:text-red-300 md:text-6xl">
+                  <div
+                    className={`font-semibold leading-[0.95] transition md:text-6xl ${
+                      leadUsesAlertStyle ? "text-4xl text-red-400 hover:text-red-300" : "text-[2.9rem] text-neutral-100 hover:text-[#d7c08d]"
+                    }`}
+                  >
                     {displayHeadline(lead)}
                   </div>
 
-                  {lead.summary.length > 0 && (
+                  {lead.summary.length > 0 ? (
                     <div className="mt-5 max-w-4xl space-y-2 text-lg leading-8 text-neutral-300">
                       {lead.summary.slice(0, 2).map((line, index) => (
                         <p key={index}>{line}</p>
                       ))}
                     </div>
-                  )}
+                  ) : null}
                 </div>
                 {seenStoryIds.has(lead.id) ? <SeenBadge /> : null}
               </Link>
 
-              {(leftColumn.length > 0 || rightColumn.length > 0) && (
+              {(leftColumn.length > 0 || rightColumn.length > 0) ? (
                 <section className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-10">
                   <BriefingList stories={leftColumn} seenStoryIds={seenStoryIds} />
                   <BriefingList stories={rightColumn} seenStoryIds={seenStoryIds} />
                 </section>
-              )}
+              ) : null}
             </>
           )}
         </div>

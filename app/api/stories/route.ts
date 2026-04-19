@@ -7,7 +7,7 @@ import { deleteStoryImage, isStoryImagePath, storyImagePublicUrl } from "@/app/l
 import { recordStoryRevision } from "@/app/lib/story-revisions";
 import { upsertStoryEmbeddingRecord } from "@/app/lib/semantic-search";
 import { supabaseServer } from "@/app/lib/supabase.server";
-import type { BriefingPosition, StoryImageDisplay, StoryStatus, StoryWithViews } from "@/app/lib/types";
+import type { BriefingLeadStyle, BriefingPosition, StoryImageDisplay, StoryStatus, StoryWithViews } from "@/app/lib/types";
 import {
   coerceStory,
   toEntities,
@@ -31,6 +31,10 @@ function toNullableBriefingPosition(value: unknown): BriefingPosition | null {
 function toNullableImageDisplay(value: unknown): StoryImageDisplay | null {
   if (value === "cover" || value === "contain") return value;
   return null;
+}
+
+function toBriefingLeadStyle(value: unknown): BriefingLeadStyle {
+  return value === "alert" ? "alert" : "default";
 }
 
 function toStoryStatus(value: unknown): StoryStatus {
@@ -103,7 +107,7 @@ export async function POST(req: Request) {
     const { data: existingData, error: existingError } = await supabase
       .from("stories")
       .select(
-        "beacon_include, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, image_focus_x, image_focus_y, image_display, content_updated_at, updated_at, created_at, urgent"
+        "beacon_include, beacon_lead_style, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, image_focus_x, image_focus_y, image_display, image_show_on_homepage, image_show_on_briefing, content_updated_at, updated_at, created_at, urgent"
         + ", locations, organizations, people, industries, sports_teams, offices, facets"
       )
       .eq("id", String(incoming.id))
@@ -112,6 +116,7 @@ export async function POST(req: Request) {
 
     const existing = existingData as {
       beacon_include?: boolean | null;
+      beacon_lead_style?: BriefingLeadStyle | null;
       beacon_rank?: number | null;
       beacon_position?: BriefingPosition | null;
       beacon_order?: number | null;
@@ -128,6 +133,8 @@ export async function POST(req: Request) {
       image_focus_x?: number | null;
       image_focus_y?: number | null;
       image_display?: StoryImageDisplay | null;
+      image_show_on_homepage?: boolean | null;
+      image_show_on_briefing?: boolean | null;
       content_updated_at?: string | null;
       updated_at?: string | null;
       created_at?: string | null;
@@ -142,10 +149,16 @@ export async function POST(req: Request) {
     const normalizedImagePath = toNullableString(incoming.image_path);
     let normalizedImageDisplay =
       incoming.image_display === undefined ? toNullableImageDisplay(existing?.image_display) : toNullableImageDisplay(incoming.image_display);
+    const imageShowOnHomepage =
+      incoming.image_show_on_homepage === undefined ? Boolean(existing?.image_show_on_homepage ?? true) : Boolean(incoming.image_show_on_homepage);
+    const imageShowOnBriefing =
+      incoming.image_show_on_briefing === undefined ? Boolean(existing?.image_show_on_briefing ?? true) : Boolean(incoming.image_show_on_briefing);
     let normalizedImageFocusX =
       incoming.image_focus_x === undefined ? toNullableNumber(existing?.image_focus_x) : toNullableNumber(incoming.image_focus_x);
     let normalizedImageFocusY =
       incoming.image_focus_y === undefined ? toNullableNumber(existing?.image_focus_y) : toNullableNumber(incoming.image_focus_y);
+    const beaconLeadStyle =
+      incoming.beacon_lead_style === undefined ? toBriefingLeadStyle(existing?.beacon_lead_style) : toBriefingLeadStyle(incoming.beacon_lead_style);
     if (normalizedImagePath && !isStoryImagePath(normalizedImagePath)) {
       return NextResponse.json({ error: "Invalid story image path." }, { status: 400 });
     }
@@ -238,6 +251,8 @@ export async function POST(req: Request) {
       image_focus_x: normalizedImageFocusX,
       image_focus_y: normalizedImageFocusY,
       image_display: normalizedImageDisplay,
+      image_show_on_homepage: imageShowOnHomepage,
+      image_show_on_briefing: imageShowOnBriefing,
       topics: toStringArray(incoming.topics),
       tags: toStringArray(incoming.tags),
       entities: toEntities(incoming.entities),
@@ -254,6 +269,7 @@ export async function POST(req: Request) {
       urgent: Boolean(incoming.urgent),
       pinned: Boolean(incoming.pinned),
       beacon_include: Boolean(incoming.beacon_include),
+      beacon_lead_style: beaconLeadStyle,
       beacon_rank: beaconRank,
       beacon_position: beaconPosition,
       beacon_order: beaconOrder,

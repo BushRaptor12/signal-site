@@ -3,13 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import BackLink from "@/app/back-link";
 import { formatUpdatedAt } from "@/app/lib/dates";
 import { DEFAULT_IMAGE_FOCUS, clampImageFocus, imageObjectPosition } from "@/app/lib/image-focus";
 import { inferStoryKnowledge } from "@/app/lib/story-knowledge";
 import { STORY_IMAGE_ACCEPT } from "@/app/lib/story-images";
-import type { Lean, Story, StoryImageDisplay, StoryStatus, StoryWithViews } from "@/app/lib/types";
+import type { BriefingLeadStyle, Lean, Story, StoryImageDisplay, StoryStatus, StoryWithViews } from "@/app/lib/types";
 import { detectSourceLean, guessSourceLabel } from "@/app/lib/source-lean";
 import { TOPICS, normalize, slugify } from "@/app/lib/vocab";
 
@@ -62,6 +62,30 @@ function normalizeStructuredList(value: string) {
     .filter(Boolean);
 }
 
+type EditorSectionProps = {
+  title: string;
+  description?: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+};
+
+function EditorSection({ title, description, defaultOpen = false, children }: EditorSectionProps) {
+  return (
+    <details open={defaultOpen} className="group rounded-2xl border border-neutral-700 bg-neutral-900">
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
+        <div>
+          <div className="text-sm font-semibold uppercase tracking-[0.14em] text-neutral-200">{title}</div>
+          {description ? <p className="mt-2 text-sm text-neutral-500">{description}</p> : null}
+        </div>
+        <span className="shrink-0 rounded-full border border-neutral-700 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-neutral-400">
+          Toggle
+        </span>
+      </summary>
+      <div className="border-t border-neutral-800 px-5 py-5">{children}</div>
+    </details>
+  );
+}
+
 export default function EditorPage() {
   const searchParams = useSearchParams();
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -81,11 +105,14 @@ export default function EditorPage() {
   const [imageFocusX, setImageFocusX] = useState(DEFAULT_IMAGE_FOCUS);
   const [imageFocusY, setImageFocusY] = useState(DEFAULT_IMAGE_FOCUS);
   const [imageDisplay, setImageDisplay] = useState<StoryImageDisplay>("cover");
+  const [imageShowOnHomepage, setImageShowOnHomepage] = useState(true);
+  const [imageShowOnBriefing, setImageShowOnBriefing] = useState(true);
   const [savedImagePath, setSavedImagePath] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [urgent, setUrgent] = useState(false);
   const [pinnedStory, setPinnedStory] = useState(false);
   const [beaconInclude, setBeaconInclude] = useState(false);
+  const [beaconLeadStyle, setBeaconLeadStyle] = useState<BriefingLeadStyle>("default");
   const [beaconHeadline, setBeaconHeadline] = useState("");
   const [summary, setSummary] = useState<string[]>(blankSummary());
   const [topics, setTopics] = useState<string[]>([]);
@@ -183,10 +210,13 @@ export default function EditorPage() {
     setImageFocusX(DEFAULT_IMAGE_FOCUS);
     setImageFocusY(DEFAULT_IMAGE_FOCUS);
     setImageDisplay("cover");
+    setImageShowOnHomepage(true);
+    setImageShowOnBriefing(true);
     setSavedImagePath(null);
     setUrgent(false);
     setPinnedStory(false);
     setBeaconInclude(false);
+    setBeaconLeadStyle("default");
     setBeaconHeadline("");
     setSummary(blankSummary());
     setTopics([]);
@@ -218,10 +248,13 @@ export default function EditorPage() {
     setImageFocusX(clampImageFocus(story.image_focus_x));
     setImageFocusY(clampImageFocus(story.image_focus_y));
     setImageDisplay(story.image_display === "contain" ? "contain" : "cover");
+    setImageShowOnHomepage(story.image_show_on_homepage ?? true);
+    setImageShowOnBriefing(story.image_show_on_briefing ?? true);
     setSavedImagePath(story.image_path ?? null);
     setUrgent(story.urgent);
     setPinnedStory(story.pinned);
     setBeaconInclude(story.beacon_include);
+    setBeaconLeadStyle(story.beacon_lead_style === "alert" ? "alert" : "default");
     setBeaconHeadline(story.beacon_headline ?? "");
     setSummary([...story.summary, "", "", ""].slice(0, Math.max(3, story.summary.length)));
     setTopics(story.topics);
@@ -683,6 +716,8 @@ export default function EditorPage() {
       setImageFocusX(DEFAULT_IMAGE_FOCUS);
       setImageFocusY(DEFAULT_IMAGE_FOCUS);
       setImageDisplay("cover");
+      setImageShowOnHomepage(true);
+      setImageShowOnBriefing(true);
       showNotice("Image uploaded.", "success");
     } finally {
       setUploadingImage(false);
@@ -713,6 +748,8 @@ export default function EditorPage() {
     setImageFocusX(DEFAULT_IMAGE_FOCUS);
     setImageFocusY(DEFAULT_IMAGE_FOCUS);
     setImageDisplay("cover");
+    setImageShowOnHomepage(true);
+    setImageShowOnBriefing(true);
     showNotice("Image removed. Save the story to make that change permanent.", "info");
   }
 
@@ -771,9 +808,12 @@ export default function EditorPage() {
       image_focus_x: imageUrl ? imageFocusX : null,
       image_focus_y: imageUrl ? imageFocusY : null,
       image_display: imageUrl ? imageDisplay : null,
+      image_show_on_homepage: imageUrl ? imageShowOnHomepage : false,
+      image_show_on_briefing: imageUrl ? imageShowOnBriefing : false,
       urgent,
       pinned: pinnedStory,
       beacon_include: beaconInclude,
+      beacon_lead_style: beaconLeadStyle,
       beacon_headline: trimmedBeaconHeadline || null,
       topics: topics.map(normalize),
       entities: storyEntities,
@@ -1079,7 +1119,12 @@ export default function EditorPage() {
               </div>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
+              <EditorSection
+                title="Story Setup"
+                description="Core story details, image, and publishing controls."
+                defaultOpen
+              >
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <label className="block text-sm text-neutral-300 mb-2">Title</label>
             <input
@@ -1177,6 +1222,31 @@ export default function EditorPage() {
             <p className="mt-3 text-xs text-neutral-500">
               JPG, PNG, WEBP, or GIF up to 5MB.
             </p>
+            {imageUrl ? (
+              <div className="mt-4 rounded-2xl border border-neutral-700 bg-neutral-950/30 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Image placement</div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="inline-flex items-center gap-3 text-sm text-neutral-300">
+                    <input
+                      type="checkbox"
+                      checked={imageShowOnHomepage}
+                      onChange={(e) => setImageShowOnHomepage(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    Show this image on the main page
+                  </label>
+                  <label className="inline-flex items-center gap-3 text-sm text-neutral-300">
+                    <input
+                      type="checkbox"
+                      checked={imageShowOnBriefing}
+                      onChange={(e) => setImageShowOnBriefing(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    Show this image on The Briefing
+                  </label>
+                </div>
+              </div>
+            ) : null}
             {imageUrl ? (
               <div className="mt-4 rounded-2xl border border-neutral-700 bg-neutral-950/30 p-4">
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Image Framing</div>
@@ -1323,6 +1393,19 @@ export default function EditorPage() {
             </label>
 
             <div className="mt-4">
+              <label className="block text-sm text-neutral-300 mb-2">Lead story style</label>
+              <select
+                value={beaconLeadStyle}
+                onChange={(e) => setBeaconLeadStyle(e.target.value as BriefingLeadStyle)}
+                disabled={!beaconInclude}
+                className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg disabled:opacity-50"
+              >
+                <option value="default">Default lead</option>
+                <option value="alert">Huge story alert</option>
+              </select>
+            </div>
+
+            <div className="mt-4">
               <label className="block text-sm text-neutral-300 mb-2">Briefing Headline</label>
               <input
                 value={beaconHeadline}
@@ -1337,7 +1420,12 @@ export default function EditorPage() {
               Placement is now handled in the briefing manager. Leave the headline blank to reuse the main story title.
             </p>
           </div>
+              </EditorSection>
 
+              <EditorSection
+                title="Metadata and Matching"
+                description="Topics, entities, summary, and structured hints used around the site."
+              >
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Topics</div>
             <div className="flex flex-wrap gap-2">
@@ -1673,7 +1761,13 @@ export default function EditorPage() {
               ))}
             </div>
           </div>
+              </EditorSection>
 
+              <EditorSection
+                title="Sources"
+                description="Source links, titles, and lean settings."
+                defaultOpen
+              >
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-neutral-300 uppercase">Sources</div>
@@ -1800,7 +1894,12 @@ export default function EditorPage() {
               ))}
             </div>
           </div>
+              </EditorSection>
 
+              <EditorSection
+                title="Revision History"
+                description="Restore an earlier saved version if you need to roll something back."
+              >
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -1843,48 +1942,53 @@ export default function EditorPage() {
               )}
             </div>
           </div>
+              </EditorSection>
 
-          <button onClick={() => void onSave()} className="w-full py-3 rounded-xl bg-neutral-100 text-neutral-900 font-semibold">
-            {status === "published" ? "Save and publish" : status === "archived" ? "Save as archived" : "Save draft"}
-          </button>
+              <div className="rounded-2xl border border-neutral-700 bg-neutral-900 p-5">
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <button onClick={() => void onSave()} className="flex-1 rounded-xl bg-neutral-100 py-3 font-semibold text-neutral-900">
+                    {status === "published" ? "Save and publish" : status === "archived" ? "Save as archived" : "Save draft"}
+                  </button>
 
-          {pendingDelete ? (
-            <div className="rounded-2xl border border-red-500/50 bg-red-950/20 p-5">
-              <div className="text-sm font-semibold text-red-100">Delete this story?</div>
-              <p className="mt-2 text-sm leading-6 text-red-100/80">
-                This will permanently remove <span className="font-semibold">{storyId}</span>.
-              </p>
-              <div className="mt-4 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPendingDelete(false)}
-                  className="rounded-full border border-neutral-700 px-4 py-2 text-xs text-neutral-200 hover:bg-neutral-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void onDeleteConfirmed()}
-                  className="rounded-full border border-red-400 px-4 py-2 text-xs font-semibold text-red-200 hover:bg-red-950/30"
-                >
-                  Confirm delete
-                </button>
+                  {pendingDelete ? (
+                    <div className="flex-1 rounded-2xl border border-red-500/50 bg-red-950/20 p-5">
+                      <div className="text-sm font-semibold text-red-100">Delete this story?</div>
+                      <p className="mt-2 text-sm leading-6 text-red-100/80">
+                        This will permanently remove <span className="font-semibold">{storyId}</span>.
+                      </p>
+                      <div className="mt-4 flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setPendingDelete(false)}
+                          className="rounded-full border border-neutral-700 px-4 py-2 text-xs text-neutral-200 hover:bg-neutral-800"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void onDeleteConfirmed()}
+                          className="rounded-full border border-red-400 px-4 py-2 text-xs font-semibold text-red-200 hover:bg-red-950/30"
+                        >
+                          Confirm delete
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        if (!activeStoryId) {
+                          showNotice("Save the story before trying to delete it.", "error");
+                          return;
+                        }
+                        setPendingDelete(true);
+                      }}
+                      className="rounded-xl border border-red-400 px-6 py-3 font-semibold text-red-300 hover:bg-red-950/30"
+                    >
+                      Delete story
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => {
-                if (!activeStoryId) {
-                  showNotice("Save the story before trying to delete it.", "error");
-                  return;
-                }
-                setPendingDelete(true);
-              }}
-              className="w-full py-3 rounded-xl border border-red-400 text-red-300 hover:bg-red-950/30 font-semibold"
-            >
-              Delete story
-            </button>
-          )}
             </div>
           </div>
         </div>

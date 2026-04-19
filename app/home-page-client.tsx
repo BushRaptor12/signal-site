@@ -193,6 +193,10 @@ function getStoryUpdateLabel(story: StoryWithViews) {
   return formatStoryDate(story.date);
 }
 
+function shouldShowStoryImageOnHomepage(story: StoryWithViews) {
+  return Boolean(story.image_url) && (story.image_show_on_homepage ?? true);
+}
+
 export default function HomePageClient({
   initialAccountAuthenticated,
   initialFollowedInterests,
@@ -561,7 +565,7 @@ export default function HomePageClient({
 
       <div className="mx-auto mb-6 max-w-4xl">
         {activeTab === "following" ? (
-          <div className="flex min-h-[44px] items-start justify-between gap-4">
+          <div className="flex min-h-[44px] items-center justify-between gap-4">
             <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
               <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
               {trackingStories.map((story) => (
@@ -686,12 +690,12 @@ export default function HomePageClient({
                 >
               <div
                 aria-hidden="true"
-                className={`pointer-events-none absolute inset-x-0 top-0 h-28 ${
+                className={`pointer-events-none absolute inset-x-0 top-0 h-16 ${
                   story.urgent
-                    ? "bg-gradient-to-b from-red-500/12 via-red-500/5 to-transparent"
+                    ? "bg-gradient-to-b from-red-500/8 via-red-500/[0.03] to-transparent"
                     : isLeadCard
-                      ? "bg-gradient-to-b from-[#1d476a]/18 via-[#15324d]/8 to-transparent"
-                      : "bg-gradient-to-b from-[#10263b]/12 to-transparent"
+                      ? "bg-gradient-to-b from-[#1d476a]/10 via-[#15324d]/[0.03] to-transparent"
+                      : "bg-gradient-to-b from-[#10263b]/6 to-transparent"
                 }`}
               />
               <Link
@@ -705,13 +709,13 @@ export default function HomePageClient({
                     </div>
                   </div>
 
-                  {story.image_url ? (
+                  {shouldShowStoryImageOnHomepage(story) ? (
                     story.image_display === "contain" ? (
                       <div className="mb-7 overflow-hidden rounded-[24px] bg-transparent">
                         <div className="flex justify-center">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={story.image_url}
+                            src={story.image_url!}
                             alt={story.title}
                             loading="lazy"
                             className="block max-h-[32rem] max-w-full rounded-xl object-contain"
@@ -722,7 +726,7 @@ export default function HomePageClient({
                       <div className="mb-7 overflow-hidden rounded-[24px] bg-transparent">
                         <div className={`relative ${isLeadCard ? "aspect-[4/3] md:aspect-[16/9]" : "aspect-[4/3] md:aspect-[16/10]"}`}>
                           <Image
-                            src={story.image_url}
+                            src={story.image_url!}
                             alt={story.title}
                             fill
                             sizes="(max-width: 768px) 100vw, 896px"
