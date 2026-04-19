@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAccountProfileByUserId, getAccountUserId, getFollowedInterestsWithMatches } from "@/app/lib/account.server";
 import { DEFAULT_OG_IMAGE, SITE_NAME } from "@/app/lib/seo";
+import { PUBLIC_PANEL } from "@/app/lib/surfaces";
 import PageBrandHeader from "@/app/page-brand-header";
 import AccountInterestsManager from "../account-interests-manager";
 
@@ -53,7 +54,7 @@ export default async function AccountInterestsPage() {
       <div className="mx-auto max-w-5xl">
         <PageBrandHeader backHref="/account" />
 
-        <section className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+        <section className={`mt-8 ${PUBLIC_PANEL} p-8`}>
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div>
               <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Following</div>
@@ -75,7 +76,7 @@ export default async function AccountInterestsPage() {
           </div>
         </section>
 
-        <section className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+        <section className={`mt-8 ${PUBLIC_PANEL} p-8`}>
           <div>
             <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Interests</div>
             <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Subjects you want the site to keep finding</h2>

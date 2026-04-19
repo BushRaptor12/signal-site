@@ -3,13 +3,14 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
 import { getAccountUserId, getSeenStoryIds } from "@/app/lib/account.server";
-import { formatUpdatedDay } from "@/app/lib/dates";
+import { formatStoryDate } from "@/app/lib/dates";
 import { buildBriefingLayout } from "@/app/lib/briefing-layout";
 import { imageObjectPosition } from "@/app/lib/image-focus";
 import { DEFAULT_OG_IMAGE, SITE_NAME, trimDescription } from "@/app/lib/seo";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
+import LocalBriefingUpdated from "./local-briefing-updated";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -64,13 +65,10 @@ function SeenBadge() {
   );
 }
 
-function StoryUpdatedStamp({ story }: { story: StoryWithViews }) {
-  const value = story.content_updated_at ?? story.updated_at ?? story.created_at ?? null;
-  if (!value) return null;
-
+function StoryMetaRow({ story }: { story: StoryWithViews }) {
   return (
-    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-      {formatUpdatedDay(value)}
+    <div className="mt-3 text-[11px] uppercase tracking-[0.16em] text-neutral-500">
+      {formatStoryDate(story.date)}
     </div>
   );
 }
@@ -85,37 +83,35 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
           <Link
             key={story.id}
             href={`/story/${story.id}?from=briefing`}
-            className="relative flex flex-col justify-start rounded-[26px] border border-[#0d2438] bg-[var(--surface)] p-6 text-left shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#163754]"
+            className="relative flex flex-col justify-start rounded-[26px] border border-[#183149]/65 bg-[#07131e] p-6 text-left shadow-[0_16px_34px_rgba(0,0,0,0.2)] transition hover:border-[#28445d]"
           >
-            <div className="absolute right-6 top-6">
-              <StoryUpdatedStamp story={story} />
-            </div>
             <div className={seen ? "flex flex-col justify-start opacity-90" : "flex flex-col justify-start"}>
-              <div className="pr-28 text-2xl font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d]">
+              <div className="text-[1.85rem] font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d]">
                 {displayHeadline(story)}
               </div>
-              {story.summary[0] ? <p className="mt-3 text-sm leading-6 text-neutral-400">{story.summary[0]}</p> : null}
+              <StoryMetaRow story={story} />
+              {story.summary[0] ? <p className="mt-3 text-[15px] leading-7 text-neutral-300">{story.summary[0]}</p> : null}
               {shouldShowStoryImageOnBriefing(story) ? (
                 story.image_display === "contain" ? (
-                  <div className="mt-5 overflow-hidden rounded-xl bg-transparent">
-                    <div className="flex justify-center p-3">
+                  <div className="mt-5 flex justify-center">
+                    <div className="w-full max-w-[18rem]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={story.image_url!}
                         alt={displayHeadline(story)}
                         loading="lazy"
-                        className="block max-h-[22rem] max-w-full rounded-lg object-contain"
+                        className="block max-h-[22rem] max-w-full object-contain"
                       />
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-5 overflow-hidden rounded-xl bg-transparent">
-                    <div className="relative aspect-[4/3]">
+                  <div className="mt-5 overflow-hidden">
+                    <div className="relative mx-auto aspect-[5/4] max-w-[19rem]">
                       <Image
                         src={story.image_url!}
                         alt={displayHeadline(story)}
                         fill
-                        sizes="(max-width: 768px) 100vw, 560px"
+                        sizes="(max-width: 768px) 100vw, 304px"
                         className="object-cover"
                         style={{ objectPosition: imageObjectPosition(story) }}
                       />
@@ -182,18 +178,15 @@ export default async function BriefingPage() {
           <header className="mb-8">
             <div className="flex items-center justify-between gap-4">
               <BackLink href="/" />
-              <div className="flex-1 text-center">
-                <h1 className="text-3xl font-semibold tracking-tight text-neutral-100 md:text-[2.5rem]">The Briefing</h1>
-                <div className="mt-2 text-sm text-neutral-500">
-                  Updated: {latestUpdatedAt ? formatUpdatedDay(latestUpdatedAt) : "--"}
-                </div>
+              <div className="flex-1" />
+              <div className="text-right text-sm text-neutral-500">
+                Updated: <LocalBriefingUpdated value={latestUpdatedAt} />
               </div>
-              <div className="w-[78px]" aria-hidden="true" />
             </div>
           </header>
 
           {!lead ? (
-            <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-6 py-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+            <div className="mt-8 rounded-2xl border border-[#183149]/65 bg-[#07131e] px-6 py-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.3)]">
               <h2 className="text-3xl font-semibold text-neutral-100">Nothing queued yet</h2>
               <p className="mt-3 text-base text-neutral-400">
                 Mark stories in the editor with `Show this story in The Briefing` to publish them here.
@@ -203,34 +196,44 @@ export default async function BriefingPage() {
             <>
               <Link
                 href={`/story/${lead.id}?from=briefing`}
-                className={`relative block overflow-hidden rounded-[30px] border bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
+                className={`relative block overflow-hidden rounded-[30px] border bg-[#07131e] p-8 shadow-[0_20px_46px_rgba(0,0,0,0.22)] transition ${
                   leadUsesAlertStyle
                     ? "border-red-500/55 hover:border-red-400"
-                    : "border-[#17324b] hover:border-[#274765]"
+                    : "border-[#183149]/70 hover:border-[#28445d]"
                 }`}
               >
-                <div
-                  aria-hidden="true"
-                  className={`pointer-events-none absolute inset-x-0 top-0 h-20 ${
-                    leadUsesAlertStyle
-                      ? "bg-gradient-to-b from-red-500/10 via-red-500/[0.04] to-transparent"
-                      : "bg-gradient-to-b from-[#17324b]/10 via-[#17324b]/[0.03] to-transparent"
-                  }`}
-                />
+                <div className={`relative ${seenStoryIds.has(lead.id) ? "opacity-90" : ""}`}>
+                  <div
+                    className={`font-semibold leading-[0.95] transition md:text-6xl ${
+                      leadUsesAlertStyle ? "text-4xl text-red-400 hover:text-red-300" : "text-[2.9rem] text-neutral-100 hover:text-[#d7c08d]"
+                    }`}
+                  >
+                    {displayHeadline(lead)}
+                  </div>
+                  <StoryMetaRow story={lead} />
+
+                  {lead.summary.length > 0 ? (
+                    <div className="mt-5 max-w-4xl space-y-2 text-lg leading-8 text-neutral-300">
+                      {lead.summary.slice(0, 2).map((line, index) => (
+                        <p key={index}>{line}</p>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
                 {shouldShowStoryImageOnBriefing(lead) ? (
                   lead.image_display === "contain" ? (
-                    <div className="relative mb-6 overflow-hidden rounded-2xl bg-transparent">
-                      <div className="flex justify-center p-2">
+                    <div className="relative mt-6 flex justify-center">
+                      <div className="w-full">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={lead.image_url!}
                           alt={displayHeadline(lead)}
-                          className="block max-h-[36rem] max-w-full rounded-xl object-contain"
+                          className="block max-h-[36rem] max-w-full object-contain"
                         />
                       </div>
                     </div>
                   ) : (
-                    <div className="relative mb-6 overflow-hidden rounded-2xl bg-transparent">
+                    <div className="relative mt-6 overflow-hidden">
                       <div className="relative aspect-[4/3] md:aspect-[16/10]">
                         <Image
                           src={lead.image_url!}
@@ -245,26 +248,6 @@ export default async function BriefingPage() {
                     </div>
                   )
                 ) : null}
-                <div className={`relative ${seenStoryIds.has(lead.id) ? "opacity-90" : ""}`}>
-                  <div className="mb-4 flex justify-end">
-                    <StoryUpdatedStamp story={lead} />
-                  </div>
-                  <div
-                    className={`font-semibold leading-[0.95] transition md:text-6xl ${
-                      leadUsesAlertStyle ? "text-4xl text-red-400 hover:text-red-300" : "text-[2.9rem] text-neutral-100 hover:text-[#d7c08d]"
-                    }`}
-                  >
-                    {displayHeadline(lead)}
-                  </div>
-
-                  {lead.summary.length > 0 ? (
-                    <div className="mt-5 max-w-4xl space-y-2 text-lg leading-8 text-neutral-300">
-                      {lead.summary.slice(0, 2).map((line, index) => (
-                        <p key={index}>{line}</p>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
                 {seenStoryIds.has(lead.id) ? <SeenBadge /> : null}
               </Link>
 
@@ -284,7 +267,7 @@ export default async function BriefingPage() {
 
     return (
       <main className="min-h-screen bg-transparent p-8 text-neutral-100">
-        <div className="mx-auto max-w-4xl rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+        <div className="mx-auto max-w-4xl rounded-2xl border border-[#183149]/65 bg-[#07131e] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.3)]">
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">The Briefing</div>
           <h1 className="mt-3 text-3xl font-semibold text-neutral-100">Could not load stories</h1>
           <p className="mt-3 text-neutral-400">{message}</p>

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
 import { useState } from "react";
+import { PUBLIC_INSET } from "@/app/lib/surfaces";
 
 type SettingsFormsProps = {
   email: string;
@@ -19,7 +20,7 @@ function SettingsCard({
   title: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
+    <div className={`${PUBLIC_INSET} p-5`}>
       <h2 className="text-lg font-semibold text-neutral-100">{title}</h2>
       <p className="mt-3 text-sm leading-6 text-neutral-400">{description}</p>
       <div className="mt-5">{children}</div>
@@ -195,7 +196,7 @@ export default function SettingsForms({ email, username }: SettingsFormsProps) {
 
   return (
     <div className="mt-8 space-y-4">
-      <div className="rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
+      <div className={`${PUBLIC_INSET} p-5`}>
         <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Current account</div>
         <div className="mt-3 text-xl font-semibold text-neutral-100">{usernameValue}</div>
         <div className="mt-1 text-sm text-neutral-400">{emailValue}</div>

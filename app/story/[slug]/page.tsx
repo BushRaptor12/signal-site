@@ -5,6 +5,7 @@ import BackLink from "@/app/back-link";
 import { getAccountProfile, getAccountStoryState } from "@/app/lib/account.server";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { SITE_NAME, absoluteUrl, buildStoryMetadata, storyDescription, storyKeywords, storyModifiedTime, storyPublishedTime } from "@/app/lib/seo";
+import { PUBLIC_INSET_ELEVATED, PUBLIC_INSET_ELEVATED_INTERACTIVE, PUBLIC_INSET_INTERACTIVE } from "@/app/lib/surfaces";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
@@ -139,7 +140,7 @@ export default async function StoryPage({
       <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
         <div className="max-w-3xl mx-auto">
           <BackLink href={backHref} />
-          <div className="mt-10 rounded-2xl border border-[#15324d] bg-[#03101b] p-8 shadow-[0_18px_44px_rgba(0,0,0,0.22)]">
+          <div className={`mt-10 ${PUBLIC_INSET_ELEVATED} p-8`}>
             <h1 className="text-2xl font-semibold">Story not found</h1>
             <p className="text-neutral-400 mt-2">
               {`This story is not available: ${slug}`}
@@ -239,7 +240,7 @@ export default async function StoryPage({
         {relatedStories.length > 0 ? <div className="hidden xl:block" /> : null}
 
         <div className={relatedStories.length > 0 ? "xl:col-start-3" : ""}>
-          <div className="relative rounded-2xl border border-[#15324d] bg-[#03101b] p-8 pb-12 shadow-[0_22px_55px_rgba(0,0,0,0.24)]">
+          <div className={`relative ${PUBLIC_INSET_ELEVATED} p-8 pb-12`}>
             <h1 className="text-3xl font-semibold leading-tight">{story.title}</h1>
 
             <div className="mt-6">
@@ -278,7 +279,7 @@ export default async function StoryPage({
                   href={src.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="group block rounded-2xl border border-[#13314b] bg-[#03101b] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:border-[#21496b] hover:bg-[#041524] hover:shadow-[0_16px_38px_rgba(0,0,0,0.2)]"
+                  className={`group block ${PUBLIC_INSET_ELEVATED_INTERACTIVE} p-5 hover:-translate-y-0.5`}
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0 flex flex-1 items-center gap-3">
@@ -300,7 +301,7 @@ export default async function StoryPage({
             </div>
           </div>
 
-          <div className="mt-8 rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
+          <div className={`mt-8 ${PUBLIC_INSET_ELEVATED} p-6`}>
             <div className="flex items-end justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">Reactions</h2>
@@ -322,14 +323,14 @@ export default async function StoryPage({
 
         {relatedStories.length > 0 ? (
           <aside className="xl:col-start-4 xl:w-60 xl:self-start">
-            <div className="rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
+            <div className={`${PUBLIC_INSET_ELEVATED} p-6`}>
               <h2 className="text-lg font-semibold text-neutral-100">Related Stories</h2>
               <div className="mt-5 space-y-4">
                 {relatedStories.map((relatedStory) => (
                   <Link
                     key={relatedStory.id}
                     href={storyHref(relatedStory.id, from)}
-                    className="block rounded-2xl border border-[#0d2438] bg-[#020b14] p-4 transition hover:border-[#163754] hover:bg-[#041524]"
+                    className={`block ${PUBLIC_INSET_INTERACTIVE} p-4`}
                   >
                     <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
                       {formatStoryDate(relatedStory.date)}

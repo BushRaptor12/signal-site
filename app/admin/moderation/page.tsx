@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { formatUpdatedAt } from "@/app/lib/dates";
+import { ADMIN_INSET, ADMIN_PANEL } from "@/app/lib/surfaces";
 
 type ReportStatus = "dismissed" | "open" | "reviewed";
 type StaffRole = "admin" | "moderator" | "reader";
@@ -235,7 +236,7 @@ export default function AdminModerationPage() {
           </div>
         </div>
 
-        <div className="mt-8 rounded-2xl border border-neutral-700 bg-neutral-900 p-6">
+        <div className={`mt-8 ${ADMIN_PANEL} p-6`}>
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap items-center gap-2">
               {STATUS_OPTIONS.map((option) => (
@@ -290,7 +291,7 @@ export default function AdminModerationPage() {
               {reports.map((report) => {
                 const badge = staffBadge(report.commentAuthor.staffRole);
                 return (
-                  <article key={report.id} className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+                  <article key={report.id} className={`${ADMIN_PANEL} p-6`}>
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
                         <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
@@ -322,7 +323,7 @@ export default function AdminModerationPage() {
                     ) : null}
 
                     <div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-                      <div className="rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
+                      <div className={`${ADMIN_INSET} p-5`}>
                         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
                           <span>Comment by {report.comment.username}</span>
                           {badge ? (
@@ -338,7 +339,7 @@ export default function AdminModerationPage() {
                         </p>
                       </div>
 
-                      <div className="rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
+                      <div className={`${ADMIN_INSET} p-5`}>
                         <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Account context</div>
                         <div className="mt-3 text-sm text-neutral-200">{report.commentAuthor.username}</div>
                         <div className="mt-2 text-sm text-neutral-400">

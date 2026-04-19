@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { formatUpdatedAt } from "@/app/lib/dates";
+import { PUBLIC_INSET } from "@/app/lib/surfaces";
 
 type AccountCommentHistoryItem = {
   body: string;
@@ -60,7 +61,7 @@ export default function AccountCommentsHistory({
 
   if (comments.length === 0) {
     return (
-      <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-5 text-sm leading-7 text-neutral-400">
+      <div className={`mt-6 ${PUBLIC_INSET} p-5 text-sm leading-7 text-neutral-400`}>
         Your comment history will appear here after you join the conversation on story pages.
       </div>
     );
@@ -69,7 +70,7 @@ export default function AccountCommentsHistory({
   return (
     <div className="mt-6 space-y-4">
       {comments.map((comment) => (
-        <div key={comment.id} className="rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
+        <div key={comment.id} className={`${PUBLIC_INSET} p-5`}>
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
             {formatUpdatedAt(comment.createdAt)}
           </div>

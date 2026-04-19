@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
 import { DEFAULT_OG_IMAGE, SITE_NAME } from "@/app/lib/seo";
+import { PUBLIC_PANEL } from "@/app/lib/surfaces";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -133,7 +134,7 @@ export default function PrivacyPage() {
       <div className="mx-auto max-w-4xl">
         <BackLink href="/" />
 
-        <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+        <div className={`mt-8 ${PUBLIC_PANEL} p-8`}>
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Privacy Policy</div>
           <h1 className="mt-3 text-4xl font-semibold text-neutral-100">How The Beacon handles information</h1>
           <p className="mt-4 text-sm text-neutral-400">Last updated: {LAST_UPDATED}</p>
@@ -147,7 +148,7 @@ export default function PrivacyPage() {
           {sections.map((section) => (
             <section
               key={section.title}
-              className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
+              className={`${PUBLIC_PANEL} p-8`}
             >
               <h2 className="text-2xl font-semibold text-neutral-100">{section.title}</h2>
               <div className="mt-4 space-y-4 text-base leading-7 text-neutral-300">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
 import { DEFAULT_OG_IMAGE, SITE_NAME, trimDescription } from "@/app/lib/seo";
+import { PUBLIC_INSET, PUBLIC_INSET_ELEVATED, PUBLIC_PANEL } from "@/app/lib/surfaces";
 
 const aboutDescription = trimDescription(
   "Learn how The Beacon uses ranked briefings, live discussion, and personalized tabs to make staying informed easier."
@@ -69,7 +70,7 @@ export default function AboutPage() {
       <div className="mx-auto max-w-4xl">
         <BackLink href="/" />
 
-        <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+        <div className={`mt-8 ${PUBLIC_PANEL} p-8`}>
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">About</div>
           <h1 className="mt-3 text-4xl font-semibold text-neutral-100">About The Beacon</h1>
           <p className="mt-6 text-base leading-7 text-neutral-300">
@@ -87,7 +88,7 @@ export default function AboutPage() {
             {pillars.map((pillar) => (
               <section
                 key={pillar.title}
-                className="rounded-2xl border border-[#13314b] bg-[#04111b] p-6 shadow-[0_18px_40px_rgba(0,0,0,0.24)]"
+                className={`${PUBLIC_INSET_ELEVATED} p-6`}
               >
                 <h2 className="text-xl font-semibold text-neutral-100">{pillar.title}</h2>
                 <p className="mt-3 text-sm leading-7 text-neutral-400">{pillar.body}</p>
@@ -95,7 +96,7 @@ export default function AboutPage() {
             ))}
           </div>
 
-          <section className="mt-10 rounded-2xl border border-[#13314b] bg-[#04111b] p-6">
+          <section className={`mt-10 ${PUBLIC_INSET} p-6`}>
             <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Goals</div>
             <ul className="mt-4 space-y-3 text-sm leading-7 text-neutral-300">
               {goals.map((goal) => (

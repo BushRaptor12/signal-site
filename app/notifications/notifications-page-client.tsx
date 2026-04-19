@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatUpdatedAt } from "@/app/lib/dates";
 import type { NotificationPreferences, SiteNotificationEntry } from "@/app/lib/notification-store";
+import { PUBLIC_INSET, PUBLIC_INSET_INTERACTIVE, PUBLIC_PANEL } from "@/app/lib/surfaces";
 import { getExistingPushSubscription, isPushSupported, registerPushServiceWorker, urlBase64ToUint8Array } from "@/app/lib/push-client";
 import { NOTIFICATIONS_UPDATED_EVENT, emitNotificationsUpdated } from "@/app/lib/notification-store";
 import PageBrandHeader from "@/app/page-brand-header";
@@ -180,7 +181,7 @@ export default function NotificationsPageClient() {
       <div className="mx-auto max-w-4xl">
         <PageBrandHeader backHref="/" />
 
-        <div className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+        <div className={`mt-8 ${PUBLIC_PANEL} p-8`}>
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Notifications</div>
           <h1 className="mt-3 text-4xl font-semibold text-neutral-100">Alerts and notification settings</h1>
           <p className="mt-6 text-base leading-7 text-neutral-300">
@@ -188,14 +189,14 @@ export default function NotificationsPageClient() {
           </p>
         </div>
 
-        <section className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+        <section className={`mt-8 ${PUBLIC_PANEL} p-8`}>
           <h2 className="text-2xl font-semibold text-neutral-100">Preferences</h2>
           {!authenticated ? (
-            <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#03101b] p-5 text-sm leading-7 text-neutral-400">
+            <div className={`mt-6 ${PUBLIC_INSET} p-5 text-sm leading-7 text-neutral-400`}>
               Sign in to sync notification history, unread counts, and alert preferences to your account.
             </div>
           ) : null}
-          <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-[#13314b] bg-[#03101b] p-5 md:flex-row md:items-center md:justify-between">
+          <div className={`mt-6 flex flex-col gap-4 ${PUBLIC_INSET} p-5 md:flex-row md:items-center md:justify-between`}>
             <div>
               <div className="text-base font-semibold text-neutral-100">Urgent News</div>
               <p className="mt-1 text-sm leading-6 text-neutral-400">
@@ -233,7 +234,7 @@ export default function NotificationsPageClient() {
           </p>
         </section>
 
-        <section className="mt-8 rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+        <section className={`mt-8 ${PUBLIC_PANEL} p-8`}>
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-2xl font-semibold text-neutral-100">Recent notifications</h2>
             <div className="flex items-center gap-3">
@@ -252,7 +253,7 @@ export default function NotificationsPageClient() {
           </div>
 
           {!authenticated ? (
-            <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#03101b] p-5 text-sm leading-7 text-neutral-400">
+            <div className={`mt-6 ${PUBLIC_INSET} p-5 text-sm leading-7 text-neutral-400`}>
               <p>Log in to see notifications tied to your account.</p>
               <Link href="/account/login" className="mt-4 inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]">
                 Log in
@@ -266,7 +267,7 @@ export default function NotificationsPageClient() {
                 <Link
                   key={item.id}
                   href={item.href}
-                  className="block rounded-2xl border border-[#13314b] bg-[#03101b] p-5 transition hover:border-[#21496b] hover:bg-[#041524]"
+                  className={`block ${PUBLIC_INSET_INTERACTIVE} p-5`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div

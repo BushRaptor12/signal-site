@@ -9,6 +9,7 @@ import { formatUpdatedAt } from "@/app/lib/dates";
 import { DEFAULT_IMAGE_FOCUS, clampImageFocus, imageObjectPosition } from "@/app/lib/image-focus";
 import { inferStoryKnowledge } from "@/app/lib/story-knowledge";
 import { STORY_IMAGE_ACCEPT } from "@/app/lib/story-images";
+import { ADMIN_INSET, ADMIN_PANEL } from "@/app/lib/surfaces";
 import type { BriefingLeadStyle, Lean, Story, StoryImageDisplay, StoryStatus, StoryWithViews } from "@/app/lib/types";
 import { detectSourceLean, guessSourceLabel } from "@/app/lib/source-lean";
 import { TOPICS, normalize, slugify } from "@/app/lib/vocab";
@@ -71,7 +72,7 @@ type EditorSectionProps = {
 
 function EditorSection({ title, description, defaultOpen = false, children }: EditorSectionProps) {
   return (
-    <details open={defaultOpen} className="group rounded-2xl border border-neutral-700 bg-neutral-900">
+    <details open={defaultOpen} className={`group ${ADMIN_PANEL}`}>
       <summary className="flex cursor-pointer list-none items-start justify-between gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
         <div>
           <div className="text-sm font-semibold uppercase tracking-[0.14em] text-neutral-200">{title}</div>
@@ -1040,7 +1041,7 @@ export default function EditorPage() {
         ) : null}
 
         <div className="mt-8 grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="rounded-2xl border border-neutral-700 bg-neutral-900 p-5 h-fit xl:sticky xl:top-8">
+          <aside className={`${ADMIN_PANEL} h-fit p-5 xl:sticky xl:top-8`}>
             <div className="flex items-center justify-between gap-3">
               <div className="text-sm font-semibold uppercase text-neutral-300">Current Stories</div>
               <button
@@ -1071,7 +1072,7 @@ export default function EditorPage() {
                     className={`w-full rounded-xl border p-4 text-left transition ${
                       active
                         ? "border-neutral-300 bg-neutral-100/10"
-                        : "border-neutral-700 bg-neutral-950/40 hover:border-neutral-500"
+                        : "border-[#1a334b]/75 bg-[#081521] hover:border-neutral-500"
                     }`}
                   >
                     <div className="text-xs uppercase tracking-[0.18em] text-neutral-500">{story.date}</div>
@@ -1091,7 +1092,7 @@ export default function EditorPage() {
           </aside>
 
           <div className="space-y-6">
-            <div className="rounded-2xl border border-neutral-700 bg-neutral-900 p-6">
+            <div className={`${ADMIN_PANEL} p-6`}>
               <div className="text-sm font-semibold uppercase text-neutral-300">
                 {activeStoryId ? "Editing Existing Story" : "Creating New Story"}
               </div>
@@ -1922,7 +1923,7 @@ export default function EditorPage() {
                 <div className="text-sm text-neutral-500">No revisions yet.</div>
               ) : (
                 revisions.map((revision) => (
-                  <div key={revision.id} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                  <div key={revision.id} className={`flex flex-wrap items-center justify-between gap-4 ${ADMIN_INSET} p-4`}>
                     <div>
                       <div className="text-sm text-neutral-100">{revision.story.title}</div>
                       <div className="mt-1 text-xs uppercase tracking-[0.16em] text-neutral-500">
@@ -1944,7 +1945,7 @@ export default function EditorPage() {
           </div>
               </EditorSection>
 
-              <div className="rounded-2xl border border-neutral-700 bg-neutral-900 p-5">
+              <div className={`${ADMIN_PANEL} p-5`}>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <button onClick={() => void onSave()} className="flex-1 rounded-xl bg-neutral-100 py-3 font-semibold text-neutral-900">
                     {status === "published" ? "Save and publish" : status === "archived" ? "Save as archived" : "Save draft"}

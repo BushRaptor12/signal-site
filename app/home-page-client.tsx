@@ -17,6 +17,8 @@ import type { StoryWithViews } from "./lib/types";
 import { normalize, TOPICS, toTitleCase } from "./lib/vocab";
 
 type TabKey = "following" | "popular" | "recent" | string;
+type TopicOrderKey = "new" | "top";
+type TopicTopWindowKey = "day" | "week" | "month" | "year";
 
 type SavedHomeState = {
   scrollY?: number;
@@ -36,6 +38,12 @@ const MAX_SCROLL_RESTORE_ATTEMPTS = 18;
 const STORY_BATCH_SIZE = 10;
 const BUILTIN_TAB_KEYS: TabKey[] = ["following", "popular", "recent"];
 const PRESET_TOPIC_TABS = TOPICS.map((topic) => normalize(topic)).filter(Boolean);
+const TOPIC_TOP_WINDOW_LABELS: Record<TopicTopWindowKey, string> = {
+  day: "Top of day",
+  week: "Top of week",
+  month: "Top of month",
+  year: "Top of year",
+};
 
 function isBuiltinTabKey(value: string): value is TabKey {
   return BUILTIN_TAB_KEYS.includes(value as TabKey);
@@ -119,6 +127,26 @@ function compareByPopularity(left: StoryWithViews, right: StoryWithViews, nowMs:
   if (byUpdated !== 0) return byUpdated;
 
   return publishedAtMs(right) - publishedAtMs(left);
+}
+
+function compareByTop(left: StoryWithViews, right: StoryWithViews): number {
+  const byViews = Number(right.views ?? 0) - Number(left.views ?? 0);
+  if (byViews !== 0) return byViews;
+
+  const byComments = Number(right.comments ?? 0) - Number(left.comments ?? 0);
+  if (byComments !== 0) return byComments;
+
+  const byUpdated = updatedAtMs(right) - updatedAtMs(left);
+  if (byUpdated !== 0) return byUpdated;
+
+  return publishedAtMs(right) - publishedAtMs(left);
+}
+
+function topicTopWindowDurationMs(window: TopicTopWindowKey) {
+  if (window === "day") return 24 * 3_600_000;
+  if (window === "week") return 7 * 24 * 3_600_000;
+  if (window === "month") return 30 * 24 * 3_600_000;
+  return 365 * 24 * 3_600_000;
 }
 
 function escapeRegExp(value: string) {
@@ -215,6 +243,8 @@ export default function HomePageClient({
   const [followedInterests, setFollowedInterests] = useState<FollowedInterestWithMatches[]>(initialFollowedInterests);
   const [semanticStoryIds, setSemanticStoryIds] = useState<string[]>(initialSemanticStoryIds);
   const [loadingFollowState, setLoadingFollowState] = useState(false);
+  const [topicOrder, setTopicOrder] = useState<TopicOrderKey>("new");
+  const [topicTopWindow, setTopicTopWindow] = useState<TopicTopWindowKey>("day");
   const pendingScrollRestoreRef = useRef<{ attempts: number; scrollY: number; tabKey: TabKey } | null>(null);
 
   useEffect(() => {
@@ -468,12 +498,22 @@ export default function HomePageClient({
     if (activeTab === "following") return followingStories;
     if (activeTab === "recent") return recentStories;
     if (isPresetTopicTab(normalize(activeTab))) {
-      return topicStoriesByTab.get(normalize(activeTab)) ?? [];
+      const topicStories = topicStoriesByTab.get(normalize(activeTab)) ?? [];
+      if (topicOrder === "new") {
+        return topicStories;
+      }
+
+      const durationMs = topicTopWindowDurationMs(topicTopWindow);
+      const cutoffMs = Date.now() - durationMs;
+      return topicStories
+        .filter((story) => publishedAtMs(story) >= cutoffMs)
+        .sort(compareByTop);
     }
     return [...recentStories].sort((a, b) => compareByPopularity(a, b, Date.now()));
-  }, [activeTab, followingStories, recentStories, topicStoriesByTab]);
+  }, [activeTab, followingStories, recentStories, topicOrder, topicStoriesByTab, topicTopWindow]);
   const visibleStories = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
   const canLoadMore = visibleCount < visible.length;
+  const activeTopicTab = isPresetTopicTab(normalize(activeTab));
   useEffect(() => {
     const pending = pendingScrollRestoreRef.current;
     if (!pending || pending.tabKey !== activeTab) return;
@@ -590,7 +630,7 @@ export default function HomePageClient({
               </Link>
             ) : <div className="w-[150px]" />}
           </div>
-        ) : activeTab === "popular" || activeTab === "recent" || isPresetTopicTab(normalize(activeTab)) ? trackingStories.length > 0 ? (
+        ) : activeTab === "popular" || activeTab === "recent" ? trackingStories.length > 0 ? (
           <div className="flex min-h-[44px] items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
               <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
@@ -606,10 +646,44 @@ export default function HomePageClient({
               ))}
             </div>
           </div>
-        ) : null : null}
+        ) : null : activeTopicTab ? (
+          <div className="flex min-h-[44px] flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-2">
+              {(["new", "top"] as TopicOrderKey[]).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setTopicOrder(value)}
+                  className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                    topicOrder === value
+                      ? "border-[#8f7740]/70 bg-[#07101a] text-neutral-100"
+                      : "border-[#163754] bg-[#020b14] text-neutral-300 hover:border-[#30516d] hover:text-white"
+                  }`}
+                >
+                  {value === "new" ? "New" : "Top"}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 text-sm text-neutral-300">
+              <span className="font-semibold uppercase tracking-[0.14em] text-neutral-500">Window</span>
+              <select
+                value={topicTopWindow}
+                onChange={(event) => setTopicTopWindow(event.target.value as TopicTopWindowKey)}
+                disabled={topicOrder !== "top"}
+                className="rounded-xl border border-[#163754] bg-[#020b14] px-4 py-2 text-sm text-neutral-100 outline-none transition hover:border-[#30516d] focus:border-[#8f7740]/70 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {(Object.entries(TOPIC_TOP_WINDOW_LABELS) as Array<[TopicTopWindowKey, string]>).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      <div className="mx-auto max-w-5xl space-y-8">
+      <div className="mx-auto max-w-5xl space-y-6">
         {activeTab === "following" && loadingFollowState ? (
           <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
             <h2 className="text-2xl font-semibold text-neutral-100">Loading stories...</h2>
@@ -648,7 +722,9 @@ export default function HomePageClient({
               {activeTab === "recent"
                 ? "Check back soon for the latest stories."
                 : isPresetTopicTab(normalize(activeTab))
-                  ? `There are no ${toTitleCase(normalize(activeTab))} stories yet.`
+                  ? topicOrder === "new"
+                    ? `There are no ${toTitleCase(normalize(activeTab))} stories yet.`
+                    : `There are no ${toTitleCase(normalize(activeTab))} stories in ${TOPIC_TOP_WINDOW_LABELS[topicTopWindow].toLowerCase()}.`
                   : "Check back soon for popular stories."}
             </p>
           </div>
@@ -660,135 +736,135 @@ export default function HomePageClient({
             const primaryInterestMatch = lexicalInterestMatch && lexicalInterestMatch.query ? lexicalInterestMatch : null;
             const followedDirectly = followedStoryIdSet.has(story.id);
             const isLeadCard = index === 0;
-            const followBadges = [
-              followedDirectly
-                ? (
-                    <span
-                      key="tracked"
-                      className="rounded-full border border-[#8f7740]/35 bg-[#07101a]/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#d7c08d]"
-                    >
-                      Tracked story
-                    </span>
-                  )
-                : null,
-              primaryInterestMatch
-                ? (
-                    <span
-                      key="interest"
-                      className="rounded-full border border-[#163754]/70 bg-[#020b14]/75 px-3 py-1 text-[11px] font-semibold tracking-[0.01em] text-neutral-300"
-                    >
-                      Because you follow {primaryInterestMatch.query}
-                    </span>
-                  )
-                : null,
+            const followContextItems = [
+              followedDirectly ? "Tracked story" : null,
+              primaryInterestMatch?.query ? primaryInterestMatch.query : null,
             ].filter(Boolean);
             return (
-            <div key={story.id}>
+              <div key={story.id} className="mx-auto max-w-4xl">
                 <div
-                  className={`relative overflow-hidden rounded-[20px] border bg-[var(--surface)] p-7 shadow-[0_16px_36px_rgba(0,0,0,0.24)] transition ${
-                    story.urgent ? "border-red-500/60 hover:border-red-400" : "border-[#10263b] hover:border-[#163754]"
-                  }`}
+                  className={`group relative overflow-hidden border bg-[#06131e] px-5 py-6 shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition md:px-7 ${
+                    story.urgent
+                      ? "border-red-500/55 hover:border-red-400"
+                      : "border-[#183149]/65 hover:border-[#28445d]"
+                  } ${isLeadCard ? "rounded-[14px]" : "rounded-[12px]"}`}
                 >
-              <div
-                aria-hidden="true"
-                className={`pointer-events-none absolute inset-x-0 top-0 h-10 ${
-                  story.urgent
-                    ? "bg-gradient-to-b from-red-500/6 to-transparent"
-                    : isLeadCard
-                      ? "bg-gradient-to-b from-[#1d476a]/6 to-transparent"
-                      : "bg-gradient-to-b from-[#10263b]/4 to-transparent"
-                }`}
-              />
-              <Link
-                href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
-                onClick={() => persistHomeState()}
-                className="relative block"
-              >
-                  <div className="mb-5 flex flex-wrap items-center justify-end gap-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
-                      {getStoryUpdateLabel(story)}
-                    </div>
-                  </div>
-
-                  {shouldShowStoryImageOnHomepage(story) ? (
-                    story.image_display === "contain" ? (
-                      <div className="mb-7 overflow-hidden rounded-[16px] bg-transparent">
-                        <div className="flex justify-center">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={story.image_url!}
-                            alt={story.title}
-                            loading="lazy"
-                            className="block max-h-[32rem] max-w-full rounded-xl object-contain"
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mb-7 overflow-hidden rounded-[16px] bg-transparent">
-                        <div className={`relative ${isLeadCard ? "aspect-[4/3] md:aspect-[16/9]" : "aspect-[4/3] md:aspect-[16/10]"}`}>
-                          <Image
-                            src={story.image_url!}
-                            alt={story.title}
-                            fill
-                            sizes="(max-width: 768px) 100vw, 896px"
-                            className="object-cover"
-                            style={{ objectPosition: imageObjectPosition(story) }}
-                          />
-                        </div>
-                      </div>
-                    )
-                  ) : null}
-
-                  <h2
-                    className={`text-center font-semibold tracking-tight ${
-                      story.urgent
-                        ? "text-3xl text-red-400 md:text-4xl"
-                        : isLeadCard
-                          ? "text-[2.05rem] md:text-[2.45rem]"
-                          : "text-2xl"
-                    }`}
+                  <Link
+                    href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
+                    onClick={() => persistHomeState()}
+                    className="relative block"
                   >
-                    {story.title}
-                  </h2>
-
-                  <div className="mx-auto mt-4 max-w-[42rem] space-y-2 text-center text-[15px] leading-7 text-neutral-300">
-                    {(story.summary ?? []).map((line, index) => (
-                      <p key={index}>{line}</p>
-                    ))}
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
-                    <span>{story.views} {story.views === 1 ? "view" : "views"}</span>
-                    <span>{story.comments} comments</span>
-                    <span>{formatStoryDate(story.date)}</span>
-                  </div>
-
-                  {activeTab === "following" && followBadges.length > 0 ? (
-                    <div className="mt-4 flex flex-wrap justify-center gap-2">
-                      {followBadges}
+                    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-[#1d3b56]/75 pb-4">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] uppercase tracking-[0.14em] text-neutral-400">
+                        <span>{formatStoryDate(story.date)}</span>
+                      </div>
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
+                        {getStoryUpdateLabel(story)}
+                      </div>
                     </div>
-                  ) : null}
 
-                  <div className="mt-5 flex flex-wrap justify-center gap-2">
-                    {(story.topics ?? []).map((topic) => (
-                      <button
-                        key={`${story.id}-${topic}`}
-                        type="button"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          setActiveTabAndUrl(normalize(topic));
-                        }}
-                        className="rounded-full border border-[#214765]/85 bg-[#07111a]/75 px-3 py-1.5 text-[11px] font-semibold tracking-[0.01em] text-neutral-300 transition hover:border-[#3a617e] hover:bg-[#0a1724]"
-                      >
-                        {toTitleCase(normalize(topic))}
-                      </button>
-                    ))}
-                  </div>
-              </Link>
+                    <div
+                      className={`grid gap-6 ${
+                        shouldShowStoryImageOnHomepage(story) && story.image_display !== "contain"
+                          ? isLeadCard
+                            ? "lg:grid-cols-[minmax(0,1.22fr)_minmax(15.5rem,0.78fr)] lg:items-start"
+                            : "lg:grid-cols-[minmax(0,1.7fr)_minmax(11rem,0.4fr)] lg:items-start"
+                          : ""
+                      }`}
+                    >
+                      <div className="text-center">
+                        <h2
+                          className={`mx-auto font-semibold tracking-tight text-neutral-50 ${
+                            story.urgent
+                              ? "max-w-[42rem] text-3xl text-red-500 md:text-4xl"
+                              : isLeadCard
+                                ? "max-w-[42rem] text-[2rem] leading-tight md:text-[2.35rem]"
+                                : "max-w-[40rem] text-[1.85rem] leading-tight"
+                          }`}
+                        >
+                          {story.title}
+                        </h2>
+
+                        <div className={`mx-auto mt-4 space-y-2.5 text-[15px] leading-7 text-neutral-300 ${isLeadCard ? "max-w-[42rem]" : "max-w-[40rem]"}`}>
+                          {(story.summary ?? []).map((line, index) => (
+                            <p key={index}>{line}</p>
+                          ))}
+                        </div>
+
+                        {activeTab === "following" && followContextItems.length > 0 ? (
+                          <div className="mt-5 text-sm leading-6 text-neutral-400">
+                            <span className="uppercase tracking-[0.14em] text-neutral-500">Following</span>
+                            <span className="mx-2 text-[#35556f]">/</span>
+                            {followedDirectly ? <span>Tracked story</span> : null}
+                            {followedDirectly && primaryInterestMatch?.query ? <span className="mx-2 text-[#35556f]">/</span> : null}
+                            {primaryInterestMatch?.query ? (
+                              <span>
+                                Because you follow{" "}
+                                <span className="text-neutral-300">{primaryInterestMatch.query}</span>
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        {(story.topics ?? []).length > 0 ? (
+                          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                            <span>In</span>
+                            {(story.topics ?? []).map((topic, topicIndex) => (
+                              <div key={`${story.id}-${topic}`} className="flex items-center gap-x-2">
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    setActiveTabAndUrl(normalize(topic));
+                                  }}
+                                  className="text-[#c8d4df] underline decoration-[#35556f]/65 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#8f7740]/65"
+                                >
+                                  {toTitleCase(normalize(topic))}
+                                </button>
+                                {topicIndex < (story.topics ?? []).length - 1 ? <span className="text-[#35556f]">/</span> : null}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {shouldShowStoryImageOnHomepage(story) ? (
+                        story.image_display === "contain" ? (
+                          <div className="flex justify-center">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={story.image_url!}
+                              alt={story.title}
+                              loading="lazy"
+                              className="block max-h-[32rem] max-w-full object-contain"
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            className={`relative overflow-hidden ${
+                              isLeadCard
+                                ? "aspect-[4/3] md:aspect-[16/11] lg:aspect-[5/6]"
+                                : "mx-auto w-full max-w-[17rem] aspect-[4/3] md:max-w-[20rem] md:aspect-[5/4] lg:ml-auto lg:mr-0 lg:max-w-[13rem] lg:aspect-[3/4]"
+                            }`}
+                          >
+                            <Image
+                              src={story.image_url!}
+                              alt={story.title}
+                              fill
+                              sizes={isLeadCard ? "(max-width: 1024px) 100vw, 360px" : "(max-width: 1024px) 320px, 208px"}
+                              className="object-cover transition duration-500 group-hover:scale-[1.015]"
+                              style={{ objectPosition: imageObjectPosition(story) }}
+                            />
+                          </div>
+                        )
+                      ) : null}
+                    </div>
+                  </Link>
                 </div>
-            </div>
-          )})
+              </div>
+            );
+          })
         )}
       </div>
 

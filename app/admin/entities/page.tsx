@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import AdminEntitiesManagerClient from "@/app/admin/entities/admin-entities-manager-client";
 import { getAccountProfile } from "@/app/lib/account.server";
 import { listAdminEntities, listAdminInterestSignals } from "@/app/lib/admin-tools";
+import { ADMIN_PANEL } from "@/app/lib/surfaces";
 
 export default async function AdminEntitiesPage() {
   const profile = await getAccountProfile();
@@ -37,7 +38,9 @@ export default async function AdminEntitiesPage() {
           </div>
         </div>
 
-        <AdminEntitiesManagerClient initialEntities={initialEntities} initialInterestSignals={initialInterestSignals} />
+        <div className={`mt-8 ${ADMIN_PANEL} p-8`}>
+          <AdminEntitiesManagerClient initialEntities={initialEntities} initialInterestSignals={initialInterestSignals} />
+        </div>
       </div>
     </main>
   );

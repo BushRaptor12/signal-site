@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildBriefingLayout, serializeBriefingLayout, type BriefingLayout } from "@/app/lib/briefing-layout";
 import { imageObjectPosition } from "@/app/lib/image-focus";
+import { ADMIN_INSET, ADMIN_PANEL } from "@/app/lib/surfaces";
 import type { BriefingPosition, StoryWithViews } from "@/app/lib/types";
 
 type AdminBriefingResponse = {
@@ -331,7 +332,7 @@ export default function AdminBriefingPage() {
           </div>
         </div>
 
-        <div className="mt-8 rounded-2xl border border-neutral-700 bg-neutral-900 p-6">
+        <div className={`mt-8 ${ADMIN_PANEL} p-6`}>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="text-sm text-neutral-400">
               {loading
@@ -376,7 +377,7 @@ export default function AdminBriefingPage() {
             ) : (
               <div className="mt-6 space-y-8">
                 {briefingLayout.lead ? (
-                  <article className="rounded-2xl border border-red-500/70 bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+                  <article className={`${ADMIN_PANEL} border-red-500/70 p-8`}>
                     <div className="mb-3 flex flex-wrap items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                       <span className="rounded-full border border-red-500/30 px-2.5 py-1 text-red-300">Lead Story</span>
                       <span>{formatDate(briefingLayout.lead.date)}</span>
@@ -460,7 +461,7 @@ export default function AdminBriefingPage() {
 
                     return (
                       <div key={column.key} className="space-y-6">
-                        <div className="rounded-2xl border border-[#0d2438] bg-[#020b14] px-4 py-3">
+                        <div className={`${ADMIN_INSET} px-4 py-3`}>
                           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">
                             {column.label}
                           </div>
@@ -477,7 +478,7 @@ export default function AdminBriefingPage() {
                             return (
                               <article
                                 key={story.id}
-                                className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
+                                className={`${ADMIN_PANEL} p-6`}
                               >
                                 <div className="mb-3 flex flex-wrap items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
                                   <span className="rounded-full border border-[#163754]/60 px-2.5 py-1 text-neutral-300">
@@ -614,7 +615,7 @@ export default function AdminBriefingPage() {
             ) : (
               <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
                 {filteredLibrary.map((story) => (
-                  <article key={story.id} className="rounded-2xl border border-neutral-700 bg-neutral-950/40 p-5">
+                  <article key={story.id} className={`${ADMIN_INSET} p-5`}>
                     <div className="mb-3 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.2em] text-neutral-500">
                       <span>{formatDate(story.date)}</span>
                       <span className="font-semibold text-neutral-600">{story.id}</span>

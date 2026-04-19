@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { emitAccountFollowsUpdated } from "@/app/lib/account-events";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
+import { PUBLIC_INSET, PUBLIC_INSET_INTERACTIVE } from "@/app/lib/surfaces";
 import type { FollowedInterest, FollowedInterestWithMatches } from "@/app/lib/account.server";
 
 type AccountInterestsManagerProps = {
@@ -279,7 +280,7 @@ export default function AccountInterestsManager({
   }
 
   return (
-    <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
+    <div className={`mt-6 ${PUBLIC_INSET} p-5`}>
       <div className="text-sm leading-7 text-neutral-300">
         Add subjects you want to follow here. Expand one when you want to review matched stories or hide bad matches.
       </div>
@@ -304,7 +305,7 @@ export default function AccountInterestsManager({
           />
 
           {suggestionsVisible && (loadingSuggestions || suggestions.length > 0 || draft.trim()) ? (
-            <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 rounded-2xl border border-[#163754] bg-[#04111b] p-2 shadow-[0_18px_40px_rgba(0,0,0,0.45)]">
+            <div className={`absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 ${PUBLIC_INSET} p-2 shadow-[0_18px_40px_rgba(0,0,0,0.45)]`}>
               {loadingSuggestions ? (
                 <div className="px-3 py-2 text-sm text-neutral-400">Loading suggestions...</div>
               ) : suggestions.length > 0 ? (
@@ -357,7 +358,7 @@ export default function AccountInterestsManager({
             const pendingUpdate = pendingUpdateId === interest.id;
 
             return (
-              <section key={interest.id} className="rounded-2xl border border-[#163754] bg-[#020b14] p-5">
+              <section key={interest.id} className={`${PUBLIC_INSET} p-5`}>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <h4 className="text-lg font-semibold text-neutral-100">{interest.query}</h4>
@@ -387,7 +388,7 @@ export default function AccountInterestsManager({
 
                 {!isExpanded ? null : interest.matches.length === 0 ? (
                   <div className="mt-4 space-y-3">
-                    <div className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                    <div className={`${PUBLIC_INSET} p-4`}>
                       <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Advanced</div>
                       <p className="mt-2 text-sm leading-6 text-neutral-400">
                         Use include keywords to force a stronger link for obscure interests. Use exclude keywords to filter false positives.
@@ -445,13 +446,13 @@ export default function AccountInterestsManager({
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4 text-sm leading-7 text-neutral-400">
+                    <div className={`${PUBLIC_INSET} p-4 text-sm leading-7 text-neutral-400`}>
                       No live matches yet for this interest. Try a more specific phrase, add must-match keywords, or wait for newer stories.
                     </div>
                   </div>
                 ) : (
                   <div className="mt-4 space-y-3">
-                    <div className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                    <div className={`${PUBLIC_INSET} p-4`}>
                       <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Advanced</div>
                       <p className="mt-2 text-sm leading-6 text-neutral-400">
                         Use include keywords to force a stronger link for obscure interests. Use exclude keywords to filter false positives.
@@ -520,7 +521,7 @@ export default function AccountInterestsManager({
                       const pendingHide = pendingHideKey === matchKey;
 
                       return (
-                        <div key={match.story.id} className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                        <div key={match.story.id} className={`${PUBLIC_INSET_INTERACTIVE} p-4`}>
                           <div className="flex flex-wrap items-start justify-between gap-4">
                             <div className="min-w-0 flex-1">
                               <Link

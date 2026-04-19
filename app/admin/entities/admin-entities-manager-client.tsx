@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { formatUpdatedAt } from "@/app/lib/dates";
+import { ADMIN_INSET, ADMIN_PANEL } from "@/app/lib/surfaces";
 import type { AdminEntity, AdminInterestSignal } from "@/app/lib/admin-tools";
 
 type AdminEntitiesManagerClientProps = {
@@ -386,7 +387,7 @@ export default function AdminEntitiesManagerClient({
       </div>
 
       <div className="mt-8 grid gap-8 xl:grid-cols-[0.95fr_1.05fr]">
-        <section className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+        <section className={`${ADMIN_PANEL} p-8`}>
           <div>
             <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Reader Interests</div>
             <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Promote what readers are asking for</h2>
@@ -408,7 +409,7 @@ export default function AdminEntitiesManagerClient({
               const aliasKey = `alias:${signal.normalizedQuery}`;
 
               return (
-                <div key={signal.normalizedQuery} className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                <div key={signal.normalizedQuery} className={`${ADMIN_INSET} p-4`}>
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                       <div className="text-base font-medium text-neutral-100">{signal.query}</div>
@@ -474,7 +475,7 @@ export default function AdminEntitiesManagerClient({
           </div>
         </section>
 
-        <section className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+        <section className={`${ADMIN_PANEL} p-8`}>
           <div>
             <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Entities</div>
             <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Canonical names and aliases</h2>
@@ -490,7 +491,7 @@ export default function AdminEntitiesManagerClient({
             className="mt-6 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-500"
           />
 
-          <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+          <div className={`mt-6 ${ADMIN_INSET} p-4`}>
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Create entity</div>
             <div className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
               <input
@@ -526,7 +527,7 @@ export default function AdminEntitiesManagerClient({
               const deleteKey = `delete:${entity.name}`;
 
               return (
-                <div key={entity.name} className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                <div key={entity.name} className={`${ADMIN_INSET} p-4`}>
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                       <div className="text-base font-medium text-neutral-100">{entity.name}</div>

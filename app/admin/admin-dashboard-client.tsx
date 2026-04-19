@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatUpdatedAt } from "@/app/lib/dates";
+import { ADMIN_INSET, ADMIN_INSET_INTERACTIVE, ADMIN_PANEL } from "@/app/lib/surfaces";
 import type { AdminDashboardData, AdminInterestSignal, AdminManagedUser } from "@/app/lib/admin-tools";
 import type { CommunitySettings } from "@/app/lib/community-settings";
 import type { StaffRole } from "@/app/lib/account.server";
@@ -29,7 +30,7 @@ const TOGGLE_OPTIONS: Array<{ description: string; key: ToggleKey; label: string
 
 function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-[#13314b] bg-[#04111b] p-5">
+    <div className={`${ADMIN_INSET} p-5`}>
       <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{label}</div>
       <div className="mt-3 text-3xl font-semibold text-neutral-100">{value}</div>
     </div>
@@ -239,7 +240,7 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
         </section>
 
         <div className="mt-8 grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
-          <section className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+          <section className={`${ADMIN_PANEL} p-8`}>
             <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Community</div>
@@ -255,7 +256,7 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
                 const enabled = settings[toggle.key];
                 const actionKey = `setting:${toggle.key}`;
                 return (
-                  <div key={toggle.key} className="flex items-center justify-between gap-4 rounded-2xl border border-[#13314b] bg-[#04111b] px-4 py-4">
+                  <div key={toggle.key} className={`flex items-center justify-between gap-4 ${ADMIN_INSET} px-4 py-4`}>
                     <div>
                       <div className="text-sm font-medium text-neutral-100">{toggle.label}</div>
                       <div className="mt-1 text-sm text-neutral-400">{toggle.description}</div>
@@ -278,7 +279,7 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
             </div>
           </section>
 
-          <section className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+          <section className={`${ADMIN_PANEL} p-8`}>
             <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Staff</div>
@@ -295,7 +296,7 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
 
             <div className="mt-4 space-y-3">
               {users.map((user) => (
-                <div key={user.userId} className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                <div key={user.userId} className={`${ADMIN_INSET} p-4`}>
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                       <div className="text-sm font-medium text-neutral-100">{user.username}</div>
@@ -328,7 +329,7 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
         <div className="mt-8 grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
           <section
             id="reader-interests"
-            className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
+            className={`${ADMIN_PANEL} p-8`}
           >
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -352,7 +353,7 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
                 const isBusy = busyAction === actionKey;
 
                 return (
-                  <div key={signal.normalizedQuery} className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                  <div key={signal.normalizedQuery} className={`${ADMIN_INSET} p-4`}>
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
                         <div className="text-base font-medium text-neutral-100">{signal.query}</div>
@@ -392,7 +393,7 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
             </div>
           </section>
 
-          <section className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+          <section className={`${ADMIN_PANEL} p-8`}>
             <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Story QA</div>
             <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Attention Needed</h2>
 
@@ -401,7 +402,7 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
                 <Link
                   key={story.id}
                   href={`/admin/editor?story=${encodeURIComponent(story.id)}`}
-                  className="block rounded-2xl border border-[#13314b] bg-[#04111b] p-5 transition hover:border-[#8f7740]/60"
+                  className={`block ${ADMIN_INSET_INTERACTIVE} p-5 hover:border-[#8f7740]/60`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -424,7 +425,7 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
             </div>
           </section>
 
-          <section className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+          <section className={`${ADMIN_PANEL} p-8`}>
             <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Recent Activity</div>
             <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Launch Feed</h2>
 
@@ -436,7 +437,7 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
                     <Link
                       key={comment.id}
                       href={`/story/${comment.storyId}?comment=${encodeURIComponent(comment.id)}#comment-${comment.id}`}
-                      className="block rounded-2xl border border-[#13314b] bg-[#04111b] p-4 transition hover:border-[#8f7740]/60"
+                      className={`block ${ADMIN_INSET_INTERACTIVE} p-4 hover:border-[#8f7740]/60`}
                     >
                       <div className="text-sm text-neutral-100">{comment.username}</div>
                       <div className="mt-1 text-xs text-neutral-500">
@@ -452,7 +453,7 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
                 <div className="text-sm font-medium text-neutral-200">Recent signups</div>
                 <div className="mt-3 space-y-3">
                   {initialData.recentSignups.map((signup) => (
-                    <div key={signup.userId} className="rounded-2xl border border-[#13314b] bg-[#04111b] p-4">
+                    <div key={signup.userId} className={`${ADMIN_INSET} p-4`}>
                       <div className="text-sm text-neutral-100">{signup.username}</div>
                       <div className="mt-1 text-sm text-neutral-400">{signup.email}</div>
                       <div className="mt-2 text-xs uppercase tracking-[0.16em] text-neutral-500">
@@ -470,7 +471,7 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
                     <Link
                       key={revision.id}
                       href={`/admin/editor?story=${encodeURIComponent(revision.storyId)}`}
-                      className="block rounded-2xl border border-[#13314b] bg-[#04111b] p-4 transition hover:border-[#8f7740]/60"
+                      className={`block ${ADMIN_INSET_INTERACTIVE} p-4 hover:border-[#8f7740]/60`}
                     >
                       <div className="text-sm text-neutral-100">{revision.storyId}</div>
                       <div className="mt-1 text-xs uppercase tracking-[0.16em] text-neutral-500">
