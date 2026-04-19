@@ -41,6 +41,20 @@ function toStoryStatus(value: unknown): StoryStatus {
   return value === "draft" || value === "archived" ? value : "published";
 }
 
+function toEasternDateInput(value: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+
+  const year = parts.find((part) => part.type === "year")?.value ?? "0000";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
+}
+
 function toStatusFilterList(rawValue: string | null, adminAccess: boolean): StoryStatus[] {
   if (!adminAccess) return ["published"];
 
@@ -103,7 +117,8 @@ export async function POST(req: Request) {
     }
 
     const supabase = supabaseServer();
-    const nowIso = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
     const { data: existingData, error: existingError } = await supabase
       .from("stories")
       .select(
@@ -193,6 +208,10 @@ export async function POST(req: Request) {
       contentChanged
         ? nowIso
         : existing?.content_updated_at ?? existing?.updated_at ?? existing?.created_at ?? nowIso;
+    const storyDate =
+      existing && contentChanged
+        ? toEasternDateInput(now)
+        : String(incoming.date);
 
     if (Boolean(incoming.beacon_include)) {
       const { data: briefingRows, error: briefingError } = await supabase
@@ -245,7 +264,7 @@ export async function POST(req: Request) {
       title: String(incoming.title),
       summary: normalizedSummary,
       sources: normalizedSources,
-      date: String(incoming.date),
+      date: storyDate,
       image_path: normalizedImagePath,
       image_url: normalizedImageUrl,
       image_focus_x: normalizedImageFocusX,

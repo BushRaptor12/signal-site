@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
 import { getAccountUserId, getSeenStoryIds } from "@/app/lib/account.server";
-import { formatUpdatedAt } from "@/app/lib/dates";
+import { formatUpdatedDay } from "@/app/lib/dates";
 import { buildBriefingLayout } from "@/app/lib/briefing-layout";
 import { imageObjectPosition } from "@/app/lib/image-focus";
 import { DEFAULT_OG_IMAGE, SITE_NAME, trimDescription } from "@/app/lib/seo";
@@ -70,7 +70,7 @@ function StoryUpdatedStamp({ story }: { story: StoryWithViews }) {
 
   return (
     <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-      {formatUpdatedAt(value)}
+      {formatUpdatedDay(value)}
     </div>
   );
 }
@@ -87,34 +87,6 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
             href={`/story/${story.id}?from=briefing`}
             className="relative block rounded-[26px] border border-[#0d2438] bg-[var(--surface)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#163754]"
           >
-            {shouldShowStoryImageOnBriefing(story) ? (
-              story.image_display === "contain" ? (
-                <div className="mb-5 overflow-hidden rounded-xl bg-transparent">
-                  <div className="flex justify-center p-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={story.image_url!}
-                      alt={displayHeadline(story)}
-                      loading="lazy"
-                      className="block max-h-[22rem] max-w-full rounded-lg object-contain"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="mb-5 overflow-hidden rounded-xl bg-transparent">
-                  <div className="relative aspect-[4/3]">
-                    <Image
-                      src={story.image_url!}
-                      alt={displayHeadline(story)}
-                      fill
-                      sizes="(max-width: 768px) 100vw, 560px"
-                      className="object-cover"
-                      style={{ objectPosition: imageObjectPosition(story) }}
-                    />
-                  </div>
-                </div>
-              )
-            ) : null}
             <div className={seen ? "pb-10 opacity-90" : ""}>
               <div className="mb-3 flex justify-end">
                 <StoryUpdatedStamp story={story} />
@@ -123,6 +95,34 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
                 {displayHeadline(story)}
               </div>
               {story.summary[0] ? <p className="mt-3 text-sm leading-6 text-neutral-400">{story.summary[0]}</p> : null}
+              {shouldShowStoryImageOnBriefing(story) ? (
+                story.image_display === "contain" ? (
+                  <div className="mt-5 overflow-hidden rounded-xl bg-transparent">
+                    <div className="flex justify-center p-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={story.image_url!}
+                        alt={displayHeadline(story)}
+                        loading="lazy"
+                        className="block max-h-[22rem] max-w-full rounded-lg object-contain"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-5 overflow-hidden rounded-xl bg-transparent">
+                    <div className="relative aspect-[4/3]">
+                      <Image
+                        src={story.image_url!}
+                        alt={displayHeadline(story)}
+                        fill
+                        sizes="(max-width: 768px) 100vw, 560px"
+                        className="object-cover"
+                        style={{ objectPosition: imageObjectPosition(story) }}
+                      />
+                    </div>
+                  </div>
+                )
+              ) : null}
             </div>
             {seen ? <SeenBadge /> : null}
           </Link>
@@ -185,7 +185,7 @@ export default async function BriefingPage() {
               <div className="flex-1 text-center">
                 <h1 className="text-3xl font-semibold tracking-tight text-neutral-100 md:text-[2.5rem]">The Briefing</h1>
                 <div className="mt-2 text-sm text-neutral-500">
-                  Updated: {latestUpdatedAt ? formatUpdatedAt(latestUpdatedAt) : "--"}
+                  Updated: {latestUpdatedAt ? formatUpdatedDay(latestUpdatedAt) : "--"}
                 </div>
               </div>
               <div className="w-[78px]" aria-hidden="true" />

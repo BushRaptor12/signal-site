@@ -19,6 +19,18 @@ export function formatUpdatedAt(value: string) {
   }).format(date);
 }
 
+export function formatUpdatedDay(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+    timeZone: "America/New_York",
+  }).format(date);
+}
+
 export function formatUpdatedAgo(value: string, nowMs = Date.now()) {
   const updatedMs = new Date(value).getTime();
   if (Number.isNaN(updatedMs)) return "recently";
