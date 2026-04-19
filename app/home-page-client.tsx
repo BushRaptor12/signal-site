@@ -518,7 +518,7 @@ export default function HomePageClient({
 
   return (
     <main className="min-h-screen bg-transparent p-8 text-neutral-100">
-      <div className="mx-auto mb-8 max-w-4xl">
+      <div className="mx-auto mb-8 max-w-5xl">
         <div className="flex flex-col items-center text-center">
           <Link href="/" aria-label="Go to The Beacon home page">
             <Image
@@ -564,7 +564,7 @@ export default function HomePageClient({
       </div>
       </div>
 
-      <div className="mx-auto mb-6 max-w-4xl">
+      <div className="mx-auto mb-6 max-w-5xl">
         {activeTab === "following" ? (
           <div className="flex min-h-[44px] items-center justify-between gap-4">
             <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
@@ -609,7 +609,7 @@ export default function HomePageClient({
         ) : null : null}
       </div>
 
-      <div className="mx-auto max-w-4xl space-y-8">
+      <div className="mx-auto max-w-5xl">
         {activeTab === "following" && loadingFollowState ? (
           <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
             <h2 className="text-2xl font-semibold text-neutral-100">Loading stories...</h2>
@@ -653,7 +653,8 @@ export default function HomePageClient({
             </p>
           </div>
         ) : (
-          visibleStories.map((story, index) => {
+          <div className="grid gap-8 xl:grid-cols-2">
+          {visibleStories.map((story, index) => {
             const matchedInterests = semanticInterestMatchesByStoryId.get(story.id) ?? [];
             const fallbackInterest = followedInterests.find((interest) => storyMatchesInterest(story, interest.query));
             const lexicalInterestMatch = matchedInterests[0] ?? (fallbackInterest ? { query: fallbackInterest.query, reasons: [] } : null);
@@ -683,7 +684,7 @@ export default function HomePageClient({
                 : null,
             ].filter(Boolean);
             return (
-            <div key={story.id}>
+            <div key={story.id} className={isLeadCard ? "xl:col-span-2" : ""}>
                 <div
                   className={`relative overflow-hidden rounded-[20px] border bg-[var(--surface)] p-7 shadow-[0_16px_36px_rgba(0,0,0,0.24)] transition ${
                     story.urgent ? "border-red-500/60 hover:border-red-400" : "border-[#10263b] hover:border-[#163754]"
@@ -788,12 +789,13 @@ export default function HomePageClient({
               </Link>
                 </div>
             </div>
-          )})
+          )})}
+          </div>
         )}
       </div>
 
       {canLoadMore ? (
-        <div className="mx-auto mt-8 flex max-w-4xl justify-center">
+        <div className="mx-auto mt-8 flex max-w-5xl justify-center">
           <button
             type="button"
             onClick={() => setVisibleCount((count) => count + STORY_BATCH_SIZE)}

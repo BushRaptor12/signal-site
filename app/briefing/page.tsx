@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
 import { getAccountUserId, getSeenStoryIds } from "@/app/lib/account.server";
-import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
+import { formatUpdatedAt } from "@/app/lib/dates";
 import { buildBriefingLayout } from "@/app/lib/briefing-layout";
 import { imageObjectPosition } from "@/app/lib/image-focus";
 import { DEFAULT_OG_IMAGE, SITE_NAME, trimDescription } from "@/app/lib/seo";
@@ -116,10 +116,7 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
               )
             ) : null}
             <div className={seen ? "pb-10 opacity-90" : ""}>
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                  {formatStoryDate(story.date)}
-                </div>
+              <div className="mb-3 flex justify-end">
                 <StoryUpdatedStamp story={story} />
               </div>
               <div className="text-2xl font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d]">
@@ -249,10 +246,7 @@ export default async function BriefingPage() {
                   )
                 ) : null}
                 <div className={`relative ${seenStoryIds.has(lead.id) ? "pb-10 opacity-90" : ""}`}>
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
-                      {formatStoryDate(lead.date)}
-                    </div>
+                  <div className="mb-4 flex justify-end">
                     <StoryUpdatedStamp story={lead} />
                   </div>
                   <div
