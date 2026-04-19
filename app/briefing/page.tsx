@@ -90,7 +90,7 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
             <div className="absolute right-6 top-6">
               <StoryUpdatedStamp story={story} />
             </div>
-            <div className={seen ? "flex flex-col justify-start pb-10 opacity-90" : "flex flex-col justify-start"}>
+            <div className={seen ? "flex flex-col justify-start opacity-90" : "flex flex-col justify-start"}>
               <div className="pr-28 text-2xl font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d]">
                 {displayHeadline(story)}
               </div>
@@ -245,7 +245,7 @@ export default async function BriefingPage() {
                     </div>
                   )
                 ) : null}
-                <div className={`relative ${seenStoryIds.has(lead.id) ? "pb-10 opacity-90" : ""}`}>
+                <div className={`relative ${seenStoryIds.has(lead.id) ? "opacity-90" : ""}`}>
                   <div className="mb-4 flex justify-end">
                     <StoryUpdatedStamp story={lead} />
                   </div>
