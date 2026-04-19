@@ -36,6 +36,23 @@ const MAX_SCROLL_RESTORE_ATTEMPTS = 18;
 const STORY_BATCH_SIZE = 10;
 const BUILTIN_TAB_KEYS: TabKey[] = ["following", "popular", "recent"];
 const PRESET_TOPIC_TABS = TOPICS.map((topic) => normalize(topic)).filter(Boolean);
+const SECTION_COPY: Record<string, { description: string; eyebrow: string; title: string }> = {
+  following: {
+    eyebrow: "For You",
+    title: "Following",
+    description: "Stories matched to the interests and tracked coverage you care about most.",
+  },
+  popular: {
+    eyebrow: "Most Read",
+    title: "Popular",
+    description: "The stories drawing the most attention across the site right now.",
+  },
+  recent: {
+    eyebrow: "Latest",
+    title: "Recent",
+    description: "Fresh developments and newly published stories in reverse time order.",
+  },
+};
 
 function isBuiltinTabKey(value: string): value is TabKey {
   return BUILTIN_TAB_KEYS.includes(value as TabKey);
@@ -195,6 +212,17 @@ function getStoryUpdateLabel(story: StoryWithViews) {
 
 function shouldShowStoryImageOnHomepage(story: StoryWithViews) {
   return Boolean(story.image_url) && (story.image_show_on_homepage ?? true);
+}
+
+function getSectionCopy(tab: TabKey) {
+  const normalizedTab = normalize(tab);
+  if (SECTION_COPY[normalizedTab]) return SECTION_COPY[normalizedTab];
+
+  return {
+    eyebrow: "Desk",
+    title: toTitleCase(normalizedTab),
+    description: `${toTitleCase(normalizedTab)} coverage and the latest stories from that part of the news cycle.`,
+  };
 }
 
 export default function HomePageClient({
@@ -474,6 +502,7 @@ export default function HomePageClient({
   }, [activeTab, followingStories, recentStories, topicStoriesByTab]);
   const visibleStories = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
   const canLoadMore = visibleCount < visible.length;
+  const sectionCopy = useMemo(() => getSectionCopy(activeTab), [activeTab]);
 
   useEffect(() => {
     const pending = pendingScrollRestoreRef.current;
@@ -544,17 +573,18 @@ export default function HomePageClient({
         </div>
       </div>
 
-      <div className="mx-auto mb-4 flex max-w-4xl items-center justify-between gap-4">
-        <div className="flex space-x-3 overflow-x-auto pb-2">
+      <div className="mx-auto mb-6 max-w-5xl">
+        <div className="border-b border-[#163754]/70">
+          <div className="flex items-center gap-6 overflow-x-auto pb-1">
           {[...BUILTIN_TAB_KEYS, ...PRESET_TOPIC_TABS].map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setActiveTabAndUrl(tab)}
-              className={`whitespace-nowrap rounded-full border px-5 py-2 text-sm transition ${
+              className={`whitespace-nowrap border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition ${
                 activeTab === tab
-                  ? "border-neutral-100 bg-neutral-100 text-neutral-900"
-                  : "border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:bg-[#03101b]"
+                  ? "border-[#d7c08d] text-neutral-100"
+                  : "border-transparent text-[#c5d3e1] hover:border-[#214765] hover:text-white"
               }`}
             >
               {toTitleCase(tab)}
@@ -562,8 +592,26 @@ export default function HomePageClient({
           ))}
         </div>
       </div>
+      </div>
 
       <div className="mx-auto mb-6 max-w-4xl">
+        <div className="mb-5 flex items-end justify-between gap-4 border-b border-[#10263b]/70 pb-4">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">{sectionCopy.eyebrow}</div>
+            <h1 className="mt-2 text-[2rem] font-semibold tracking-tight text-neutral-100">{sectionCopy.title}</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-400">{sectionCopy.description}</p>
+          </div>
+
+          {activeTab === "following" && accountAuthenticated ? (
+            <Link
+              href="/account/interests"
+              className="inline-flex shrink-0 rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+            >
+              Manage interests
+            </Link>
+          ) : null}
+        </div>
+
         {activeTab === "following" ? (
           <div className="flex min-h-[44px] items-center justify-between gap-4">
             <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
@@ -579,15 +627,6 @@ export default function HomePageClient({
                 </Link>
               ))}
             </div>
-
-            {accountAuthenticated ? (
-              <Link
-                href="/account/interests"
-                className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
-              >
-                Manage interests
-              </Link>
-            ) : <div className="w-[150px]" />}
           </div>
         ) : activeTab === "popular" || activeTab === "recent" || isPresetTopicTab(normalize(activeTab)) ? trackingStories.length > 0 ? (
           <div className="flex min-h-[44px] items-center justify-between gap-4">

@@ -178,6 +178,7 @@ export default async function BriefingPage() {
                 />
               </Link>
               <p className="mt-3 text-neutral-400">Multi-source news. Clear perspective.</p>
+              <div className="mt-8 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80" />
             </div>
           </div>
 
@@ -205,7 +206,7 @@ export default async function BriefingPage() {
             <>
               <Link
                 href={`/story/${lead.id}?from=briefing`}
-                className={`relative block rounded-[30px] border bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
+                className={`relative block overflow-hidden rounded-[30px] border bg-[var(--surface)] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition ${
                   leadUsesAlertStyle
                     ? "border-red-500/55 hover:border-red-400"
                     : "border-[#17324b] hover:border-[#274765]"
