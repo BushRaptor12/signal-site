@@ -49,6 +49,7 @@ type StoryCommentsResponse = {
 type CommentsSectionProps = {
   authenticated: boolean;
   currentUserId: string | null;
+  embedded?: boolean;
   isAdmin: boolean;
   storyId: string;
 };
@@ -377,10 +378,10 @@ function CommentCard({
   }
 
   return (
-    <div className={`${comment.depth > 0 ? "mt-4 border-l border-[#163754] pl-5" : ""}`}>
+    <div className={`${comment.depth > 0 ? "mt-4 border-l border-[#1b3a54]/65 pl-5" : ""}`}>
       <article
         id={`comment-${comment.id}`}
-        className={`rounded-2xl border border-[#13314b] bg-[#04111b] ${collapsed ? "p-3.5" : "p-5"}`}
+        className={`rounded-2xl border border-[#183149]/60 bg-[#07131e]/76 ${collapsed ? "p-3.5" : "p-5"}`}
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -456,21 +457,21 @@ function CommentCard({
               value={editDraft}
               onChange={(event) => onEditDraftChange(event.target.value)}
               rows={4}
-              className="w-full resize-y rounded-2xl border border-[#163754] bg-[#020b14] px-4 py-3 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/60"
+              className="w-full resize-y rounded-2xl border border-[#1c3953]/70 bg-[#08131d] px-4 py-3 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/60"
             />
             <div className="mt-3 flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={() => void onEditSave(comment.id)}
                 disabled={editBusy}
-                className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {editBusy ? "Saving..." : "Save edit"}
               </button>
               <button
                 type="button"
                 onClick={onEditCancel}
-                className="inline-flex rounded-full border border-[#0d2438] bg-[#020b14] px-4 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
+                  className="inline-flex rounded-full border border-[#0d2438] bg-[#020b14] px-4 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
               >
                 Cancel
               </button>
@@ -567,12 +568,12 @@ function CommentCard({
         ) : null}
 
         {showingReplyBox && !collapsed ? (
-          <div className="mt-5 rounded-2xl border border-[#163754] bg-[#03101b] p-4">
+          <div className="mt-5 rounded-2xl border border-[#183149]/60 bg-[#08131d]/80 p-4">
             <textarea
               value={replyDraft}
               onChange={(event) => setReplyDraft(event.target.value)}
               rows={4}
-              className="w-full resize-y rounded-2xl border border-[#163754] bg-[#020b14] px-4 py-3 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/60"
+              className="w-full resize-y rounded-2xl border border-[#1c3953]/70 bg-[#08131d] px-4 py-3 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/60"
               placeholder="Write a reply..."
             />
             <div className="mt-3 flex flex-wrap gap-3">
@@ -635,7 +636,7 @@ function CommentCard({
   );
 }
 
-export default function CommentsSection({ authenticated, currentUserId, isAdmin, storyId }: CommentsSectionProps) {
+export default function CommentsSection({ authenticated, currentUserId, embedded = false, isAdmin, storyId }: CommentsSectionProps) {
   const [communitySettings, setCommunitySettings] = useState<CommunitySettings>({
     allowCommentRealtime: true,
     allowCommentReplies: true,
@@ -1193,16 +1194,16 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
   }
 
   return (
-    <section className="mt-10 rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
+    <section className={embedded ? "mt-6 border-t border-[#163754]/70 pt-5" : "mt-10 rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]"}>
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <h2 className="text-lg font-semibold">Comments</h2>
-        <label className="flex items-center gap-3 text-sm text-neutral-400">
+        <h2 className={`font-semibold text-neutral-200 ${embedded ? "text-base" : "text-lg"}`}>Comments</h2>
+        <label className={`flex items-center gap-3 text-neutral-400 ${embedded ? "text-[13px]" : "text-sm"}`}>
           <span>Sort</span>
           <select
             value={sort}
             onChange={(event) => void changeSort(event.target.value as CommentSort)}
             disabled={loading}
-            className="rounded-full border border-[#0d2438] bg-[#020b14] px-4 py-2 text-sm text-[#d7e2ef] outline-none transition hover:bg-[#03101b] disabled:cursor-not-allowed disabled:opacity-60"
+            className={`rounded-full border border-[#1c3953]/70 bg-[#08131d] text-[#d7e2ef] outline-none transition hover:bg-[#0b1824] disabled:cursor-not-allowed disabled:opacity-60 ${embedded ? "px-3.5 py-1.5 text-[13px]" : "px-4 py-2 text-sm"}`}
           >
             {SORT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -1213,12 +1214,12 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
         </label>
       </div>
 
-      <div className="mt-4 rounded-xl border border-[#13314b] bg-[#04111b] p-3">
+      <div className="mt-5 rounded-[20px] border border-[#183149]/60 bg-[#07131e]/76 p-4">
         <textarea
           value={composerDraft}
           onChange={(event) => setComposerDraft(event.target.value)}
           rows={2}
-          className="w-full resize-y rounded-xl border border-[#163754] bg-[#020b14] px-4 py-2.5 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/60"
+          className="w-full resize-y rounded-xl border border-[#1c3953]/70 bg-[#08131d] px-4 py-2.5 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-500 focus:border-[#8f7740]/60"
           disabled={communitySettings.commentsReadOnly || !communitySettings.allowNewComments}
           placeholder={
             communitySettings.commentsReadOnly
@@ -1243,9 +1244,9 @@ export default function CommentsSection({ authenticated, currentUserId, isAdmin,
       {error ? <div className="mt-5 text-sm text-[#f0b7b7]">{error}</div> : null}
 
       {loading ? (
-        <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-6 text-sm text-neutral-400">Loading comments...</div>
+        <div className="mt-6 rounded-2xl border border-[#183149]/60 bg-[#07131e]/76 p-6 text-sm text-neutral-400">Loading comments...</div>
       ) : comments.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-[#13314b] bg-[#04111b] p-6 text-sm leading-7 text-neutral-400">
+        <div className="mt-6 rounded-2xl border border-[#183149]/60 bg-[#07131e]/76 p-6 text-sm leading-7 text-neutral-400">
           No comments yet. Start the conversation.
         </div>
       ) : (

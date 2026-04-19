@@ -83,7 +83,7 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
           <Link
             key={story.id}
             href={`/story/${story.id}?from=briefing`}
-            className="relative flex flex-col justify-start rounded-[26px] border border-[#183149]/65 bg-[#07131e] p-6 text-left shadow-[0_16px_34px_rgba(0,0,0,0.2)] transition hover:border-[#28445d]"
+            className="relative flex flex-col justify-start rounded-[12px] border border-[#183149]/65 bg-[#07131e] p-6 text-left shadow-[0_16px_34px_rgba(0,0,0,0.2)] transition hover:border-[#28445d]"
           >
             <div className={seen ? "flex flex-col justify-start opacity-90" : "flex flex-col justify-start"}>
               <div className="text-[1.85rem] font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d]">
@@ -196,7 +196,7 @@ export default async function BriefingPage() {
             <>
               <Link
                 href={`/story/${lead.id}?from=briefing`}
-                className={`relative block overflow-hidden rounded-[30px] border bg-[#07131e] p-8 shadow-[0_20px_46px_rgba(0,0,0,0.22)] transition ${
+                className={`relative block overflow-hidden rounded-[14px] border bg-[#07131e] p-8 shadow-[0_20px_46px_rgba(0,0,0,0.22)] transition ${
                   leadUsesAlertStyle
                     ? "border-red-500/55 hover:border-red-400"
                     : "border-[#183149]/70 hover:border-[#28445d]"

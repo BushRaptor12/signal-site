@@ -42,8 +42,16 @@ export default function StoryEngagementSummary({
   }, [storyId]);
 
   return (
-    <div>
-      {views} {views === 1 ? "view" : "views"} | {commentCount} {commentCount === 1 ? "comment" : "comments"}
+    <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+      <span>
+        {views} {views === 1 ? "view" : "views"}
+      </span>
+      <span aria-hidden="true" className="text-neutral-600">
+        /
+      </span>
+      <span>
+        {commentCount} {commentCount === 1 ? "comment" : "comments"}
+      </span>
     </div>
   );
 }

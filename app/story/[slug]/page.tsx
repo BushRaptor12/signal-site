@@ -5,7 +5,7 @@ import BackLink from "@/app/back-link";
 import { getAccountProfile, getAccountStoryState } from "@/app/lib/account.server";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { SITE_NAME, absoluteUrl, buildStoryMetadata, storyDescription, storyKeywords, storyModifiedTime, storyPublishedTime } from "@/app/lib/seo";
-import { PUBLIC_INSET_ELEVATED, PUBLIC_INSET_ELEVATED_INTERACTIVE, PUBLIC_INSET_INTERACTIVE } from "@/app/lib/surfaces";
+import { PUBLIC_INSET_ELEVATED } from "@/app/lib/surfaces";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
@@ -206,25 +206,15 @@ export default async function StoryPage({
             </Link>
             <p className="mt-1 text-[11px] text-neutral-500 md:text-xs">Multi-source news. Clear perspective.</p>
           </div>
-          <div className="flex justify-self-end">
-            <div className="flex flex-col items-end gap-2 text-sm text-neutral-500">
-              <div className="flex items-center gap-3">
-                {isAdmin ? (
-                  <Link
-                    href={`/admin/editor?story=${encodeURIComponent(story.id)}`}
-                    className="rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
-                  >
-                    Edit story
-                  </Link>
-                ) : null}
-                <StoryEngagementSummary key={story.id} initialCommentCount={story.comments} storyId={story.id} views={story.views} />
-              </div>
-              <StoryReaderActions
-                authenticated={Boolean(accountProfile)}
-                initialFollowing={Boolean(storyState?.following)}
-                storyId={story.id}
-              />
-            </div>
+          <div className="justify-self-end">
+            {isAdmin ? (
+              <Link
+                href={`/admin/editor?story=${encodeURIComponent(story.id)}`}
+                className="inline-flex rounded-full border border-[#8f7740]/60 bg-[#08131d] px-4 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0b1824]"
+              >
+                Edit story
+              </Link>
+            ) : null}
           </div>
         </div>
       </div>
@@ -240,104 +230,104 @@ export default async function StoryPage({
         {relatedStories.length > 0 ? <div className="hidden xl:block" /> : null}
 
         <div className={relatedStories.length > 0 ? "xl:col-start-3" : ""}>
-          <div className={`relative ${PUBLIC_INSET_ELEVATED} p-8 pb-12`}>
+          <article className="rounded-[22px] border border-[#1d3952]/50 bg-[#081520]/88 p-8 shadow-[0_12px_28px_rgba(0,0,0,0.12)]">
             <h1 className="text-3xl font-semibold leading-tight">{story.title}</h1>
 
-            <div className="mt-6">
-              <h2 className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">Summary</h2>
-              <div className="mt-4 space-y-3 text-[1.05rem] text-neutral-200">
-                {story.summary.map((point, i) => (
-                  <p key={i} className="leading-8">
-                    {point}
-                  </p>
-                ))}
-              </div>
-            </div>
-
-            <div className="absolute bottom-4 right-5 z-10">
-              <ShareButton title={story.title} path={`/story/${story.id}`} />
-            </div>
-          </div>
-
-          <div className="mt-8">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold">Coverage</h2>
-                {story.pinned ? (
-                  <p className="mt-1 text-sm text-neutral-500">
-                    Updated: {updatedAt ? formatUpdatedAt(updatedAt) : "--"}
-                  </p>
-                ) : null}
-              </div>
-              <p className="text-sm text-neutral-500">Multiple sources, one story.</p>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {story.sources.map((src, i) => (
-                <a
-                  key={i}
-                  href={src.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`group block ${PUBLIC_INSET_ELEVATED_INTERACTIVE} p-5 hover:-translate-y-0.5`}
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0 flex flex-1 items-center gap-3">
-                      <div className="shrink-0 text-base font-semibold text-neutral-100">{src.name}</div>
-                      <span className={`shrink-0 text-xs px-2 py-1 rounded-full ${leanBadgeClasses(src.lean)}`}>
-                        {src.lean}
-                      </span>
-                      {src.title ? (
-                        <SourceTitle
-                          title={src.title}
-                          className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-sm text-neutral-300 transition group-hover:text-neutral-200"
-                        />
-                      ) : null}
-                    </div>
-                    <div className="shrink-0 text-sm text-neutral-500 transition group-hover:text-neutral-300">Read -&gt;</div>
-                  </div>
-                </a>
+            <div className="mt-6 space-y-3 text-[1.05rem] text-neutral-200">
+              {story.summary.map((point, i) => (
+                <p key={i} className="leading-8">
+                  {point}
+                </p>
               ))}
             </div>
-          </div>
 
-          <div className={`mt-8 ${PUBLIC_INSET_ELEVATED} p-6`}>
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold">Reactions</h2>
+            {updatedAt ? (
+              <div className="mt-2 text-right text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                Updated {formatUpdatedAt(updatedAt)}
+              </div>
+            ) : null}
+
+            <section className="mt-7 border-t border-[#1a3349]/60 pt-5">
+              <div className="space-y-3">
+                {story.sources.map((src, i) => (
+                  <a
+                    key={i}
+                    href={src.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group block rounded-[14px] border border-[#214765]/70 bg-[#0a1926] p-5 transition hover:-translate-y-0.5 hover:border-[#30516d] hover:bg-[#0c1d2b]"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0 flex flex-1 items-center gap-3">
+                        <div className="shrink-0 text-[1.05rem] font-semibold text-neutral-100">{src.name}</div>
+                        <span className={`shrink-0 rounded-full px-2 py-1 text-xs ${leanBadgeClasses(src.lean)}`}>
+                          {src.lean}
+                        </span>
+                        {src.title ? (
+                          <SourceTitle
+                            title={src.title}
+                            className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-[15px] text-neutral-300 transition group-hover:text-neutral-200"
+                          />
+                        ) : null}
+                      </div>
+                      <div className="shrink-0 text-[15px] text-neutral-500 transition group-hover:text-neutral-300">Read -&gt;</div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </section>
+
+            <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-[#1a3349]/60 pt-4">
+              <StoryEngagementSummary
+                key={story.id}
+                initialCommentCount={story.comments}
+                storyId={story.id}
+                views={story.views}
+              />
+              <div className="flex flex-wrap items-center gap-3">
+                <StoryReaderActions
+                  authenticated={Boolean(accountProfile)}
+                  initialFollowing={Boolean(storyState?.following)}
+                  storyId={story.id}
+                />
+                <ShareButton title={story.title} path={`/story/${story.id}`} />
               </div>
             </div>
+          </article>
 
-            <div className="mt-4">
-              <ReactionBar slug={slug} />
+          <section className={`mt-8 ${PUBLIC_INSET_ELEVATED} p-6`}>
+            <div className="rounded-2xl border border-[#183149]/50 bg-[#07131e]/72 p-5">
+              <ReactionBar slug={slug} minimal />
             </div>
-          </div>
-
-          <CommentsSection
-            authenticated={Boolean(accountProfile)}
-            currentUserId={accountProfile?.userId ?? null}
-            isAdmin={isAdmin}
-            storyId={story.id}
-          />
+            <CommentsSection
+              authenticated={Boolean(accountProfile)}
+              currentUserId={accountProfile?.userId ?? null}
+              embedded
+              isAdmin={isAdmin}
+              storyId={story.id}
+            />
+          </section>
         </div>
 
         {relatedStories.length > 0 ? (
-          <aside className="xl:col-start-4 xl:w-60 xl:self-start">
-            <div className={`${PUBLIC_INSET_ELEVATED} p-6`}>
-              <h2 className="text-lg font-semibold text-neutral-100">Related Stories</h2>
-              <div className="mt-5 space-y-4">
+          <aside className="xl:col-start-4 xl:w-60 xl:self-start xl:pt-1">
+            <div className="rounded-[22px] border border-[#183149]/45 bg-[#06131d]/64 p-5 shadow-[0_10px_22px_rgba(0,0,0,0.1)]">
+              <h2 className="text-base font-semibold text-neutral-200">Related Stories</h2>
+              <div className="mt-4 divide-y divide-[#183149]/50">
                 {relatedStories.map((relatedStory) => (
                   <Link
                     key={relatedStory.id}
                     href={storyHref(relatedStory.id, from)}
-                    className={`block ${PUBLIC_INSET_INTERACTIVE} p-4`}
+                    className="block py-4 first:pt-0 last:pb-0"
                   >
                     <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
                       {formatStoryDate(relatedStory.date)}
                     </div>
-                    <div className="mt-2 text-base font-semibold leading-6 text-neutral-100">{relatedStory.title}</div>
+                    <div className="mt-2 text-[15px] font-semibold leading-6 text-neutral-100 transition hover:text-[#dbe8f6]">
+                      {relatedStory.title}
+                    </div>
                     {relatedStory.summary[0] ? (
-                      <p className="mt-2 text-sm leading-6 text-neutral-400">{relatedStory.summary[0]}</p>
+                      <p className="mt-2 text-sm leading-6 text-neutral-500">{relatedStory.summary[0]}</p>
                     ) : null}
                   </Link>
                 ))}

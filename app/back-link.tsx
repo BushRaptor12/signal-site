@@ -12,9 +12,9 @@ export default function BackLink({ className = "", href, label = "Back" }: BackL
   return (
     <Link
       href={href}
-      className={`inline-flex w-fit rounded-full border border-[#0d2438] bg-[#020b14] px-5 py-2 text-sm text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b] ${className}`.trim()}
+      className={`inline-block w-fit text-sm font-medium text-neutral-400 underline decoration-[#35556f]/55 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#8f7740]/65 ${className}`.trim()}
     >
-      {label}
+      <span>{`← ${label}`}</span>
     </Link>
   );
 }

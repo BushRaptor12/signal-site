@@ -87,7 +87,7 @@ export default function StoryReaderActions({
     return (
       <Link
         href="/account/login"
-        className="rounded-full border border-[#0d2438] bg-[#020b14] px-4 py-2 text-xs font-semibold text-[#d7e2ef] transition hover:border-[#163754] hover:bg-[#03101b]"
+        className="inline-flex rounded-full border border-[#1c3953]/60 bg-[#08131d] px-3.5 py-1.5 text-[11px] font-semibold text-[#d7e2ef] transition hover:border-[#28445d] hover:bg-[#0b1824]"
       >
         Log in to track
       </Link>
@@ -99,10 +99,10 @@ export default function StoryReaderActions({
       type="button"
       onClick={() => void toggleFollow()}
       disabled={pending}
-      className={`rounded-full px-4 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 ${
+      className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 ${
         following
-          ? "border border-[#8f7740]/70 bg-[#07101a] text-neutral-100 hover:border-[#b89a55] hover:bg-[#0a1724]"
-          : "border border-[#0d2438] bg-[#020b14] text-[#d7e2ef] hover:border-[#163754] hover:bg-[#03101b]"
+          ? "border border-[#8f7740]/60 bg-[#08131d] text-neutral-100 hover:border-[#b89a55] hover:bg-[#0b1824]"
+          : "border border-[#1c3953]/65 bg-[#08131d] text-[#d7e2ef] hover:border-[#28445d] hover:bg-[#0b1824]"
       }`}
     >
       {pending ? "Saving..." : following ? "Tracking" : "Track Story"}

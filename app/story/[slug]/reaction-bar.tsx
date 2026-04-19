@@ -15,7 +15,7 @@ function initialSummary(): StoryReactionSummary {
   };
 }
 
-export default function ReactionBar({ slug }: { slug: string }) {
+export default function ReactionBar({ slug, minimal = false }: { slug: string; minimal?: boolean }) {
   const [summary, setSummary] = useState<StoryReactionSummary>(initialSummary);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -67,7 +67,7 @@ export default function ReactionBar({ slug }: { slug: string }) {
 
   return (
     <div>
-      <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-8">
+      <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
         {STORY_REACTIONS.map((reaction) => {
           const selected = summary.selectedReaction === reaction.key;
           const count = summary.counts[reaction.key] ?? 0;
@@ -78,7 +78,9 @@ export default function ReactionBar({ slug }: { slug: string }) {
                 type="button"
                 onClick={() => onReact(reaction.key)}
                 disabled={isPending}
-                className={`mx-auto flex h-11 w-11 items-center justify-center rounded-full border text-xl leading-none transition ${
+                className={`mx-auto flex items-center justify-center rounded-full border leading-none transition ${
+                  minimal ? "h-16 w-16 text-[1.75rem]" : "h-12 w-12 text-xl"
+                } ${
                   selected
                     ? "border-neutral-100 bg-neutral-100 text-neutral-900"
                     : "border-[#0d2438] bg-[#020b14] text-neutral-200 hover:border-[#163754] hover:bg-[#03101b]"
@@ -90,11 +92,11 @@ export default function ReactionBar({ slug }: { slug: string }) {
                 <span aria-hidden="true">{reaction.emoji}</span>
               </button>
 
-              <div className="mt-1.5 text-[11px] leading-tight text-neutral-400">
+              <div className={`mt-2 leading-tight text-neutral-500 ${minimal ? "text-[10px]" : "text-[11px]"}`}>
                 {reaction.label}
               </div>
 
-              <div className="mt-1 text-[11px] leading-none text-neutral-500">
+              <div className={`mt-1 leading-none ${minimal ? "text-[10px] text-neutral-600" : "text-[11px] text-neutral-500"}`}>
                 {count}
               </div>
             </div>
@@ -102,9 +104,7 @@ export default function ReactionBar({ slug }: { slug: string }) {
         })}
       </div>
 
-      <p className="mt-3 text-xs text-neutral-500">
-        Click to react, click again to remove.
-      </p>
+      {minimal ? null : <p className="mt-3 text-xs text-neutral-500">Click to react, click again to remove.</p>}
 
       {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
     </div>
