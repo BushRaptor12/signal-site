@@ -2,8 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
-import { getAccountProfile, getAccountStoryState } from "@/app/lib/account.server";
+import { getAccountProfile, getAccountStoryState, getSeenStoryIds } from "@/app/lib/account.server";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
+import { imageObjectPosition } from "@/app/lib/image-focus";
 import { SITE_NAME, absoluteUrl, buildStoryMetadata, storyDescription, storyKeywords, storyModifiedTime, storyPublishedTime } from "@/app/lib/seo";
 import { PUBLIC_INSET_ELEVATED } from "@/app/lib/surfaces";
 import { supabaseServer } from "@/app/lib/supabase.server";
@@ -12,6 +13,7 @@ import type { StoryWithViews } from "@/app/lib/types";
 import ViewTracker from "./view-tracker";
 import ReactionBar from "./reaction-bar";
 import SourceTitle from "./source-title";
+import StoryPageImage from "./story-page-image";
 import ShareButton from "@/app/share-button";
 import StoryReaderActions from "./story-reader-actions";
 import CommentsSection from "./comments-section";
@@ -32,6 +34,32 @@ function leanBadgeClasses(lean: "Left" | "Center" | "Right") {
 
 function storyHref(id: string, from?: string) {
   return from ? `/story/${id}?from=${encodeURIComponent(from)}` : `/story/${id}`;
+}
+
+function publishedAtMs(story: StoryWithViews): number {
+  const created = new Date(story.created_at ?? "").getTime();
+  if (Number.isFinite(created) && created > 0) return created;
+
+  const dateOnly = new Date(story.date ?? "").getTime();
+  if (Number.isFinite(dateOnly) && dateOnly > 0) return dateOnly;
+
+  return 0;
+}
+
+function shouldShowStoryImageOnStoryPage(story: StoryWithViews) {
+  return Boolean(story.image_url) && Boolean(story.image_show_on_story_page);
+}
+
+function SeenBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d]">
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3 w-3 fill-none stroke-current stroke-[1.8]">
+        <path d="M1.5 12s3.75-6 10.5-6 10.5 6 10.5 6-3.75 6-10.5 6S1.5 12 1.5 12Z" />
+        <circle cx="12" cy="12" r="3.25" />
+      </svg>
+      <span>Seen</span>
+    </span>
+  );
 }
 
 async function loadStory(slug: string, includeUnpublished = false) {
@@ -66,6 +94,30 @@ async function loadManualRelatedStories(currentStory: StoryWithViews, includeUnp
   );
 
   return manualIds.map((id) => byId.get(id)).filter((story): story is StoryWithViews => Boolean(story));
+}
+
+async function loadRecentStories(currentStory: StoryWithViews, excludeIds: string[], limit: number, includeUnpublished = false) {
+  if (limit <= 0) return [];
+
+  const supabase = supabaseServer();
+  const blockedIds = new Set([currentStory.id, ...excludeIds]);
+  let query = supabase
+    .from("stories")
+    .select("*")
+    .neq("id", currentStory.id)
+    .order("content_updated_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false, nullsFirst: false })
+    .limit(Math.max(limit, 12));
+  if (!includeUnpublished) {
+    query = query.eq("status", "published");
+  }
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return ((data ?? []) as StoryDbRow[])
+    .map(coerceStory)
+    .filter((story) => !blockedIds.has(story.id))
+    .slice(0, limit);
 }
 
 export async function generateMetadata({
@@ -122,17 +174,32 @@ export default async function StoryPage({
 
   let story: StoryWithViews | null = null;
   let relatedStories: StoryWithViews[] = [];
+  let otherRecentStories: StoryWithViews[] = [];
+  let seenStoryIds = new Set<string>();
   const accountProfile = await getAccountProfile();
   const isAdmin = Boolean(accountProfile?.isAdmin);
 
   try {
     story = await loadStory(slug, isAdmin);
     if (story) {
-      relatedStories = await loadManualRelatedStories(story, isAdmin);
+      relatedStories = (await loadManualRelatedStories(story, isAdmin)).slice(0, 5);
+      const recentCandidates = await loadRecentStories(
+        story,
+        relatedStories.map((relatedStory) => relatedStory.id),
+        36,
+        isAdmin
+      );
+      const seenCandidates = [...relatedStories, ...recentCandidates];
+      seenStoryIds = new Set(accountProfile ? await getSeenStoryIds(accountProfile.userId, seenCandidates) : []);
+      const unseenRecentStories = recentCandidates.filter((recentStory) => !seenStoryIds.has(recentStory.id));
+      const seenRecentStories = recentCandidates.filter((recentStory) => seenStoryIds.has(recentStory.id));
+      otherRecentStories = [...unseenRecentStories, ...seenRecentStories].slice(0, Math.max(0, 5 - relatedStories.length));
     }
   } catch {
     story = null;
     relatedStories = [];
+    otherRecentStories = [];
+    seenStoryIds = new Set<string>();
   }
 
   if (!story) {
@@ -152,7 +219,7 @@ export default async function StoryPage({
   }
 
   const updatedAt = story.content_updated_at ?? story.created_at ?? null;
-  const storyState = accountProfile ? await getAccountStoryState(accountProfile.userId, story.id) : null;
+  const storyState = accountProfile ? await getAccountStoryState(accountProfile.userId, story) : null;
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
@@ -183,6 +250,8 @@ export default async function StoryPage({
     },
   };
 
+  const storyLinks = [...relatedStories, ...otherRecentStories];
+
   return (
     <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
       <script
@@ -201,7 +270,7 @@ export default async function StoryPage({
                 width={600}
                 height={140}
                 priority
-                className="h-auto w-[144px] md:w-[168px]"
+                className="h-auto w-[156px] md:w-[184px]"
               />
             </Link>
             <p className="mt-1 text-[11px] text-neutral-500 md:text-xs">Multi-source news. Clear perspective.</p>
@@ -220,32 +289,59 @@ export default async function StoryPage({
       </div>
 
       <div
-        className={
-          relatedStories.length > 0
-            ? "mx-auto mt-8 max-w-[100rem] xl:grid xl:grid-cols-[1fr_15rem_minmax(0,48rem)_15rem_1fr] xl:gap-6"
-            : "mx-auto mt-8 max-w-3xl"
-        }
+        className="mx-auto mt-8 max-w-[100rem] xl:grid xl:grid-cols-[1fr_15rem_minmax(0,48rem)_15rem_1fr] xl:gap-6"
       >
-        {relatedStories.length > 0 ? <div className="hidden xl:block" /> : null}
-        {relatedStories.length > 0 ? <div className="hidden xl:block" /> : null}
+        <div className="hidden xl:block" />
+        <div className="hidden xl:block" />
 
-        <div className={relatedStories.length > 0 ? "xl:col-start-3" : ""}>
-          <article className="rounded-[22px] border border-[#1d3952]/50 bg-[#081520]/88 p-8 shadow-[0_12px_28px_rgba(0,0,0,0.12)]">
+        <div className="min-w-0 xl:col-start-3">
+          <article className="min-w-0 max-w-full rounded-[22px] border border-[#1d3952]/50 bg-[#081520]/88 p-8 shadow-[0_12px_28px_rgba(0,0,0,0.12)]">
             <h1 className="text-3xl font-semibold leading-tight">{story.title}</h1>
 
-            <div className="mt-6 space-y-3 text-[1.05rem] text-neutral-200">
-              {story.summary.map((point, i) => (
-                <p key={i} className="leading-8">
-                  {point}
-                </p>
-              ))}
-            </div>
+            <div
+              className={
+                shouldShowStoryImageOnStoryPage(story) && story.image_display === "contain"
+                  ? "mt-6 flex flex-col gap-6 xl:flex-row xl:items-start"
+                  : "mt-6"
+              }
+            >
+              {shouldShowStoryImageOnStoryPage(story) ? (
+                <div
+                  className={
+                    story.image_display === "contain"
+                      ? "min-w-0 w-full xl:w-auto xl:max-w-[24rem] xl:shrink-0"
+                      : "min-w-0 w-full"
+                  }
+                >
+                  <StoryPageImage
+                    alt={story.title}
+                    display={story.image_display}
+                    objectPosition={imageObjectPosition(story)}
+                    src={story.image_url!}
+                  />
+                </div>
+              ) : null}
 
-            {updatedAt ? (
-              <div className="mt-2 text-right text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
-                Updated {formatUpdatedAt(updatedAt)}
+              <div
+                className={
+                  shouldShowStoryImageOnStoryPage(story) && story.image_display === "contain"
+                    ? "min-w-0 flex-1 space-y-3 text-[1.05rem] text-neutral-200"
+                    : "space-y-3 text-[1.05rem] text-neutral-200"
+                }
+              >
+                {story.summary.map((point, i) => (
+                  <p key={i} className="leading-8">
+                    {point}
+                  </p>
+                ))}
+
+                {updatedAt ? (
+                  <div className="pt-2 text-right text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                    Updated {formatUpdatedAt(updatedAt)}
+                  </div>
+                ) : null}
               </div>
-            ) : null}
+            </div>
 
             <section className="mt-7 border-t border-[#1a3349]/60 pt-5">
               <div className="space-y-3">
@@ -257,20 +353,35 @@ export default async function StoryPage({
                     rel="noreferrer"
                     className="group block rounded-[14px] border border-[#214765]/70 bg-[#0a1926] p-5 transition hover:-translate-y-0.5 hover:border-[#30516d] hover:bg-[#0c1d2b]"
                   >
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="min-w-0 flex flex-1 items-center gap-3">
-                        <div className="shrink-0 text-[1.05rem] font-semibold text-neutral-100">{src.name}</div>
-                        <span className={`shrink-0 rounded-full px-2 py-1 text-xs ${leanBadgeClasses(src.lean)}`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div className="min-w-0 text-[1.05rem] font-semibold text-neutral-100">{src.name}</div>
+                          {src.badge ? (
+                            <span className="shrink-0 rounded-full border border-[#8f7740]/55 bg-[#8f7740]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e3cca0]">
+                              {src.badge}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-3">
+                          {src.title ? (
+                            <SourceTitle
+                              title={src.title}
+                              className="block text-[15px] leading-6 text-neutral-300 transition group-hover:text-neutral-200"
+                            />
+                          ) : (
+                            <div className="text-[15px] leading-6 text-neutral-400 transition group-hover:text-neutral-300">
+                              Open source
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-center text-center">
+                        <span className={`rounded-full px-2 py-1 text-xs ${leanBadgeClasses(src.lean)}`}>
                           {src.lean}
                         </span>
-                        {src.title ? (
-                          <SourceTitle
-                            title={src.title}
-                            className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-[15px] text-neutral-300 transition group-hover:text-neutral-200"
-                          />
-                        ) : null}
+                        <div className="mt-2 text-[15px] text-neutral-500 transition group-hover:text-neutral-300">Read -&gt;</div>
                       </div>
-                      <div className="shrink-0 text-[15px] text-neutral-500 transition group-hover:text-neutral-300">Read -&gt;</div>
                     </div>
                   </a>
                 ))}
@@ -296,7 +407,7 @@ export default async function StoryPage({
           </article>
 
           <section className={`mt-8 ${PUBLIC_INSET_ELEVATED} p-6`}>
-            <div className="rounded-2xl border border-[#183149]/50 bg-[#07131e]/72 p-5">
+            <div className="mb-5">
               <ReactionBar slug={slug} minimal />
             </div>
             <CommentsSection
@@ -307,36 +418,129 @@ export default async function StoryPage({
               storyId={story.id}
             />
           </section>
+
+          {storyLinks.length > 0 ? (
+            <section className="mt-8 xl:hidden">
+              <div className="rounded-[22px] border border-[#183149]/45 bg-[#06131d]/64 p-5 shadow-[0_10px_22px_rgba(0,0,0,0.1)]">
+                {relatedStories.length > 0 ? (
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Related Stories</div>
+                    <div className="mt-3 divide-y divide-[#183149]/50">
+                      {relatedStories.map((relatedStory) => (
+                        <Link
+                          key={relatedStory.id}
+                          href={storyHref(relatedStory.id, from)}
+                          className="block py-4 first:pt-0 last:pb-0"
+                        >
+                          <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                            <span>{formatStoryDate(relatedStory.date)}</span>
+                            {seenStoryIds.has(relatedStory.id) ? <SeenBadge /> : null}
+                          </div>
+                          <div className="mt-2 text-[15px] font-semibold leading-6 text-neutral-100 transition hover:text-[#dbe8f6]">
+                            {relatedStory.title}
+                          </div>
+                          {relatedStory.summary[0] ? (
+                            <p className="mt-2 text-sm leading-6 text-neutral-500">{relatedStory.summary[0]}</p>
+                          ) : null}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {otherRecentStories.length > 0 ? (
+                  <div className={relatedStories.length > 0 ? "mt-6" : "mt-4"}>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">
+                      {relatedStories.length > 0 ? "Other Recent Stories" : "Recent Stories"}
+                    </div>
+                    <div className="mt-3 divide-y divide-[#183149]/50">
+                      {otherRecentStories.map((recentStory) => (
+                        <Link
+                          key={recentStory.id}
+                          href={storyHref(recentStory.id, from)}
+                          className="block py-4 first:pt-0 last:pb-0"
+                        >
+                          <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                            <span>{formatStoryDate(recentStory.date)}</span>
+                            {seenStoryIds.has(recentStory.id) ? <SeenBadge /> : null}
+                          </div>
+                          <div className="mt-2 text-[15px] font-semibold leading-6 text-neutral-100 transition hover:text-[#dbe8f6]">
+                            {recentStory.title}
+                          </div>
+                          {recentStory.summary[0] ? (
+                            <p className="mt-2 text-sm leading-6 text-neutral-500">{recentStory.summary[0]}</p>
+                          ) : null}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
         </div>
 
-        {relatedStories.length > 0 ? (
+        {storyLinks.length > 0 ? (
           <aside className="xl:col-start-4 xl:w-60 xl:self-start xl:pt-1">
             <div className="rounded-[22px] border border-[#183149]/45 bg-[#06131d]/64 p-5 shadow-[0_10px_22px_rgba(0,0,0,0.1)]">
-              <h2 className="text-base font-semibold text-neutral-200">Related Stories</h2>
-              <div className="mt-4 divide-y divide-[#183149]/50">
-                {relatedStories.map((relatedStory) => (
-                  <Link
-                    key={relatedStory.id}
-                    href={storyHref(relatedStory.id, from)}
-                    className="block py-4 first:pt-0 last:pb-0"
-                  >
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                      {formatStoryDate(relatedStory.date)}
-                    </div>
-                    <div className="mt-2 text-[15px] font-semibold leading-6 text-neutral-100 transition hover:text-[#dbe8f6]">
-                      {relatedStory.title}
-                    </div>
-                    {relatedStory.summary[0] ? (
-                      <p className="mt-2 text-sm leading-6 text-neutral-500">{relatedStory.summary[0]}</p>
-                    ) : null}
-                  </Link>
-                ))}
-              </div>
+              {relatedStories.length > 0 ? (
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Related Stories</div>
+                  <div className="mt-3 divide-y divide-[#183149]/50">
+                    {relatedStories.map((relatedStory) => (
+                      <Link
+                        key={relatedStory.id}
+                        href={storyHref(relatedStory.id, from)}
+                        className="block py-4 first:pt-0 last:pb-0"
+                      >
+                        <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                          <span>{formatStoryDate(relatedStory.date)}</span>
+                          {seenStoryIds.has(relatedStory.id) ? <SeenBadge /> : null}
+                        </div>
+                        <div className="mt-2 text-[15px] font-semibold leading-6 text-neutral-100 transition hover:text-[#dbe8f6]">
+                          {relatedStory.title}
+                        </div>
+                        {relatedStory.summary[0] ? (
+                          <p className="mt-2 text-sm leading-6 text-neutral-500">{relatedStory.summary[0]}</p>
+                        ) : null}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {otherRecentStories.length > 0 ? (
+                <div className={relatedStories.length > 0 ? "mt-6" : "mt-4"}>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">
+                    {relatedStories.length > 0 ? "Other Recent Stories" : "Recent Stories"}
+                  </div>
+                  <div className="mt-3 divide-y divide-[#183149]/50">
+                    {otherRecentStories.map((recentStory) => (
+                      <Link
+                        key={recentStory.id}
+                        href={storyHref(recentStory.id, from)}
+                        className="block py-4 first:pt-0 last:pb-0"
+                      >
+                        <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                          <span>{formatStoryDate(recentStory.date)}</span>
+                          {seenStoryIds.has(recentStory.id) ? <SeenBadge /> : null}
+                        </div>
+                        <div className="mt-2 text-[15px] font-semibold leading-6 text-neutral-100 transition hover:text-[#dbe8f6]">
+                          {recentStory.title}
+                        </div>
+                        {recentStory.summary[0] ? (
+                          <p className="mt-2 text-sm leading-6 text-neutral-500">{recentStory.summary[0]}</p>
+                        ) : null}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </aside>
         ) : null}
 
-        {relatedStories.length > 0 ? <div className="hidden xl:block" /> : null}
+        <div className="hidden xl:block" />
       </div>
     </main>
   );

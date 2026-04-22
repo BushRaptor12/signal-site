@@ -1,10 +1,17 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { getAdsenseConfig } from "@/app/lib/adsense";
 import { DEFAULT_OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, getSiteUrl } from "@/app/lib/seo";
 import SiteUtilities from "@/app/site-utilities";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: getSiteUrl(),
@@ -51,7 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {adsense ? <meta name="google-adsense-account" content={adsense.metaContent} /> : null}
       </head>
-      <body className="flex min-h-screen flex-col">
+      <body className={`${inter.className} ${inter.variable} flex min-h-screen flex-col`}>
         <SiteUtilities />
         <div className="flex-1">{children}</div>
         <footer className="border-t border-[#0d2438] bg-[var(--surface)] px-6 py-4 text-center text-sm text-neutral-400">

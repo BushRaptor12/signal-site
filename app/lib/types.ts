@@ -5,6 +5,7 @@ export type StoryStatus = "draft" | "published" | "archived";
 export type BriefingLeadStyle = "default" | "alert";
 
 export type Source = {
+  badge?: string | null;
   name: string;
   url: string;
   lean: Lean;
@@ -30,6 +31,7 @@ export type Story = {
   image_display?: StoryImageDisplay | null;
   image_show_on_homepage?: boolean;
   image_show_on_briefing?: boolean;
+  image_show_on_story_page?: boolean;
   urgent: boolean;
   beacon_include: boolean;
   beacon_lead_style?: BriefingLeadStyle | null;

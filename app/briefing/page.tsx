@@ -147,7 +147,7 @@ export default async function BriefingPage() {
 
     const stories = ((data ?? []) as StoryDbRow[]).map(coerceStory);
     const userId = await getAccountUserId();
-    const seenStoryIds = new Set(userId ? await getSeenStoryIds(userId, stories.map((story) => story.id)) : []);
+    const seenStoryIds = new Set(userId ? await getSeenStoryIds(userId, stories) : []);
     const latestUpdatedAt =
       metaError && /briefing_meta/i.test(metaError.message)
         ? null

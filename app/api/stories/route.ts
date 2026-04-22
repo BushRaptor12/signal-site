@@ -122,7 +122,7 @@ export async function POST(req: Request) {
     const { data: existingData, error: existingError } = await supabase
       .from("stories")
       .select(
-        "beacon_include, beacon_lead_style, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, image_focus_x, image_focus_y, image_display, image_show_on_homepage, image_show_on_briefing, content_updated_at, updated_at, created_at, urgent"
+        "title, date, topics, tags, entities, primary_entities, related_story_ids, beacon_include, beacon_lead_style, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, image_focus_x, image_focus_y, image_display, image_show_on_homepage, image_show_on_briefing, image_show_on_story_page, content_updated_at, updated_at, created_at, urgent"
         + ", locations, organizations, people, industries, sports_teams, offices, facets"
       )
       .eq("id", String(incoming.id))
@@ -150,10 +150,18 @@ export async function POST(req: Request) {
       image_display?: StoryImageDisplay | null;
       image_show_on_homepage?: boolean | null;
       image_show_on_briefing?: boolean | null;
+      image_show_on_story_page?: boolean | null;
       content_updated_at?: string | null;
       updated_at?: string | null;
       created_at?: string | null;
       urgent?: boolean | null;
+      title?: string | null;
+      date?: string | null;
+      topics?: unknown;
+      tags?: unknown;
+      entities?: unknown;
+      primary_entities?: unknown;
+      related_story_ids?: unknown;
     } | null;
     let beaconRank = toNullableNumber(incoming.beacon_rank);
     let beaconPosition = toNullableBriefingPosition(incoming.beacon_position);
@@ -168,6 +176,8 @@ export async function POST(req: Request) {
       incoming.image_show_on_homepage === undefined ? Boolean(existing?.image_show_on_homepage ?? true) : Boolean(incoming.image_show_on_homepage);
     const imageShowOnBriefing =
       incoming.image_show_on_briefing === undefined ? Boolean(existing?.image_show_on_briefing ?? true) : Boolean(incoming.image_show_on_briefing);
+    const imageShowOnStoryPage =
+      incoming.image_show_on_story_page === undefined ? Boolean(existing?.image_show_on_story_page ?? false) : Boolean(incoming.image_show_on_story_page);
     let normalizedImageFocusX =
       incoming.image_focus_x === undefined ? toNullableNumber(existing?.image_focus_x) : toNullableNumber(incoming.image_focus_x);
     let normalizedImageFocusY =
@@ -194,8 +204,15 @@ export async function POST(req: Request) {
     }
     const contentChanged =
       !existing ||
+      toNullableString(existing.title) !== toNullableString(incoming.title) ||
+      toNullableString(existing.date) !== toNullableString(incoming.date) ||
       JSON.stringify(toStringArray(existing.summary)) !== JSON.stringify(normalizedSummary) ||
       JSON.stringify(toSources(existing.sources)) !== JSON.stringify(normalizedSources) ||
+      JSON.stringify(toStringArray(existing.topics)) !== JSON.stringify(toStringArray(incoming.topics)) ||
+      JSON.stringify(toStringArray(existing.tags)) !== JSON.stringify(toStringArray(incoming.tags)) ||
+      JSON.stringify(toEntities(existing.entities)) !== JSON.stringify(toEntities(incoming.entities)) ||
+      JSON.stringify(toStringArray(existing.primary_entities)) !== JSON.stringify(toStringArray(incoming.primary_entities)) ||
+      JSON.stringify(toStringArray(existing.related_story_ids)) !== JSON.stringify(toStringArray(incoming.related_story_ids)) ||
       JSON.stringify(toStringArray(existing.locations)) !== JSON.stringify(toStringArray(incoming.locations)) ||
       JSON.stringify(toStringArray(existing.organizations)) !== JSON.stringify(toStringArray(incoming.organizations)) ||
       JSON.stringify(toStringArray(existing.people)) !== JSON.stringify(toStringArray(incoming.people)) ||
@@ -203,7 +220,13 @@ export async function POST(req: Request) {
       JSON.stringify(toStringArray(existing.sports_teams)) !== JSON.stringify(toStringArray(incoming.sports_teams)) ||
       JSON.stringify(toStringArray(existing.offices)) !== JSON.stringify(toStringArray(incoming.offices)) ||
       JSON.stringify(toStringArray(existing.facets)) !== JSON.stringify(toStringArray(incoming.facets)) ||
-      toNullableString(existing.image_path) !== normalizedImagePath;
+      toNullableString(existing.image_path) !== normalizedImagePath ||
+      toNullableImageDisplay(existing.image_display) !== normalizedImageDisplay ||
+      Boolean(existing.image_show_on_homepage ?? true) !== imageShowOnHomepage ||
+      Boolean(existing.image_show_on_briefing ?? true) !== imageShowOnBriefing ||
+      Boolean(existing.image_show_on_story_page ?? false) !== imageShowOnStoryPage ||
+      toNullableNumber(existing.image_focus_x) !== normalizedImageFocusX ||
+      toNullableNumber(existing.image_focus_y) !== normalizedImageFocusY;
     const contentUpdatedAt =
       contentChanged
         ? nowIso
@@ -272,6 +295,7 @@ export async function POST(req: Request) {
       image_display: normalizedImageDisplay,
       image_show_on_homepage: imageShowOnHomepage,
       image_show_on_briefing: imageShowOnBriefing,
+      image_show_on_story_page: imageShowOnStoryPage,
       topics: toStringArray(incoming.topics),
       tags: toStringArray(incoming.tags),
       entities: toEntities(incoming.entities),

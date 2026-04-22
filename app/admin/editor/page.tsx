@@ -15,7 +15,7 @@ import { detectSourceLean, guessSourceLabel } from "@/app/lib/source-lean";
 import { TOPICS, normalize, slugify } from "@/app/lib/vocab";
 
 type Entity = { name: string; aliases: string[] };
-type SourceEditorRow = { name: string; title: string; url: string; lean: Lean; leanMode: "auto" | "manual" };
+type SourceEditorRow = { badge: string; name: string; title: string; url: string; lean: Lean; leanMode: "auto" | "manual" };
 type SourcePreview = { name: string; title: string; url: string };
 type EditorNotice = { tone: "error" | "info" | "success"; text: string } | null;
 type PendingEditorAction = { action: () => void; description: string } | null;
@@ -28,7 +28,7 @@ type StoryRevision = {
 };
 
 function createSourceRow(): SourceEditorRow {
-  return { name: "", title: "", url: "", lean: "Center", leanMode: "auto" };
+  return { badge: "", name: "", title: "", url: "", lean: "Center", leanMode: "auto" };
 }
 
 function getAutoLean(name: string, url: string): Lean {
@@ -39,6 +39,7 @@ function toEditorSource(source: Story["sources"][number]): SourceEditorRow {
   const detectedLean = getAutoLean(source.name, source.url);
   return {
     ...source,
+    badge: source.badge ?? "",
     title: source.title ?? "",
     leanMode: detectedLean === source.lean ? "auto" : "manual",
   };
@@ -108,6 +109,7 @@ export default function EditorPage() {
   const [imageDisplay, setImageDisplay] = useState<StoryImageDisplay>("cover");
   const [imageShowOnHomepage, setImageShowOnHomepage] = useState(true);
   const [imageShowOnBriefing, setImageShowOnBriefing] = useState(true);
+  const [imageShowOnStoryPage, setImageShowOnStoryPage] = useState(false);
   const [savedImagePath, setSavedImagePath] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [urgent, setUrgent] = useState(false);
@@ -213,6 +215,7 @@ export default function EditorPage() {
     setImageDisplay("cover");
     setImageShowOnHomepage(true);
     setImageShowOnBriefing(true);
+    setImageShowOnStoryPage(false);
     setSavedImagePath(null);
     setUrgent(false);
     setPinnedStory(false);
@@ -251,6 +254,7 @@ export default function EditorPage() {
     setImageDisplay(story.image_display === "contain" ? "contain" : "cover");
     setImageShowOnHomepage(story.image_show_on_homepage ?? true);
     setImageShowOnBriefing(story.image_show_on_briefing ?? true);
+    setImageShowOnStoryPage(story.image_show_on_story_page ?? false);
     setSavedImagePath(story.image_path ?? null);
     setUrgent(story.urgent);
     setPinnedStory(story.pinned);
@@ -369,6 +373,9 @@ export default function EditorPage() {
         imageFocusY,
         imagePath,
         imageUrl,
+        imageShowOnBriefing,
+        imageShowOnHomepage,
+        imageShowOnStoryPage,
         industries,
         pinnedStory,
         facets,
@@ -398,6 +405,9 @@ export default function EditorPage() {
       imageFocusY,
       imagePath,
       imageUrl,
+      imageShowOnBriefing,
+      imageShowOnHomepage,
+      imageShowOnStoryPage,
       industries,
       pinnedStory,
       facets,
@@ -719,6 +729,7 @@ export default function EditorPage() {
       setImageDisplay("cover");
       setImageShowOnHomepage(true);
       setImageShowOnBriefing(true);
+      setImageShowOnStoryPage(false);
       showNotice("Image uploaded.", "success");
     } finally {
       setUploadingImage(false);
@@ -751,6 +762,7 @@ export default function EditorPage() {
     setImageDisplay("cover");
     setImageShowOnHomepage(true);
     setImageShowOnBriefing(true);
+    setImageShowOnStoryPage(false);
     showNotice("Image removed. Save the story to make that change permanent.", "info");
   }
 
@@ -767,6 +779,7 @@ export default function EditorPage() {
     const cleanedSummary = summary.map((line) => line.trim()).filter(Boolean);
     const cleanedSources = sources
       .map((source) => ({
+        badge: (source.badge ?? "").trim() || null,
         name: source.name.trim(),
         title: source.title.trim() || null,
         url: source.url.trim(),
@@ -811,6 +824,7 @@ export default function EditorPage() {
       image_display: imageUrl ? imageDisplay : null,
       image_show_on_homepage: imageUrl ? imageShowOnHomepage : false,
       image_show_on_briefing: imageUrl ? imageShowOnBriefing : false,
+      image_show_on_story_page: imageUrl ? imageShowOnStoryPage : false,
       urgent,
       pinned: pinnedStory,
       beacon_include: beaconInclude,
@@ -1244,6 +1258,15 @@ export default function EditorPage() {
                       className="h-4 w-4"
                     />
                     Show this image on The Briefing
+                  </label>
+                  <label className="inline-flex items-center gap-3 text-sm text-neutral-300">
+                    <input
+                      type="checkbox"
+                      checked={imageShowOnStoryPage}
+                      onChange={(e) => setImageShowOnStoryPage(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    Show this image on story pages
                   </label>
                 </div>
               </div>
@@ -1809,7 +1832,7 @@ export default function EditorPage() {
             </div>
             <div className="mt-4 space-y-4">
               {sources.map((source, index) => (
-                <div key={index} className="grid grid-cols-1 md:grid-cols-6 gap-2">
+                <div key={index} className="grid grid-cols-1 gap-2 md:grid-cols-6">
                   <input
                     value={source.title}
                     onChange={(e) => updateSource(index, { title: e.target.value })}
@@ -1843,26 +1866,45 @@ export default function EditorPage() {
                     <option value="Center">Center</option>
                     <option value="Right">Right</option>
                   </select>
-                   <div className="md:col-span-6 flex flex-wrap items-center gap-3 text-xs text-neutral-500">
+                  <details className="md:col-span-6 rounded-xl border border-neutral-800 bg-neutral-950/35">
+                    <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400 [&::-webkit-details-marker]:hidden">
+                      Advanced Source Settings
+                    </summary>
+                    <div className="border-t border-neutral-800 px-3 py-3">
+                      <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                        Badge
+                      </label>
+                      <input
+                        value={source.badge ?? ""}
+                        onChange={(e) => updateSource(index, { badge: e.target.value })}
+                        className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+                        placeholder="Optional badge, e.g. Press Release or Official Broadcast"
+                      />
+                      <p className="mt-2 text-xs text-neutral-500">
+                        Rare. Shows as a gold pill next to the source name on story pages.
+                      </p>
+                    </div>
+                  </details>
+                  <div className="md:col-span-6 flex flex-wrap items-center gap-3 text-xs text-neutral-500">
                      {source.url.trim() ? (
-                       <button
-                         type="button"
-                         onClick={() => void addSourceFromUrl(source.url, index)}
+                        <button
+                          type="button"
+                          onClick={() => void addSourceFromUrl(source.url, index)}
                          disabled={sourcePreviewLoading}
                          className="rounded-full border border-neutral-700 px-3 py-1 text-neutral-300 hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-70"
                        >
                          Autofill from URL
                        </button>
                      ) : null}
-                     <span>
-                       {source.leanMode === "auto"
-                         ? `Auto-detected lean: ${source.lean}`
-                        : `Manual override: ${source.lean}`}
+                    <span>
+                        {source.leanMode === "auto"
+                          ? `Auto-detected lean: ${source.lean}`
+                          : `Manual override: ${source.lean}`}
                     </span>
-                   <button
-                      type="button"
-                      onClick={() => setSourceLeanMode(index, "auto")}
-                      className="rounded-full border border-neutral-700 px-3 py-1 text-neutral-300 hover:bg-neutral-800"
+                    <button
+                       type="button"
+                       onClick={() => setSourceLeanMode(index, "auto")}
+                       className="rounded-full border border-neutral-700 px-3 py-1 text-neutral-300 hover:bg-neutral-800"
                     >
                       Use auto
                     </button>

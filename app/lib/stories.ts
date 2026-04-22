@@ -14,6 +14,7 @@ export type StoryDbRow = {
   image_display?: string | null;
   image_show_on_homepage?: boolean | null;
   image_show_on_briefing?: boolean | null;
+  image_show_on_story_page?: boolean | null;
   views?: number | null;
   urgent?: boolean | null;
   pinned?: boolean | null;
@@ -58,6 +59,7 @@ export function toSources(value: unknown): Source[] {
     if (row.lean !== "Left" && row.lean !== "Center" && row.lean !== "Right") continue;
 
     sources.push({
+      badge: toNullableString(row.badge),
       name: String(row.name),
       url: String(row.url),
       lean: row.lean,
@@ -123,6 +125,7 @@ export function coerceStory(row: StoryDbRow): StoryWithViews {
     image_display: row.image_display === "contain" ? "contain" : row.image_display === "cover" ? "cover" : null,
     image_show_on_homepage: row.image_show_on_homepage ?? true,
     image_show_on_briefing: row.image_show_on_briefing ?? true,
+    image_show_on_story_page: row.image_show_on_story_page ?? false,
     created_at: row.created_at ?? undefined,
     updated_at: row.updated_at ?? undefined,
     content_updated_at: row.content_updated_at ?? undefined,

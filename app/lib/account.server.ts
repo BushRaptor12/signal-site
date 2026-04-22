@@ -51,6 +51,7 @@ type UserStoryFollowRow = {
 
 type UserStorySeenRow = {
   story_id: string;
+  updated_at?: string | null;
 };
 
 type UserInterestFollowRow = {
@@ -131,6 +132,24 @@ export type AccountStoryState = {
   following: boolean;
   seen: boolean;
 };
+
+function storySeenReferenceMs(
+  story: Pick<StoryWithViews, "content_updated_at" | "updated_at" | "created_at" | "date">
+) {
+  const contentUpdated = new Date(story.content_updated_at ?? "").getTime();
+  if (Number.isFinite(contentUpdated) && contentUpdated > 0) return contentUpdated;
+
+  const updated = new Date(story.updated_at ?? "").getTime();
+  if (Number.isFinite(updated) && updated > 0) return updated;
+
+  const created = new Date(story.created_at ?? "").getTime();
+  if (Number.isFinite(created) && created > 0) return created;
+
+  const dateOnly = new Date(story.date ?? "").getTime();
+  if (Number.isFinite(dateOnly) && dateOnly > 0) return dateOnly;
+
+  return 0;
+}
 
 function cookieSecret() {
   const value = process.env.AUTH_COOKIE_SECRET?.trim() || process.env.VIEW_HASH_SECRET?.trim();
@@ -599,12 +618,22 @@ export async function getFollowedInterestsWithMatches(userId: string, interests?
   });
 }
 
-export async function getSeenStoryIds(userId: string, storyIds?: string[]) {
+export async function getSeenStoryIds(
+  userId: string,
+  stories?: Array<string | Pick<StoryWithViews, "id" | "content_updated_at" | "updated_at" | "created_at" | "date">>
+) {
   if (!userId) return [];
-  if (storyIds && storyIds.length === 0) return [];
+  if (stories && stories.length === 0) return [];
+
+  const storyIds = stories?.map((story) => (typeof story === "string" ? story : story.id)).filter(Boolean) ?? [];
+  const storyById = new Map(
+    (stories ?? [])
+      .filter((story): story is Pick<StoryWithViews, "id" | "content_updated_at" | "updated_at" | "created_at" | "date"> => typeof story !== "string")
+      .map((story) => [story.id, story] as const)
+  );
 
   const supabase = supabaseServer();
-  let query = supabase.from("user_story_seen").select("story_id").eq("user_id", userId);
+  let query = supabase.from("user_story_seen").select("story_id, updated_at").eq("user_id", userId);
   if (storyIds && storyIds.length > 0) {
     query = query.in("story_id", storyIds);
   }
@@ -618,14 +647,28 @@ export async function getSeenStoryIds(userId: string, storyIds?: string[]) {
     throw new Error(friendlyAuthError(error.message, "We couldn't load seen-story history."));
   }
 
-  return ((data ?? []) as UserStorySeenRow[]).map((row) => row.story_id);
+  return ((data ?? []) as UserStorySeenRow[])
+    .filter((row) => {
+      const story = storyById.get(row.story_id);
+      if (!story) return true;
+
+      const seenAtMs = new Date(row.updated_at ?? "").getTime();
+      if (!Number.isFinite(seenAtMs) || seenAtMs <= 0) return false;
+
+      return seenAtMs >= storySeenReferenceMs(story);
+    })
+    .map((row) => row.story_id);
 }
 
-export async function getAccountStoryState(userId: string, storyId: string): Promise<AccountStoryState> {
+export async function getAccountStoryState(
+  userId: string,
+  story: string | Pick<StoryWithViews, "id" | "content_updated_at" | "updated_at" | "created_at" | "date">
+): Promise<AccountStoryState> {
   const supabase = supabaseServer();
+  const storyId = typeof story === "string" ? story : story.id;
   const [{ data: followRow, error: followError }, { data: seenRow, error: seenError }] = await Promise.all([
     supabase.from("user_story_follows").select("story_id").eq("user_id", userId).eq("story_id", storyId).maybeSingle(),
-    supabase.from("user_story_seen").select("story_id").eq("user_id", userId).eq("story_id", storyId).maybeSingle(),
+    supabase.from("user_story_seen").select("story_id, updated_at").eq("user_id", userId).eq("story_id", storyId).maybeSingle(),
   ]);
 
   if (followError) {
@@ -636,9 +679,12 @@ export async function getAccountStoryState(userId: string, storyId: string): Pro
     throw new Error(friendlyAuthError(seenError.message, "We couldn't load seen-story history."));
   }
 
+  const seenReferenceMs = typeof story === "string" ? 0 : storySeenReferenceMs(story);
+  const seenAtMs = new Date((seenRow as UserStorySeenRow | null | undefined)?.updated_at ?? "").getTime();
+
   return {
     following: Boolean(followRow),
-    seen: Boolean(seenRow),
+    seen: Boolean(seenRow) && (!seenReferenceMs || (Number.isFinite(seenAtMs) && seenAtMs >= seenReferenceMs)),
   };
 }
 
