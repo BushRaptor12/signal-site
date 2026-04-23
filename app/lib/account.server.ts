@@ -104,6 +104,7 @@ export type FollowedInterestStoryMatch = {
   reasons: string[];
   score: number;
   story: StoryWithViews;
+  tier: "direct" | "related";
 };
 
 export type FollowedInterestWithMatches = FollowedInterest & {
@@ -606,12 +607,13 @@ export async function getFollowedInterestsWithMatches(userId: string, interests?
         .map((match) => {
           const story = storiesById.get(match.storyId);
           return story
-            ? {
-                reasons: match.reasons,
-                score: match.score,
-                story,
-              }
-            : null;
+              ? {
+                  reasons: match.reasons,
+                  score: match.score,
+                  story,
+                  tier: match.tier,
+                }
+              : null;
         })
         .filter((value): value is FollowedInterestStoryMatch => Boolean(value)),
     };

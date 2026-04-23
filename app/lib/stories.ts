@@ -24,6 +24,7 @@ export type StoryDbRow = {
   beacon_position?: string | null;
   beacon_order?: number | string | null;
   beacon_headline?: string | null;
+  beacon_summary?: string | null;
   topics?: unknown;
   tags?: unknown;
   entities?: unknown;
@@ -35,6 +36,7 @@ export type StoryDbRow = {
   sports_teams?: unknown;
   offices?: unknown;
   facets?: unknown;
+  related_interest_signals?: unknown;
   related_story_ids?: unknown;
   comments?: number | null;
   created_at?: string | null;
@@ -140,6 +142,7 @@ export function coerceStory(row: StoryDbRow): StoryWithViews {
         : null,
     beacon_order: toNullableNumber(row.beacon_order),
     beacon_headline: toNullableString(row.beacon_headline),
+    beacon_summary: toNullableString(row.beacon_summary),
     topics: toStringArray(row.topics),
     tags: toStringArray(row.tags),
     entities: toEntities(row.entities),
@@ -151,6 +154,7 @@ export function coerceStory(row: StoryDbRow): StoryWithViews {
     sports_teams: toStringArray(row.sports_teams),
     offices: toStringArray(row.offices),
     facets: toStringArray(row.facets),
+    related_interest_signals: toStringArray(row.related_interest_signals),
     related_story_ids: toStringArray(row.related_story_ids),
     comments: Number(row.comments ?? 0),
     views: Number(row.views ?? 0),

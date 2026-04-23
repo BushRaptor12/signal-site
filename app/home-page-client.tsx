@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FollowedInterestWithMatches } from "@/app/lib/account.server";
+import { shouldUseContainedStoryImage } from "@/app/lib/story-image-layout";
 import { ACCOUNT_FOLLOWS_UPDATED_EVENT } from "./lib/account-events";
 import {
   STORY_COMMENT_COUNT_UPDATED_EVENT,
@@ -28,7 +29,6 @@ type SavedHomeState = {
 type HomePageClientProps = {
   initialAccountAuthenticated: boolean;
   initialFollowedInterests: FollowedInterestWithMatches[];
-  initialSemanticStoryIds: string[];
   initialFollowedStoryIds: string[];
   initialStories: StoryWithViews[];
 };
@@ -209,6 +209,17 @@ function storyMatchesInterest(story: StoryWithViews, query: string) {
   return textMatchesKeyword(haystack, normalizedQuery);
 }
 
+function storyMatchesRelatedInterestSignal(story: StoryWithViews, query: string) {
+  const normalizedQuery = normalize(query);
+  if (!normalizedQuery) return false;
+
+  if ((story.related_interest_signals ?? []).map(normalize).includes(normalizedQuery)) {
+    return true;
+  }
+
+  return textMatchesKeyword((story.related_interest_signals ?? []).join(" "), normalizedQuery);
+}
+
 function getStoryUpdateLabel(story: StoryWithViews) {
   const updatedValue = story.content_updated_at ?? story.created_at ?? "";
   if (updatedValue) {
@@ -228,7 +239,6 @@ function shouldShowStoryImageOnHomepage(story: StoryWithViews) {
 export default function HomePageClient({
   initialAccountAuthenticated,
   initialFollowedInterests,
-  initialSemanticStoryIds,
   initialFollowedStoryIds,
   initialStories,
 }: HomePageClientProps) {
@@ -241,7 +251,7 @@ export default function HomePageClient({
   const [accountAuthenticated, setAccountAuthenticated] = useState(initialAccountAuthenticated);
   const [followedStoryIds, setFollowedStoryIds] = useState<string[]>(initialFollowedStoryIds);
   const [followedInterests, setFollowedInterests] = useState<FollowedInterestWithMatches[]>(initialFollowedInterests);
-  const [semanticStoryIds, setSemanticStoryIds] = useState<string[]>(initialSemanticStoryIds);
+  const [imageAspectRatios, setImageAspectRatios] = useState<Record<string, number>>({});
   const [loadingFollowState, setLoadingFollowState] = useState(false);
   const [topicOrder, setTopicOrder] = useState<TopicOrderKey>("new");
   const [topicTopWindow, setTopicTopWindow] = useState<TopicTopWindowKey>("day");
@@ -250,6 +260,37 @@ export default function HomePageClient({
   useEffect(() => {
     setStories(initialStories);
   }, [initialStories]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const cleanups: Array<() => void> = [];
+
+    for (const story of stories) {
+      if (!shouldShowStoryImageOnHomepage(story) || !story.image_url || imageAspectRatios[story.id]) continue;
+
+      const image = new window.Image();
+      const onLoad = () => {
+        if (!image.naturalWidth || !image.naturalHeight) return;
+
+        setImageAspectRatios((current) => {
+          if (current[story.id]) return current;
+          return { ...current, [story.id]: image.naturalWidth / image.naturalHeight };
+        });
+      };
+
+      image.addEventListener("load", onLoad);
+      image.src = story.image_url;
+
+      cleanups.push(() => {
+        image.removeEventListener("load", onLoad);
+      });
+    }
+
+    return () => {
+      cleanups.forEach((cleanup) => cleanup());
+    };
+  }, [imageAspectRatios, stories]);
 
   useEffect(() => {
     const applyUpdate = (payload: { commentCount: number; storyId: string } | null) => {
@@ -397,19 +438,16 @@ export default function HomePageClient({
       const data = (await response.json().catch(() => ({}))) as {
         authenticated?: boolean;
         interests?: FollowedInterestWithMatches[];
-        semanticStoryIds?: string[];
         storyIds?: string[];
       };
 
       setAccountAuthenticated(Boolean(data.authenticated));
       setFollowedStoryIds(Array.isArray(data.storyIds) ? data.storyIds.map((value) => String(value)) : []);
       setFollowedInterests(Array.isArray(data.interests) ? data.interests : []);
-      setSemanticStoryIds(Array.isArray(data.semanticStoryIds) ? data.semanticStoryIds.map((value) => String(value)) : []);
     } catch {
       setAccountAuthenticated(false);
       setFollowedStoryIds([]);
       setFollowedInterests([]);
-      setSemanticStoryIds([]);
     } finally {
       setLoadingFollowState(false);
     }
@@ -442,13 +480,12 @@ export default function HomePageClient({
     [stories]
   );
   const followedStoryIdSet = useMemo(() => new Set(followedStoryIds), [followedStoryIds]);
-  const semanticStoryIdSet = useMemo(() => new Set(semanticStoryIds), [semanticStoryIds]);
   const followedInterestQueries = useMemo(
     () => followedInterests.map((interest) => interest.normalizedQuery).filter(Boolean),
     [followedInterests]
   );
   const semanticInterestMatchesByStoryId = useMemo(() => {
-    const map = new Map<string, Array<{ query: string; reasons: string[] }>>();
+    const map = new Map<string, Array<{ query: string; reasons: string[]; tier: "direct" | "related" }>>();
 
     for (const interest of followedInterests) {
       for (const match of interest.matches ?? []) {
@@ -456,6 +493,7 @@ export default function HomePageClient({
         current.push({
           query: interest.query,
           reasons: match.reasons,
+          tier: match.tier,
         });
         map.set(match.story.id, current);
       }
@@ -478,21 +516,81 @@ export default function HomePageClient({
 
     return new Map<string, StoryWithViews[]>(entries);
   }, [recentStories]);
-  const followingStories = useMemo(
-    () =>
-      recentStories.filter((story) => {
-        if (followedStoryIdSet.has(story.id)) return true;
-        if (semanticInterestMatchesByStoryId.has(story.id)) return true;
-        if (semanticStoryIdSet.has(story.id)) return true;
-        return followedInterestQueries.some((query) => {
-          if (hiddenInterestStoryIdsByQuery.get(query)?.has(story.id)) {
-            return false;
-          }
+  const followingInterestMatchesByStoryId = useMemo(() => {
+    const next = new Map<string, Array<{ query: string; reasons: string[]; tier: "direct" | "related" }>>();
 
-          return storyMatchesInterest(story, query);
-        });
-      }),
-    [followedInterestQueries, followedStoryIdSet, hiddenInterestStoryIdsByQuery, recentStories, semanticInterestMatchesByStoryId, semanticStoryIdSet]
+    function upsertMatch(
+      storyId: string,
+      match: { query: string; reasons: string[]; tier: "direct" | "related" }
+    ) {
+      const current = next.get(storyId) ?? [];
+      const existingIndex = current.findIndex((item) => normalize(item.query) === normalize(match.query));
+
+      if (existingIndex === -1) {
+        current.push(match);
+        next.set(storyId, current);
+        return;
+      }
+
+      const existing = current[existingIndex];
+      current[existingIndex] = {
+        query: existing.query,
+        reasons: [...new Set([...existing.reasons, ...match.reasons])],
+        tier: existing.tier === "direct" || match.tier === "direct" ? "direct" : "related",
+      };
+      next.set(storyId, current);
+    }
+
+    for (const [storyId, matches] of semanticInterestMatchesByStoryId.entries()) {
+      for (const match of matches) {
+        upsertMatch(storyId, match);
+      }
+    }
+
+    for (const story of recentStories) {
+      for (const query of followedInterestQueries) {
+        if (hiddenInterestStoryIdsByQuery.get(query)?.has(story.id)) {
+          continue;
+        }
+
+        if (storyMatchesInterest(story, query)) {
+          upsertMatch(story.id, { query, reasons: ["Direct interest"], tier: "direct" });
+          continue;
+        }
+
+        if (storyMatchesRelatedInterestSignal(story, query)) {
+          upsertMatch(story.id, { query, reasons: ["Related interest signal"], tier: "related" });
+        }
+      }
+    }
+
+    return next;
+  }, [followedInterestQueries, hiddenInterestStoryIdsByQuery, recentStories, semanticInterestMatchesByStoryId]);
+  const followingStories = useMemo(
+    () => {
+      const directMatches: StoryWithViews[] = [];
+      const relatedMatches: StoryWithViews[] = [];
+
+      for (const story of recentStories) {
+        if (followedStoryIdSet.has(story.id)) {
+          directMatches.push(story);
+          continue;
+        }
+
+        const matches = followingInterestMatchesByStoryId.get(story.id) ?? [];
+        if (matches.some((match) => match.tier === "direct")) {
+          directMatches.push(story);
+          continue;
+        }
+
+        if (matches.some((match) => match.tier === "related")) {
+          relatedMatches.push(story);
+        }
+      }
+
+      return [...directMatches, ...relatedMatches];
+    },
+    [followedStoryIdSet, followingInterestMatchesByStoryId, recentStories]
   );
   const visible = useMemo(() => {
     if (activeTab === "following") return followingStories;
@@ -570,7 +668,7 @@ export default function HomePageClient({
               className="h-auto w-full max-w-[420px] md:max-w-[520px]"
             />
           </Link>
-          <p className="mt-3 text-neutral-400">Multi-source news. Clear perspective.</p>
+          <p className="mt-3 text-neutral-400">One Story, Multiple Perspectives.</p>
         </div>
         <div className="mt-8 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80" />
         <div className="mt-6 flex justify-center">
@@ -730,12 +828,16 @@ export default function HomePageClient({
           </div>
         ) : (
           visibleStories.map((story, index) => {
-            const matchedInterests = semanticInterestMatchesByStoryId.get(story.id) ?? [];
-            const fallbackInterest = followedInterests.find((interest) => storyMatchesInterest(story, interest.query));
-            const lexicalInterestMatch = matchedInterests[0] ?? (fallbackInterest ? { query: fallbackInterest.query, reasons: [] } : null);
-            const primaryInterestMatch = lexicalInterestMatch && lexicalInterestMatch.query ? lexicalInterestMatch : null;
+            const matchedInterests = followingInterestMatchesByStoryId.get(story.id) ?? [];
+            const primaryInterestMatch =
+              matchedInterests.find((match) => match.tier === "direct") ?? matchedInterests[0] ?? null;
             const followedDirectly = followedStoryIdSet.has(story.id);
             const isLeadCard = index === 0;
+            const useContainedHomeImage = shouldUseContainedStoryImage(
+              story.image_display,
+              imageAspectRatios[story.id] ?? null,
+              isLeadCard ? "home-lead" : "home-card"
+            );
             const followContextItems = [
               followedDirectly ? "Tracked story" : null,
               primaryInterestMatch?.query ? primaryInterestMatch.query : null,
@@ -763,15 +865,7 @@ export default function HomePageClient({
                       </div>
                     </div>
 
-                    <div
-                      className={`grid gap-6 ${
-                        shouldShowStoryImageOnHomepage(story) && story.image_display !== "contain"
-                          ? isLeadCard
-                            ? "lg:grid-cols-[minmax(0,1.22fr)_minmax(15.5rem,0.78fr)] lg:items-start"
-                            : "lg:grid-cols-[minmax(0,1.7fr)_minmax(11rem,0.4fr)] lg:items-start"
-                          : ""
-                      }`}
-                    >
+                    <div className="grid gap-6">
                       <div className="text-center">
                         <h2
                           className={`mx-auto font-semibold tracking-tight text-neutral-50 ${
@@ -799,7 +893,7 @@ export default function HomePageClient({
                             {followedDirectly && primaryInterestMatch?.query ? <span className="mx-2 text-[#35556f]">/</span> : null}
                             {primaryInterestMatch?.query ? (
                               <span>
-                                Because you follow{" "}
+                                {primaryInterestMatch.tier === "related" ? "Related to " : "Because you follow "}
                                 <span className="text-neutral-300">{primaryInterestMatch.query}</span>
                               </span>
                             ) : null}
@@ -830,29 +924,30 @@ export default function HomePageClient({
                       </div>
 
                       {shouldShowStoryImageOnHomepage(story) ? (
-                        story.image_display === "contain" ? (
+                        useContainedHomeImage ? (
                           <div className="flex justify-center">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={story.image_url!}
                               alt={story.title}
                               loading="lazy"
-                              className="block max-h-[32rem] max-w-full object-contain"
+                              className={`block max-w-full object-contain ${isLeadCard ? "max-h-[36rem]" : "max-h-[32rem]"}`}
                             />
                           </div>
                         ) : (
                           <div
                             className={`relative overflow-hidden ${
                               isLeadCard
-                                ? "aspect-[4/3] md:aspect-[16/11] lg:aspect-[5/6]"
-                                : "mx-auto w-full max-w-[17rem] aspect-[4/3] md:max-w-[20rem] md:aspect-[5/4] lg:ml-auto lg:mr-0 lg:max-w-[13rem] lg:aspect-[3/4]"
-                            }`}
+                                ? "aspect-[4/3] md:aspect-[16/11]"
+                                : "mx-auto w-full max-w-[40rem] aspect-[4/3] md:aspect-[16/10]"
+                             }`}
                           >
                             <Image
                               src={story.image_url!}
                               alt={story.title}
                               fill
-                              sizes={isLeadCard ? "(max-width: 1024px) 100vw, 360px" : "(max-width: 1024px) 320px, 208px"}
+                              quality={90}
+                              sizes={isLeadCard ? "(max-width: 1024px) 100vw, 896px" : "(max-width: 1024px) 100vw, 640px"}
                               className="object-cover transition duration-500 group-hover:scale-[1.015]"
                               style={{ objectPosition: imageObjectPosition(story) }}
                             />

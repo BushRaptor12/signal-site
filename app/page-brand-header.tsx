@@ -23,7 +23,7 @@ export default function PageBrandHeader({ backHref }: PageBrandHeaderProps) {
             className="h-auto w-[144px] md:w-[168px]"
           />
         </Link>
-        <p className="mt-1 text-[11px] text-neutral-500 md:text-xs">Multi-source news. Clear perspective.</p>
+        <p className="mt-1 text-[11px] text-neutral-500 md:text-xs">One Story, Multiple Perspectives.</p>
       </div>
       <div />
     </div>

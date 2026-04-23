@@ -4,7 +4,7 @@ import { DEFAULT_OG_IMAGE, SITE_NAME, trimDescription } from "@/app/lib/seo";
 import { PUBLIC_INSET, PUBLIC_INSET_ELEVATED, PUBLIC_PANEL } from "@/app/lib/surfaces";
 
 const aboutDescription = trimDescription(
-  "Learn how The Beacon uses ranked briefings, live discussion, and personalized tabs to make staying informed easier."
+  "Learn how The Beacon uses ranked briefings, Following, special-event coverage, and community features to make staying informed easier."
 );
 
 const pillars = [
@@ -19,21 +19,31 @@ const pillars = [
       "The Briefing is the site's front-page digest of the most important stories and latest developments. It is designed to give readers a fast, ranked overview so they can catch up quickly, then dive deeper into the stories that matter most.",
   },
   {
+    title: "Following and personal organization",
+    body:
+      "Readers can shape a personal Following feed around specific stories and broader interests, then refine that experience over time. The goal is to make it easier to keep up with the subjects you actually care about instead of starting from scratch every time you visit.",
+  },
+  {
+    title: "Special-event coverage pages",
+    body:
+      "Some stories deserve a dedicated home. For big nights and major developing events, The Beacon can group featured stories, rolling updates, and structured trackers into a single coverage page so readers can follow the whole moment in one place.",
+  },
+  {
     title: "A more social reading experience",
     body:
-      "The Beacon is meant to feel more participatory than a one-way headline feed. Readers can follow stories, react to coverage, comment, reply, vote on discussion, and build a personal reading history, all of which help turn news consumption into an experience that feels more connected and ongoing.",
+      "The Beacon is meant to feel more participatory than a one-way headline feed. Readers can react to coverage, comment, reply, vote on discussion, receive notifications, and build a personal reading history, all of which help turn news consumption into an experience that feels more connected and ongoing.",
   },
   {
     title: "Personalized without being complicated",
     body:
-      "Customization is a core part of the product. Readers can pin topics, create their own keyword tabs, sort coverage in different ways, and shape the homepage around the subjects they care about most without having to learn a complicated interface.",
+      "Customization is a core part of the product. Readers can pin topics, create their own keyword tabs, follow interests, sort coverage in different ways, and shape the homepage around the subjects they care about most without having to learn a complicated interface.",
   },
 ] as const;
 
 const goals = [
   "Make it easy to understand the news quickly, even when the story is still developing.",
-  "Help readers keep track of the stories they care about through follows, comments, reactions, and personalized organization.",
-  "Offer customization that feels simple and useful instead of buried behind settings.",
+  "Help readers keep track of the stories they care about through follows, interests, comments, reactions, and notifications.",
+  "Offer customization that feels simple and useful instead of buried behind settings, including special coverage pages when a story needs more structure.",
   "Keep the product approachable, fast, and easy to use on a daily basis.",
 ] as const;
 
@@ -80,8 +90,8 @@ export default function AboutPage() {
           </p>
           <p className="mt-4 text-base leading-7 text-neutral-400">
             That is why the product combines concise story presentation, live discussion, lightweight customization,
-            and a ranked daily briefing. The result is meant to feel less like an endless feed and more like a reading
-            tool that helps you keep your bearings.
+            a ranked daily briefing, a Following feed, and special-event coverage pages. The result is meant to feel
+            less like an endless feed and more like a reading tool that helps you keep your bearings.
           </p>
 
           <div className="mt-10 grid gap-5 md:grid-cols-2">

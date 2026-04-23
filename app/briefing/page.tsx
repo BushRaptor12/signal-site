@@ -2,10 +2,10 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
+import AdaptiveBriefingImage from "@/app/briefing/adaptive-briefing-image";
 import { getAccountUserId, getSeenStoryIds } from "@/app/lib/account.server";
 import { formatStoryDate } from "@/app/lib/dates";
 import { buildBriefingLayout } from "@/app/lib/briefing-layout";
-import { imageObjectPosition } from "@/app/lib/image-focus";
 import { DEFAULT_OG_IMAGE, SITE_NAME, trimDescription } from "@/app/lib/seo";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
@@ -43,6 +43,24 @@ export const metadata: Metadata = {
 
 function displayHeadline(story: StoryWithViews) {
   return story.beacon_headline?.trim() || story.title;
+}
+
+function displayBriefingSummary(story: StoryWithViews) {
+  return story.beacon_summary?.trim() || story.summary[0] || "";
+}
+
+function displayLeadBriefingSummaryPoints(story: StoryWithViews) {
+  const override = story.beacon_summary?.trim();
+  if (override) {
+    const overridePoints = override
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    return overridePoints.length > 0 ? overridePoints.slice(0, 2) : [override];
+  }
+
+  return story.summary.map((line) => line.trim()).filter(Boolean).slice(0, 2);
 }
 
 function shouldShowStoryImageOnBriefing(story: StoryWithViews) {
@@ -90,35 +108,8 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
                 {displayHeadline(story)}
               </div>
               <StoryMetaRow story={story} />
-              {story.summary[0] ? <p className="mt-3 text-[15px] leading-7 text-neutral-300">{story.summary[0]}</p> : null}
-              {shouldShowStoryImageOnBriefing(story) ? (
-                story.image_display === "contain" ? (
-                  <div className="mt-5 flex justify-center">
-                    <div className="w-full max-w-[18rem]">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={story.image_url!}
-                        alt={displayHeadline(story)}
-                        loading="lazy"
-                        className="block max-h-[22rem] max-w-full object-contain"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-5 overflow-hidden">
-                    <div className="relative mx-auto aspect-[5/4] max-w-[19rem]">
-                      <Image
-                        src={story.image_url!}
-                        alt={displayHeadline(story)}
-                        fill
-                        sizes="(max-width: 768px) 100vw, 304px"
-                        className="object-cover"
-                        style={{ objectPosition: imageObjectPosition(story) }}
-                      />
-                    </div>
-                  </div>
-                )
-              ) : null}
+              {displayBriefingSummary(story) ? <p className="mt-3 text-[15px] leading-7 text-neutral-300">{displayBriefingSummary(story)}</p> : null}
+              {shouldShowStoryImageOnBriefing(story) ? <AdaptiveBriefingImage story={story} variant="briefing-card" /> : null}
             </div>
             {seen ? <SeenBadge /> : null}
           </Link>
@@ -154,6 +145,7 @@ export default async function BriefingPage() {
         : ((metaData as BriefingMetaRow | null)?.updated_at ?? null);
     const { lead, leftColumn, rightColumn } = buildBriefingLayout(stories);
     const leadUsesAlertStyle = lead?.beacon_lead_style === "alert";
+    const leadSummaryPoints = lead ? displayLeadBriefingSummaryPoints(lead) : [];
 
     return (
       <main className="min-h-screen bg-transparent p-8 text-neutral-100">
@@ -170,7 +162,7 @@ export default async function BriefingPage() {
                   className="h-auto w-full max-w-[420px] md:max-w-[520px]"
                 />
               </Link>
-              <p className="mt-3 text-neutral-400">Multi-source news. Clear perspective.</p>
+              <p className="mt-3 text-neutral-400">One Story, Multiple Perspectives.</p>
               <div className="mt-8 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80" />
             </div>
           </div>
@@ -202,7 +194,7 @@ export default async function BriefingPage() {
                     : "border-[#183149]/70 hover:border-[#28445d]"
                 }`}
               >
-                <div className={`relative ${seenStoryIds.has(lead.id) ? "opacity-90" : ""}`}>
+                <div className={`relative text-center ${seenStoryIds.has(lead.id) ? "opacity-90" : ""}`}>
                   <div
                     className={`font-semibold leading-[0.95] transition md:text-6xl ${
                       leadUsesAlertStyle ? "text-4xl text-red-400 hover:text-red-300" : "text-[2.9rem] text-neutral-100 hover:text-[#d7c08d]"
@@ -212,42 +204,15 @@ export default async function BriefingPage() {
                   </div>
                   <StoryMetaRow story={lead} />
 
-                  {lead.summary.length > 0 ? (
-                    <div className="mt-5 max-w-4xl space-y-2 text-lg leading-8 text-neutral-300">
-                      {lead.summary.slice(0, 2).map((line, index) => (
-                        <p key={index}>{line}</p>
+                  {leadSummaryPoints.length > 0 ? (
+                    <div className="mx-auto mt-5 max-w-4xl space-y-3 text-lg leading-8 text-neutral-300">
+                      {leadSummaryPoints.map((point, index) => (
+                        <p key={`${lead.id}-summary-${index}`}>{point}</p>
                       ))}
                     </div>
                   ) : null}
                 </div>
-                {shouldShowStoryImageOnBriefing(lead) ? (
-                  lead.image_display === "contain" ? (
-                    <div className="relative mt-6 flex justify-center">
-                      <div className="w-full">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={lead.image_url!}
-                          alt={displayHeadline(lead)}
-                          className="block max-h-[36rem] max-w-full object-contain"
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="relative mt-6 overflow-hidden">
-                      <div className="relative aspect-[4/3] md:aspect-[16/10]">
-                        <Image
-                          src={lead.image_url!}
-                          alt={displayHeadline(lead)}
-                          fill
-                          priority
-                          sizes="(max-width: 768px) 100vw, 1152px"
-                          className="object-cover"
-                          style={{ objectPosition: imageObjectPosition(lead) }}
-                        />
-                      </div>
-                    </div>
-                  )
-                ) : null}
+                {shouldShowStoryImageOnBriefing(lead) ? <AdaptiveBriefingImage priority story={lead} variant="briefing-lead" /> : null}
                 {seenStoryIds.has(lead.id) ? <SeenBadge /> : null}
               </Link>
 

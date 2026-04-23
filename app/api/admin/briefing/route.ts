@@ -21,9 +21,9 @@ async function loadAllStories() {
 }
 
 function splitStories(stories: StoryWithViews[]) {
-  const briefing = sortBriefingStories(stories.filter((story) => story.beacon_include));
-
-  const library = stories.filter((story) => !story.beacon_include);
+  const publishedStories = stories.filter((story) => story.status === "published");
+  const briefing = sortBriefingStories(publishedStories.filter((story) => story.beacon_include));
+  const library = publishedStories.filter((story) => !story.beacon_include);
   return { briefing, library };
 }
 
@@ -79,6 +79,7 @@ export async function PUT(req: Request) {
         const row = value as {
           id?: unknown;
           beacon_headline?: unknown;
+          beacon_summary?: unknown;
           beacon_position?: unknown;
           beacon_order?: unknown;
         };
@@ -90,6 +91,12 @@ export async function PUT(req: Request) {
             : row.beacon_headline == null
               ? null
               : String(row.beacon_headline).trim() || null;
+        const summary =
+          typeof row.beacon_summary === "string"
+            ? row.beacon_summary.trim() || null
+            : row.beacon_summary == null
+              ? null
+              : String(row.beacon_summary).trim() || null;
         const position = toNullableBriefingPosition(row.beacon_position);
         const order = toNullableInteger(row.beacon_order);
 
@@ -98,6 +105,7 @@ export async function PUT(req: Request) {
         return {
           id: String(row.id),
           beacon_headline: headline,
+          beacon_summary: summary,
           beacon_position: position,
           beacon_order: order,
         };
@@ -108,6 +116,7 @@ export async function PUT(req: Request) {
         ): item is {
           id: string;
           beacon_headline: string | null;
+          beacon_summary: string | null;
           beacon_position: BriefingPosition;
           beacon_order: number;
         } => Boolean(item)
@@ -133,10 +142,17 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "One or more selected stories no longer exist. Refresh and try again." }, { status: 409 });
     }
 
+    const selectedStories = allStories.filter((story) => briefingIds.includes(story.id));
+    const hasUnpublishedStory = selectedStories.some((story) => story.status !== "published");
+    if (hasUnpublishedStory) {
+      return NextResponse.json({ error: "Only published stories can be placed in The Briefing." }, { status: 400 });
+    }
+
     const timestamp = new Date().toISOString();
     const supabase = supabaseServer();
     const includedIds = new Set(briefingIds);
     const headlineById = new Map(briefingItems.map((item) => [item.id, item.beacon_headline]));
+    const summaryById = new Map(briefingItems.map((item) => [item.id, item.beacon_summary]));
     const positionById = new Map(briefingItems.map((item) => [item.id, item.beacon_position]));
     const orderById = new Map(briefingItems.map((item) => [item.id, item.beacon_order]));
 
@@ -157,13 +173,15 @@ export async function PUT(req: Request) {
     for (const story of allStories) {
       const nextInclude = includedIds.has(story.id);
       const nextHeadline = nextInclude ? (headlineById.get(story.id) ?? null) : story.beacon_headline ?? null;
+      const nextSummary = nextInclude ? (summaryById.get(story.id) ?? null) : story.beacon_summary ?? null;
       const nextPosition = nextInclude ? (positionById.get(story.id) ?? null) : null;
       const nextOrder = nextInclude ? (orderById.get(story.id) ?? null) : null;
       const changed =
         story.beacon_include !== nextInclude ||
         (story.beacon_position ?? null) !== nextPosition ||
         (story.beacon_order ?? null) !== nextOrder ||
-        (story.beacon_headline ?? null) !== nextHeadline;
+        (story.beacon_headline ?? null) !== nextHeadline ||
+        (story.beacon_summary ?? null) !== nextSummary;
 
       if (!changed) continue;
 
@@ -175,6 +193,7 @@ export async function PUT(req: Request) {
           beacon_position: nextPosition,
           beacon_order: nextOrder,
           beacon_headline: nextHeadline,
+          beacon_summary: nextSummary,
           updated_at: timestamp,
         })
         .eq("id", story.id);

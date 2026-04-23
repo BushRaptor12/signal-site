@@ -8,6 +8,7 @@ import {
   TERM_CONCEPT_IDS,
   TERM_KNOWLEDGE,
 } from "@/app/lib/interest-knowledge";
+import { getRelatedInterestTerms } from "@/app/lib/interest-relations";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { Story, StoryWithViews } from "@/app/lib/types";
@@ -24,7 +25,21 @@ type EmbeddingExtractor = (
 
 type StoryEmbeddingShape = Pick<
   Story | StoryWithViews,
-  "entities" | "facets" | "industries" | "locations" | "offices" | "organizations" | "people" | "primary_entities" | "sources" | "sports_teams" | "summary" | "tags" | "title" | "topics"
+  | "entities"
+  | "facets"
+  | "industries"
+  | "locations"
+  | "offices"
+  | "organizations"
+  | "people"
+  | "primary_entities"
+  | "related_interest_signals"
+  | "sources"
+  | "sports_teams"
+  | "summary"
+  | "tags"
+  | "title"
+  | "topics"
 >;
 
 type StoredInterestEmbeddingRow = {
@@ -59,6 +74,8 @@ type InterestSearchProfile = {
   normalizedQuery: string;
   rawQuery: string;
   phrases: Set<string>;
+  relatedPhrases: Set<string>;
+  relatedTokens: Set<string>;
   tokens: Set<string>;
   wordCount: number;
 };
@@ -79,6 +96,8 @@ type StorySearchProfile = {
   tagTerms: Set<string>;
   titleTerms: Set<string>;
   topicTerms: Set<string>;
+  relatedInterestTerms: Set<string>;
+  relatedInterestText: string;
 };
 
 type StoryTermSetKey =
@@ -118,6 +137,7 @@ export type SemanticStoryMatch = {
   reasons: string[];
   score: number;
   storyId: string;
+  tier: "direct" | "related";
 };
 
 export type SemanticInterestStoryMatches = {
@@ -393,6 +413,7 @@ function buildInterestSearchProfile(
   }
   const matchKeywords = normalizeKeywordList(options?.matchKeywords ?? []);
   const excludeKeywords = normalizeKeywordList(options?.excludeKeywords ?? []);
+  const relatedPhrases = new Set<string>(getRelatedInterestTerms(normalizedQuery));
   for (const matchKeyword of matchKeywords) {
     phrases.add(matchKeyword);
   }
@@ -404,6 +425,13 @@ function buildInterestSearchProfile(
     }
   }
 
+  const relatedTokens = new Set<string>();
+  for (const phrase of relatedPhrases) {
+    for (const token of tokenizeText(phrase)) {
+      relatedTokens.add(token);
+    }
+  }
+
   return {
     conceptGroups: buildConceptGroups(normalizedQuery),
     excludeKeywords,
@@ -412,6 +440,8 @@ function buildInterestSearchProfile(
     normalizedQuery,
     rawQuery: query.trim(),
     phrases,
+    relatedPhrases,
+    relatedTokens,
     tokens,
     wordCount: tokenizeText(normalizedQuery).size,
   };
@@ -435,6 +465,7 @@ function buildStorySearchProfile(story: StoryEmbeddingShape): StorySearchProfile
   const entityValues = collectConceptPhrases([...story.primary_entities, ...entityTokens, ...structuredValues]);
   const sourceValues = collectConceptPhrases(sourceTitles);
   const tagValues = collectConceptPhrases(story.tags);
+  const relatedInterestValues = collectConceptPhrases(story.related_interest_signals);
   const titleTerms = createTermSet(titleValues);
   const summaryTerms = createTermSet(summaryValues);
   const topicTerms = createTermSet(topicValues);
@@ -448,6 +479,7 @@ function buildStorySearchProfile(story: StoryEmbeddingShape): StorySearchProfile
   const entityTerms = createTermSet(entityValues);
   const sourceTerms = createTermSet(sourceValues);
   const tagTerms = createTermSet(tagValues);
+  const relatedInterestTerms = createTermSet(relatedInterestValues);
 
   return {
     allTerms: new Set<string>([
@@ -499,6 +531,8 @@ function buildStorySearchProfile(story: StoryEmbeddingShape): StorySearchProfile
     tagTerms,
     titleTerms,
     topicTerms,
+    relatedInterestTerms,
+    relatedInterestText: normalizeInterestQuery([...story.related_interest_signals, ...relatedInterestValues].join(" ")),
   };
 }
 
@@ -578,6 +612,8 @@ function buildMatchReasons(options: {
   entityMatches: number;
   exactPhraseMatch: boolean;
   expandedPhraseMatches: number;
+  interestRelationMatch: boolean;
+  relatedInterestMatch: boolean;
   semanticSimilarity: number;
   sourceMatches: number;
   tagMatches: number;
@@ -616,6 +652,12 @@ function buildMatchReasons(options: {
   }
   if (options.sourceMatches > 0) {
     reasons.push("Source titles");
+  }
+  if (options.interestRelationMatch) {
+    reasons.push("Interest relation");
+  }
+  if (options.relatedInterestMatch) {
+    reasons.push("Related interest signal");
   }
   if (options.semanticSimilarity >= 0.22) {
     reasons.push("Semantic similarity");
@@ -675,6 +717,7 @@ export function buildStoryEmbeddingInput(story: StoryEmbeddingShape) {
     ...story.tags,
     ...structuredValues,
   ]);
+  const relatedInterestValues = collectConceptPhrases(story.related_interest_signals);
 
   return uniqueNonEmpty([
     `Headline ${story.title}`,
@@ -690,8 +733,10 @@ export function buildStoryEmbeddingInput(story: StoryEmbeddingShape) {
     ...story.sports_teams.map((value) => `Sports team ${value}`),
     ...story.offices.map((value) => `Office ${value}`),
     ...story.facets.map((value) => `Facet ${value}`),
+    ...story.related_interest_signals.map((value) => `Related interest ${value}`),
     ...sourceTitles.map((sourceTitle) => `Source ${sourceTitle}`),
     ...conceptPhrases,
+    ...relatedInterestValues,
   ]).join("\n");
 }
 
@@ -761,8 +806,12 @@ function scoreInterestAgainstStory(
 
   const semanticSimilarity = interestEmbedding && storyEmbedding ? cosineSimilarity(interestEmbedding, storyEmbedding) : 0;
   const exactPhraseMatch = storyProfile.allText.includes(interestProfile.normalizedQuery);
+  const relatedExactPhraseMatch = storyProfile.relatedInterestText.includes(interestProfile.normalizedQuery);
   const expandedPhraseMatches = [...interestProfile.phrases]
     .filter((phrase) => phrase !== interestProfile.normalizedQuery && phrase.includes(" ") && storyProfile.allText.includes(phrase))
+    .length;
+  const interestRelationPhraseMatches = [...interestProfile.relatedPhrases]
+    .filter((phrase) => phrase.includes(" ") && storyProfile.allText.includes(phrase))
     .length;
   const titleMatches = countSharedTerms(interestProfile.tokens, storyProfile.titleTerms);
   const topicMatches = countSharedTerms(interestProfile.tokens, storyProfile.topicTerms);
@@ -771,6 +820,8 @@ function scoreInterestAgainstStory(
   const sourceMatches = countSharedTerms(interestProfile.tokens, storyProfile.sourceTerms);
   const tagMatches = countSharedTerms(interestProfile.tokens, storyProfile.tagTerms);
   const allMatches = countSharedTerms(interestProfile.tokens, storyProfile.allTerms);
+  const interestRelationTermMatches = countSharedTerms(interestProfile.relatedTokens, storyProfile.allTerms);
+  const relatedInterestMatches = countSharedTerms(interestProfile.tokens, storyProfile.relatedInterestTerms);
   const coveredConceptGroups = countCoveredConceptGroups(interestProfile.conceptGroups, storyProfile.allTerms);
   const coveredConceptLabels = getCoveredConceptLabels(interestProfile.conceptGroups, storyProfile.allTerms);
   const coveredIntentDimensions = getCoveredIntentDimensions(interestProfile.intentDimensions, storyProfile);
@@ -788,7 +839,7 @@ function scoreInterestAgainstStory(
   const overlapRatio = allMatches / Math.max(2, Math.min(interestProfile.tokens.size, interestProfile.wordCount <= 2 ? 5 : 7));
   const matchedKeywordHits = interestProfile.matchKeywords.filter((keyword) => storyProfile.allText.includes(keyword));
   const hasRequiredMatchKeywords = interestProfile.matchKeywords.length === 0 || matchedKeywordHits.length > 0;
-  const hybridScore =
+  const directHybridScore =
     semanticSimilarity
     + (exactPhraseMatch ? 0.2 : 0)
     + Math.min(expandedPhraseMatches, 2) * 0.08
@@ -802,6 +853,12 @@ function scoreInterestAgainstStory(
     + (hasRequiredIntentCoverage && requiredIntentDimensionCount > 0 ? 0.1 : 0)
     + Math.min(matchedKeywordHits.length, 2) * 0.15
     + Math.min(interestProfile.wordCount <= 2 ? 0.22 : 0.16, overlapRatio * (interestProfile.wordCount <= 2 ? 0.3 : 0.18));
+  const hybridScore =
+    directHybridScore
+    + Math.min(interestRelationPhraseMatches, 2) * 0.05
+    + Math.min(interestRelationTermMatches, 3) * 0.025
+    + (relatedExactPhraseMatch ? 0.12 : 0)
+    + Math.min(relatedInterestMatches, 2) * 0.06;
   const shortInterest = interestProfile.wordCount <= 2;
   const noEmbedding = !interestEmbedding;
   const semanticFloor = shortInterest ? Math.max(0.12, similarityThreshold - 0.04) : similarityThreshold;
@@ -832,28 +889,41 @@ function scoreInterestAgainstStory(
       || (topicMatches > 0 && (entityMatches > 0 || titleMatches > 0 || tagMatches > 0))
       || (allMatches >= (shortInterest ? 3 : 4))
     );
+  const directMatch =
+    structuredOnlyMatch
+    || (
+      strongSemantic
+      && hasRequiredMatchKeywords
+      && hasRequiredIntentCoverage
+      && (!needsCompoundCoverage || hasCompoundCoverage || semanticSimilarity >= 0.32)
+      && directHybridScore >= minimumHybridScore
+    )
+    || (
+      (semanticSimilarity >= semanticFloor || structuredSignal)
+      && directHybridScore >= minimumHybridScore
+      && hasRequiredMatchKeywords
+      && hasRequiredIntentCoverage
+    );
+  const relatedMatch =
+    !directMatch
+    && hasRequiredMatchKeywords
+    && (
+      interestRelationPhraseMatches > 0
+      || interestRelationTermMatches >= (shortInterest ? 1 : 2)
+      || relatedExactPhraseMatch
+      || (relatedInterestMatches >= (shortInterest ? 1 : 2) && hybridScore >= (shortInterest ? 0.26 : 0.24))
+    );
 
   return {
-    matched:
-      structuredOnlyMatch
-      || (
-        strongSemantic
-        && hasRequiredMatchKeywords
-        && hasRequiredIntentCoverage
-        && (!needsCompoundCoverage || hasCompoundCoverage || semanticSimilarity >= 0.32)
-      )
-      || (
-        (semanticSimilarity >= semanticFloor || structuredSignal)
-        && hybridScore >= minimumHybridScore
-        && hasRequiredMatchKeywords
-        && hasRequiredIntentCoverage
-      ),
+    matched: directMatch || relatedMatch,
     reasons: buildMatchReasons({
       coveredConceptLabels,
       coveredIntentLabels,
       entityMatches,
       exactPhraseMatch,
       expandedPhraseMatches,
+      interestRelationMatch: interestRelationPhraseMatches > 0 || interestRelationTermMatches > 0,
+      relatedInterestMatch: relatedExactPhraseMatch || relatedInterestMatches > 0,
       semanticSimilarity,
       sourceMatches,
       tagMatches,
@@ -861,6 +931,7 @@ function scoreInterestAgainstStory(
       topicMatches,
     }),
     score: hybridScore,
+    tier: directMatch ? "direct" : "related",
   };
 }
 
@@ -1105,7 +1176,7 @@ export async function getSemanticStoryMatchesForUser(
           const storyProfile = storyProfiles.get(row.storyId);
           if (!storyProfile) return null;
 
-          const { matched, reasons, score } = scoreInterestAgainstStory(
+          const { matched, reasons, score, tier } = scoreInterestAgainstStory(
             interest.embedding,
             interest.profile,
             row.embedding,
@@ -1119,9 +1190,10 @@ export async function getSemanticStoryMatchesForUser(
             reasons,
             score,
             storyId: row.storyId,
+            tier,
           };
         })
-        .filter((row): row is { reasons: string[]; score: number; storyId: string } => Boolean(row))
+        .filter((row): row is { reasons: string[]; score: number; storyId: string; tier: "direct" | "related" } => Boolean(row))
         .sort((left, right) => right.score - left.score)
         .slice(0, matchCountPerInterest);
 

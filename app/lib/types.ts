@@ -39,6 +39,7 @@ export type Story = {
   beacon_position?: BriefingPosition | null;
   beacon_order?: number | null;
   beacon_headline?: string | null;
+  beacon_summary?: string | null;
   created_at?: string;
   updated_at?: string;
   content_updated_at?: string;
@@ -53,6 +54,7 @@ export type Story = {
   sports_teams: string[];
   offices: string[];
   facets: string[];
+  related_interest_signals: string[];
   related_story_ids: string[];
 
   // legacy / optional

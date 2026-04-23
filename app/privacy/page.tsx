@@ -30,13 +30,13 @@ export const metadata: Metadata = {
   },
 };
 
-const LAST_UPDATED = "April 12, 2026";
+const LAST_UPDATED = "April 23, 2026";
 
 const sections = [
   {
     title: "Overview",
     paragraphs: [
-      "The Beacon is a news site. This Privacy Policy explains what information may be collected when you visit the site, read stories, use reactions, create an account, comment, vote, report comments, or interact with other site features.",
+      "The Beacon is a news site. This Privacy Policy explains what information may be collected when you visit the site, read stories, use reactions, create an account, follow interests or stories, comment, vote, report comments, enable notifications, or interact with other site features.",
       "This policy applies to the public-facing pages of The Beacon, including optional reader accounts and related account-management pages.",
     ],
   },
@@ -45,19 +45,21 @@ const sections = [
     paragraphs: [
       "We collect a small amount of information automatically to operate the site, understand usage, and prevent abuse.",
       "Browser storage. The site saves your pinned tabs and active tab in your browser's local storage so your preferences persist between visits. The site also uses session storage to avoid sending repeated view-count requests for the same story during a single browsing session.",
-      "Account information. If you create an account, the site stores the email address you provide, your chosen username, and related account records such as followed stories, seen-story history, comment history, comment votes, reports, and notification preferences tied to that account.",
+      "Account information. If you create an account, the site stores the email address you provide, your chosen username, and related account records such as followed stories, followed interests, seen-story history, comment history, comment votes, reports, hidden interest-story matches, and notification preferences tied to that account.",
+      "Interest controls. If you use the Following and interests tools, the site may store the interests you add, normalized versions of those interests, any include or exclude keywords you save, and feedback such as hiding a matched story for a specific interest.",
       "Account session cookie. When you log in, the site sets a first-party cookie so it can recognize your authenticated session and keep your account page available between page loads.",
       "Site cookie for engagement controls. When you view a story or use reactions, the site may set a first-party cookie named `signal_vid`. That cookie stores a random viewer identifier so the site can reduce duplicate counts and remember whether a reaction appears to come from the same browser over time when you are not signed in.",
       "Basic request data. When a view or reaction request reaches the server, the app reads limited request metadata such as a truncated IP-address bucket and a shortened user-agent string. The app hashes this information before using it to create abuse-prevention and counting keys.",
       "Reaction data. If you tap a reaction on a story while signed out, the selected reaction and a hashed viewer key associated with your browser may be stored so the site can show totals and your current selection. If you react while signed in, the selected reaction may be stored with your account instead so that reaction state can follow you across devices.",
       "Comment and community data. If you comment or reply, the site stores the comment text, timestamps, the story it belongs to, and any edits or deletion state associated with that comment. If you vote on comments or report them, the site stores those actions so it can show discussion ranking, moderation state, and your current vote.",
+      "Notification data. If you enable browser notifications while signed in, the site may store your push-subscription details, including an endpoint and associated encryption keys, so it can deliver web push notifications to that browser. The site may also store account notification records such as alerts about replies, moderation activity, or story updates.",
       "Analytics data. The site uses Vercel Web Analytics to receive aggregated traffic information such as page views and general information about visitors, like referrers, country, browser, operating system, and device type. Based on Vercel's published documentation as of March 4, 2025 and September 24, 2025, this analytics product is designed to use anonymized data and not use cookies.",
     ],
   },
   {
     title: "How We Use Information",
     paragraphs: [
-      "We use information to operate the site, render stories, remember your tab preferences, authenticate account holders, show followed stories and account history, remember which briefing stories a signed-in reader has already seen, count story views more accurately, power reactions, power comments and replies, show comment votes and ranking, support moderation and abuse prevention, send account notifications, understand which pages are being used, and improve the editorial product over time.",
+      "We use information to operate the site, render stories, remember your tab preferences, authenticate account holders, personalize your Following feed, show followed stories and account history, remember which briefing stories a signed-in reader has already seen, count story views more accurately, power reactions, power comments and replies, show comment votes and ranking, support moderation and abuse prevention, send account and browser notifications when enabled, understand which pages are being used, and improve the editorial product over time.",
       "We do not use the current public site to build advertising audiences or sell subscriber lists.",
     ],
   },
@@ -72,8 +74,8 @@ const sections = [
   {
     title: "Cookies, Local Storage, and Similar Tools",
     paragraphs: [
-      "The Beacon currently uses a mix of first-party browser storage, first-party cookies, realtime browser subscriptions, and service-provider analytics.",
-      "Local storage keys are used for saved tab preferences and limited client-side interface state. Session storage is used for temporary per-session view tracking in your browser. The `beacon_account` cookie is used to maintain signed-in account sessions, and the `signal_vid` cookie is used by the site to help manage view and reaction integrity. Vercel Web Analytics is also enabled at the app level.",
+      "The Beacon currently uses a mix of first-party browser storage, first-party cookies, realtime browser subscriptions, push-notification subscriptions, and service-provider analytics.",
+      "Local storage keys are used for saved tab preferences and limited client-side interface state. Session storage is used for temporary per-session view tracking in your browser. The `beacon_account` cookie is used to maintain signed-in account sessions, and the `signal_vid` cookie is used by the site to help manage view and reaction integrity. If you enable web push, your browser may also keep a service-worker registration and push subscription. Vercel Web Analytics is also enabled at the app level.",
       "You can usually remove or block cookies and local storage through your browser settings. If you do, some site behavior, such as saved tabs or engagement counting, may stop working as intended.",
     ],
   },

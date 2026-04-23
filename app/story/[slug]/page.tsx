@@ -273,7 +273,7 @@ export default async function StoryPage({
                 className="h-auto w-[156px] md:w-[184px]"
               />
             </Link>
-            <p className="mt-1 text-[11px] text-neutral-500 md:text-xs">Multi-source news. Clear perspective.</p>
+            <p className="mt-1 text-[11px] text-neutral-500 md:text-xs">One Story, Multiple Perspectives.</p>
           </div>
           <div className="justify-self-end">
             {isAdmin ? (

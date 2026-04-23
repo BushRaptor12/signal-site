@@ -214,6 +214,9 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
             <Link href="/admin/briefing" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
               Briefing manager
             </Link>
+            <Link href="/admin/coverage" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
+              Coverage editor
+            </Link>
             <Link href="#reader-interests" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
               Reader interests
             </Link>

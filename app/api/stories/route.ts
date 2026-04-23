@@ -70,6 +70,20 @@ function sanitizeSearchTerm(value: string | null) {
   return (value ?? "").replace(/[,%]/g, " ").trim();
 }
 
+function normalizeRelatedStoryIds(value: unknown, storyId: string) {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const id of toStringArray(value)) {
+    const trimmed = id.trim();
+    if (!trimmed || trimmed === storyId || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+
+  return normalized;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = supabaseServer();
@@ -82,7 +96,9 @@ export async function GET(request: NextRequest) {
     let query = supabase.from("stories").select("*").in("status", statuses);
 
     if (searchTerm) {
-      query = query.or(`title.ilike.%${searchTerm}%,id.ilike.%${searchTerm}%,beacon_headline.ilike.%${searchTerm}%`);
+      query = query.or(
+        `title.ilike.%${searchTerm}%,id.ilike.%${searchTerm}%,beacon_headline.ilike.%${searchTerm}%,beacon_summary.ilike.%${searchTerm}%`
+      );
     }
 
     query = query.order("updated_at", { ascending: false, nullsFirst: false }).order("created_at", {
@@ -123,7 +139,7 @@ export async function POST(req: Request) {
       .from("stories")
       .select(
         "title, date, topics, tags, entities, primary_entities, related_story_ids, beacon_include, beacon_lead_style, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, image_focus_x, image_focus_y, image_display, image_show_on_homepage, image_show_on_briefing, image_show_on_story_page, content_updated_at, updated_at, created_at, urgent"
-        + ", locations, organizations, people, industries, sports_teams, offices, facets"
+        + ", locations, organizations, people, industries, sports_teams, offices, facets, related_interest_signals, beacon_headline, beacon_summary"
       )
       .eq("id", String(incoming.id))
       .maybeSingle();
@@ -135,6 +151,8 @@ export async function POST(req: Request) {
       beacon_rank?: number | null;
       beacon_position?: BriefingPosition | null;
       beacon_order?: number | null;
+      beacon_headline?: string | null;
+      beacon_summary?: string | null;
       summary?: unknown;
       sources?: unknown;
       locations?: unknown;
@@ -144,6 +162,7 @@ export async function POST(req: Request) {
       sports_teams?: unknown;
       offices?: unknown;
       facets?: unknown;
+      related_interest_signals?: unknown;
       image_path?: string | null;
       image_focus_x?: number | null;
       image_focus_y?: number | null;
@@ -169,6 +188,8 @@ export async function POST(req: Request) {
     const storyStatus = toStoryStatus(incoming.status);
     const normalizedSummary = toStringArray(incoming.summary);
     const normalizedSources = toSources(incoming.sources);
+    const normalizedRelatedStoryIds = normalizeRelatedStoryIds(incoming.related_story_ids, String(incoming.id));
+    const previousRelatedStoryIds = normalizeRelatedStoryIds(existing?.related_story_ids, String(incoming.id));
     const normalizedImagePath = toNullableString(incoming.image_path);
     let normalizedImageDisplay =
       incoming.image_display === undefined ? toNullableImageDisplay(existing?.image_display) : toNullableImageDisplay(incoming.image_display);
@@ -212,7 +233,7 @@ export async function POST(req: Request) {
       JSON.stringify(toStringArray(existing.tags)) !== JSON.stringify(toStringArray(incoming.tags)) ||
       JSON.stringify(toEntities(existing.entities)) !== JSON.stringify(toEntities(incoming.entities)) ||
       JSON.stringify(toStringArray(existing.primary_entities)) !== JSON.stringify(toStringArray(incoming.primary_entities)) ||
-      JSON.stringify(toStringArray(existing.related_story_ids)) !== JSON.stringify(toStringArray(incoming.related_story_ids)) ||
+      JSON.stringify(previousRelatedStoryIds) !== JSON.stringify(normalizedRelatedStoryIds) ||
       JSON.stringify(toStringArray(existing.locations)) !== JSON.stringify(toStringArray(incoming.locations)) ||
       JSON.stringify(toStringArray(existing.organizations)) !== JSON.stringify(toStringArray(incoming.organizations)) ||
       JSON.stringify(toStringArray(existing.people)) !== JSON.stringify(toStringArray(incoming.people)) ||
@@ -220,6 +241,7 @@ export async function POST(req: Request) {
       JSON.stringify(toStringArray(existing.sports_teams)) !== JSON.stringify(toStringArray(incoming.sports_teams)) ||
       JSON.stringify(toStringArray(existing.offices)) !== JSON.stringify(toStringArray(incoming.offices)) ||
       JSON.stringify(toStringArray(existing.facets)) !== JSON.stringify(toStringArray(incoming.facets)) ||
+      JSON.stringify(toStringArray(existing.related_interest_signals)) !== JSON.stringify(toStringArray(incoming.related_interest_signals)) ||
       toNullableString(existing.image_path) !== normalizedImagePath ||
       toNullableImageDisplay(existing.image_display) !== normalizedImageDisplay ||
       Boolean(existing.image_show_on_homepage ?? true) !== imageShowOnHomepage ||
@@ -307,7 +329,8 @@ export async function POST(req: Request) {
       sports_teams: toStringArray(incoming.sports_teams),
       offices: toStringArray(incoming.offices),
       facets: toStringArray(incoming.facets),
-      related_story_ids: toStringArray(incoming.related_story_ids),
+      related_interest_signals: toStringArray(incoming.related_interest_signals),
+      related_story_ids: normalizedRelatedStoryIds,
       comments: Number(incoming.comments ?? 0),
       urgent: Boolean(incoming.urgent),
       pinned: Boolean(incoming.pinned),
@@ -317,12 +340,58 @@ export async function POST(req: Request) {
       beacon_position: beaconPosition,
       beacon_order: beaconOrder,
       beacon_headline: toNullableString(incoming.beacon_headline),
+      beacon_summary: toNullableString(incoming.beacon_summary),
       updated_at: nowIso,
       content_updated_at: contentUpdatedAt,
     };
 
     const { error } = await supabase.from("stories").upsert(story, { onConflict: "id" });
     if (error) throw error;
+
+    const impactedRelatedStoryIds = Array.from(new Set([...previousRelatedStoryIds, ...normalizedRelatedStoryIds]));
+    if (impactedRelatedStoryIds.length > 0) {
+      const { data: impactedRows, error: impactedError } = await supabase
+        .from("stories")
+        .select("*")
+        .in("id", impactedRelatedStoryIds);
+      if (impactedError) throw impactedError;
+
+      const impactedStories = ((impactedRows ?? []) as StoryDbRow[]).map(coerceStory);
+      for (const impactedStory of impactedStories) {
+        const currentRelatedIds = normalizeRelatedStoryIds(impactedStory.related_story_ids, impactedStory.id);
+        const shouldIncludeStory = normalizedRelatedStoryIds.includes(impactedStory.id);
+        const nextRelatedIds = shouldIncludeStory
+          ? Array.from(new Set([...currentRelatedIds, story.id]))
+          : currentRelatedIds.filter((id) => id !== story.id);
+
+        if (JSON.stringify(currentRelatedIds) === JSON.stringify(nextRelatedIds)) continue;
+
+        const reciprocalUpdatedAt = new Date().toISOString();
+        const reciprocalStory = {
+          ...impactedStory,
+          related_story_ids: nextRelatedIds,
+          updated_at: reciprocalUpdatedAt,
+          content_updated_at: reciprocalUpdatedAt,
+        };
+
+        const { error: reciprocalError } = await supabase
+          .from("stories")
+          .update({
+            related_story_ids: nextRelatedIds,
+            updated_at: reciprocalUpdatedAt,
+            content_updated_at: reciprocalUpdatedAt,
+          })
+          .eq("id", impactedStory.id);
+        if (reciprocalError) throw reciprocalError;
+
+        await recordStoryRevision({
+          action: "saved",
+          actorUserId: admin.userId,
+          snapshot: reciprocalStory as StoryDbRow,
+          storyId: impactedStory.id,
+        });
+      }
+    }
 
     if (contentChanged) {
       await upsertStoryEmbeddingRecord(story.id, {
@@ -336,6 +405,7 @@ export async function POST(req: Request) {
         primary_entities: story.primary_entities,
         sources: story.sources,
         sports_teams: story.sports_teams,
+        related_interest_signals: story.related_interest_signals,
         summary: story.summary,
         tags: story.tags,
         title: story.title,

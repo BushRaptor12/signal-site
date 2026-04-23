@@ -64,6 +64,10 @@ function normalizeStructuredList(value: string) {
     .filter(Boolean);
 }
 
+function formatStructuredList(values: string[]) {
+  return values.join("\n");
+}
+
 type EditorSectionProps = {
   title: string;
   description?: string;
@@ -117,17 +121,27 @@ export default function EditorPage() {
   const [beaconInclude, setBeaconInclude] = useState(false);
   const [beaconLeadStyle, setBeaconLeadStyle] = useState<BriefingLeadStyle>("default");
   const [beaconHeadline, setBeaconHeadline] = useState("");
+  const [beaconSummary, setBeaconSummary] = useState("");
   const [summary, setSummary] = useState<string[]>(blankSummary());
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
   const [primaryEntities, setPrimaryEntities] = useState<string[]>([]);
-  const [locations, setLocations] = useState<string[]>([]);
-  const [organizations, setOrganizations] = useState<string[]>([]);
-  const [people, setPeople] = useState<string[]>([]);
-  const [industries, setIndustries] = useState<string[]>([]);
-  const [sportsTeams, setSportsTeams] = useState<string[]>([]);
-  const [offices, setOffices] = useState<string[]>([]);
-  const [facets, setFacets] = useState<string[]>([]);
+  const [, setLocations] = useState<string[]>([]);
+  const [locationsDraft, setLocationsDraft] = useState("");
+  const [, setOrganizations] = useState<string[]>([]);
+  const [organizationsDraft, setOrganizationsDraft] = useState("");
+  const [, setPeople] = useState<string[]>([]);
+  const [peopleDraft, setPeopleDraft] = useState("");
+  const [, setIndustries] = useState<string[]>([]);
+  const [industriesDraft, setIndustriesDraft] = useState("");
+  const [, setSportsTeams] = useState<string[]>([]);
+  const [sportsTeamsDraft, setSportsTeamsDraft] = useState("");
+  const [, setOffices] = useState<string[]>([]);
+  const [officesDraft, setOfficesDraft] = useState("");
+  const [, setFacets] = useState<string[]>([]);
+  const [facetsDraft, setFacetsDraft] = useState("");
+  const [, setRelatedInterestSignals] = useState<string[]>([]);
+  const [relatedInterestSignalsDraft, setRelatedInterestSignalsDraft] = useState("");
   const [relatedStoryIds, setRelatedStoryIds] = useState<string[]>([]);
   const [relatedStorySearch, setRelatedStorySearch] = useState("");
   const [sources, setSources] = useState<SourceEditorRow[]>(blankSources());
@@ -222,17 +236,27 @@ export default function EditorPage() {
     setBeaconInclude(false);
     setBeaconLeadStyle("default");
     setBeaconHeadline("");
+    setBeaconSummary("");
     setSummary(blankSummary());
     setTopics([]);
     setSelectedEntities([]);
     setPrimaryEntities([]);
     setLocations([]);
+    setLocationsDraft("");
     setOrganizations([]);
+    setOrganizationsDraft("");
     setPeople([]);
+    setPeopleDraft("");
     setIndustries([]);
+    setIndustriesDraft("");
     setSportsTeams([]);
+    setSportsTeamsDraft("");
     setOffices([]);
+    setOfficesDraft("");
     setFacets([]);
+    setFacetsDraft("");
+    setRelatedInterestSignals([]);
+    setRelatedInterestSignalsDraft("");
     setRelatedStoryIds([]);
     setRelatedStorySearch("");
     setSources(blankSources());
@@ -261,17 +285,27 @@ export default function EditorPage() {
     setBeaconInclude(story.beacon_include);
     setBeaconLeadStyle(story.beacon_lead_style === "alert" ? "alert" : "default");
     setBeaconHeadline(story.beacon_headline ?? "");
+    setBeaconSummary(story.beacon_summary ?? "");
     setSummary([...story.summary, "", "", ""].slice(0, Math.max(3, story.summary.length)));
     setTopics(story.topics);
     setSelectedEntities(story.entities.map((entity) => entity.name));
     setPrimaryEntities(story.primary_entities);
     setLocations(story.locations);
+    setLocationsDraft(formatStructuredList(story.locations));
     setOrganizations(story.organizations);
+    setOrganizationsDraft(formatStructuredList(story.organizations));
     setPeople(story.people);
+    setPeopleDraft(formatStructuredList(story.people));
     setIndustries(story.industries);
+    setIndustriesDraft(formatStructuredList(story.industries));
     setSportsTeams(story.sports_teams);
+    setSportsTeamsDraft(formatStructuredList(story.sports_teams));
     setOffices(story.offices);
+    setOfficesDraft(formatStructuredList(story.offices));
     setFacets(story.facets);
+    setFacetsDraft(formatStructuredList(story.facets));
+    setRelatedInterestSignals(story.related_interest_signals);
+    setRelatedInterestSignalsDraft(formatStructuredList(story.related_interest_signals));
     setRelatedStoryIds(story.related_story_ids);
     setRelatedStorySearch("");
     setSources(story.sources.length > 0 ? story.sources.map(toEditorSource) : blankSources());
@@ -367,6 +401,7 @@ export default function EditorPage() {
         activeStoryId,
         beaconHeadline,
         beaconInclude,
+        beaconSummary,
         date,
         imageDisplay,
         imageFocusX,
@@ -376,19 +411,20 @@ export default function EditorPage() {
         imageShowOnBriefing,
         imageShowOnHomepage,
         imageShowOnStoryPage,
-        industries,
+        industriesDraft,
         pinnedStory,
-        facets,
-        locations,
-        offices,
-        organizations,
-        people,
+        facetsDraft,
+        locationsDraft,
+        officesDraft,
+        organizationsDraft,
+        peopleDraft,
         primaryEntities,
+        relatedInterestSignalsDraft,
         relatedStoryIds,
         selectedEntities,
         slugInput,
         sources,
-        sportsTeams,
+        sportsTeamsDraft,
         status,
         summary,
         title,
@@ -399,6 +435,7 @@ export default function EditorPage() {
       activeStoryId,
       beaconHeadline,
       beaconInclude,
+      beaconSummary,
       date,
       imageDisplay,
       imageFocusX,
@@ -408,19 +445,20 @@ export default function EditorPage() {
       imageShowOnBriefing,
       imageShowOnHomepage,
       imageShowOnStoryPage,
-      industries,
+      industriesDraft,
       pinnedStory,
-      facets,
-      locations,
-      offices,
-      organizations,
-      people,
+      facetsDraft,
+      locationsDraft,
+      officesDraft,
+      organizationsDraft,
+      peopleDraft,
       primaryEntities,
+      relatedInterestSignalsDraft,
       relatedStoryIds,
       selectedEntities,
       slugInput,
       sources,
-      sportsTeams,
+      sportsTeamsDraft,
       status,
       summary,
       title,
@@ -601,6 +639,13 @@ export default function EditorPage() {
     setPendingKnowledgeAutofill(true);
 
     try {
+      const currentLocations = normalizeStructuredList(locationsDraft);
+      const currentOrganizations = normalizeStructuredList(organizationsDraft);
+      const currentPeople = normalizeStructuredList(peopleDraft);
+      const currentIndustries = normalizeStructuredList(industriesDraft);
+      const currentSportsTeams = normalizeStructuredList(sportsTeamsDraft);
+      const currentOffices = normalizeStructuredList(officesDraft);
+      const currentFacets = normalizeStructuredList(facetsDraft);
       const refreshedSources = await Promise.all(
         sources.map(async (source) => {
           if (!source.url.trim() || source.title.trim()) {
@@ -627,13 +672,13 @@ export default function EditorPage() {
 
       const inferred = inferStoryKnowledge({
         current: {
-          facets,
-          industries,
-          locations,
-          offices,
-          organizations,
-          people,
-          sports_teams: sportsTeams,
+          facets: currentFacets,
+          industries: currentIndustries,
+          locations: currentLocations,
+          offices: currentOffices,
+          organizations: currentOrganizations,
+          people: currentPeople,
+          sports_teams: currentSportsTeams,
         },
         entityNames: selectedEntities,
         primaryEntities,
@@ -645,12 +690,19 @@ export default function EditorPage() {
       });
 
       setLocations(inferred.locations);
+      setLocationsDraft(formatStructuredList(inferred.locations));
       setOrganizations(inferred.organizations);
+      setOrganizationsDraft(formatStructuredList(inferred.organizations));
       setPeople(inferred.people);
+      setPeopleDraft(formatStructuredList(inferred.people));
       setIndustries(inferred.industries);
+      setIndustriesDraft(formatStructuredList(inferred.industries));
       setSportsTeams(inferred.sports_teams);
+      setSportsTeamsDraft(formatStructuredList(inferred.sports_teams));
       setOffices(inferred.offices);
+      setOfficesDraft(formatStructuredList(inferred.offices));
       setFacets(inferred.facets);
+      setFacetsDraft(formatStructuredList(inferred.facets));
 
       showNotice("Story knowledge suggestions filled from the draft and source article titles.", "success");
     } catch (knowledgeError) {
@@ -777,6 +829,14 @@ export default function EditorPage() {
 
   async function onSave() {
     const cleanedSummary = summary.map((line) => line.trim()).filter(Boolean);
+    const cleanedLocations = normalizeStructuredList(locationsDraft);
+    const cleanedOrganizations = normalizeStructuredList(organizationsDraft);
+    const cleanedPeople = normalizeStructuredList(peopleDraft);
+    const cleanedIndustries = normalizeStructuredList(industriesDraft);
+    const cleanedSportsTeams = normalizeStructuredList(sportsTeamsDraft);
+    const cleanedOffices = normalizeStructuredList(officesDraft);
+    const cleanedFacets = normalizeStructuredList(facetsDraft);
+    const cleanedRelatedInterestSignals = normalizeStructuredList(relatedInterestSignalsDraft);
     const cleanedSources = sources
       .map((source) => ({
         badge: (source.badge ?? "").trim() || null,
@@ -787,6 +847,7 @@ export default function EditorPage() {
       }))
       .filter((source) => source.name && source.url);
     const trimmedBeaconHeadline = beaconHeadline.trim();
+    const trimmedBeaconSummary = beaconSummary.trim();
     const nextStoryId = activeStoryId ?? normalizeStoryIdInput(slugInput || generatedId);
 
     if (!title.trim()) {
@@ -830,27 +891,29 @@ export default function EditorPage() {
       beacon_include: beaconInclude,
       beacon_lead_style: beaconLeadStyle,
       beacon_headline: trimmedBeaconHeadline || null,
+      beacon_summary: trimmedBeaconSummary || null,
       topics: topics.map(normalize),
       entities: storyEntities,
       primary_entities: primaryEntities,
-      locations,
-      organizations,
-      people,
-      industries,
-      sports_teams: sportsTeams,
-      offices,
-      facets,
+      locations: cleanedLocations,
+      organizations: cleanedOrganizations,
+      people: cleanedPeople,
+      industries: cleanedIndustries,
+      sports_teams: cleanedSportsTeams,
+      offices: cleanedOffices,
+      facets: cleanedFacets,
+      related_interest_signals: cleanedRelatedInterestSignals,
       related_story_ids: relatedStoryIds,
       tags: [
         ...topics.map(normalize),
         ...selectedEntities.map(normalize),
-        ...locations.map(normalize),
-        ...organizations.map(normalize),
-        ...people.map(normalize),
-        ...industries.map(normalize),
-        ...sportsTeams.map(normalize),
-        ...offices.map(normalize),
-        ...facets.map(normalize),
+        ...cleanedLocations.map(normalize),
+        ...cleanedOrganizations.map(normalize),
+        ...cleanedPeople.map(normalize),
+        ...cleanedIndustries.map(normalize),
+        ...cleanedSportsTeams.map(normalize),
+        ...cleanedOffices.map(normalize),
+        ...cleanedFacets.map(normalize),
       ],
       comments: 0,
     };
@@ -877,6 +940,14 @@ export default function EditorPage() {
     setImageUrl(json.story?.image_url ?? imageUrl);
     setImagePath(json.story?.image_path ?? imagePath ?? null);
     setSavedImagePath(json.story?.image_path ?? imagePath ?? null);
+    setLocations(cleanedLocations);
+    setOrganizations(cleanedOrganizations);
+    setPeople(cleanedPeople);
+    setIndustries(cleanedIndustries);
+    setSportsTeams(cleanedSportsTeams);
+    setOffices(cleanedOffices);
+    setFacets(cleanedFacets);
+    setRelatedInterestSignals(cleanedRelatedInterestSignals);
     setPendingDelete(false);
     setPendingBaselineSync(true);
     showNotice(`Saved ${story.status === "published" ? "published" : story.status} story: ${story.id}`, "success");
@@ -1440,8 +1511,20 @@ export default function EditorPage() {
               />
             </div>
 
+            <div className="mt-4">
+              <label className="block text-sm text-neutral-300 mb-2">Briefing Summary</label>
+              <textarea
+                value={beaconSummary}
+                onChange={(e) => setBeaconSummary(e.target.value)}
+                disabled={!beaconInclude}
+                rows={3}
+                className="w-full resize-y px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg disabled:opacity-50"
+                placeholder="Optional alternate summary. Leave blank to use the first story summary bullet."
+              />
+            </div>
+
             <p className="mt-3 text-xs text-neutral-500">
-              Placement is now handled in the briefing manager. Leave the headline blank to reuse the main story title.
+              Placement is now handled in the briefing manager. Leave the headline or summary blank to reuse the story title and first summary bullet.
             </p>
           </div>
               </EditorSection>
@@ -1493,8 +1576,8 @@ export default function EditorPage() {
               <div>
                 <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Locations</div>
                 <textarea
-                  value={locations.join("\n")}
-                  onChange={(e) => setLocations(normalizeStructuredList(e.target.value))}
+                  value={locationsDraft}
+                  onChange={(e) => setLocationsDraft(e.target.value)}
                   rows={4}
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
                   placeholder={"California\nLos Angeles\nAnaheim"}
@@ -1503,8 +1586,8 @@ export default function EditorPage() {
               <div>
                 <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">People</div>
                 <textarea
-                  value={people.join("\n")}
-                  onChange={(e) => setPeople(normalizeStructuredList(e.target.value))}
+                  value={peopleDraft}
+                  onChange={(e) => setPeopleDraft(e.target.value)}
                   rows={4}
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
                   placeholder={"Kamala Harris\nEric Swalwell"}
@@ -1513,8 +1596,8 @@ export default function EditorPage() {
               <div>
                 <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Organizations</div>
                 <textarea
-                  value={organizations.join("\n")}
-                  onChange={(e) => setOrganizations(normalizeStructuredList(e.target.value))}
+                  value={organizationsDraft}
+                  onChange={(e) => setOrganizationsDraft(e.target.value)}
                   rows={4}
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
                   placeholder={"Federal Reserve\nOpenAI"}
@@ -1523,8 +1606,8 @@ export default function EditorPage() {
               <div>
                 <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Industries</div>
                 <textarea
-                  value={industries.join("\n")}
-                  onChange={(e) => setIndustries(normalizeStructuredList(e.target.value))}
+                  value={industriesDraft}
+                  onChange={(e) => setIndustriesDraft(e.target.value)}
                   rows={4}
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
                   placeholder={"Artificial intelligence\nBanking"}
@@ -1533,8 +1616,8 @@ export default function EditorPage() {
               <div>
                 <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Sports Teams</div>
                 <textarea
-                  value={sportsTeams.join("\n")}
-                  onChange={(e) => setSportsTeams(normalizeStructuredList(e.target.value))}
+                  value={sportsTeamsDraft}
+                  onChange={(e) => setSportsTeamsDraft(e.target.value)}
                   rows={4}
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
                   placeholder={"Los Angeles Angels\nGolden State Warriors"}
@@ -1543,8 +1626,8 @@ export default function EditorPage() {
               <div>
                 <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Offices</div>
                 <textarea
-                  value={offices.join("\n")}
-                  onChange={(e) => setOffices(normalizeStructuredList(e.target.value))}
+                  value={officesDraft}
+                  onChange={(e) => setOfficesDraft(e.target.value)}
                   rows={4}
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
                   placeholder={"Vice President\nGovernor"}
@@ -1554,12 +1637,25 @@ export default function EditorPage() {
             <div className="mt-4">
               <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Facets</div>
               <textarea
-                value={facets.join("\n")}
-                onChange={(e) => setFacets(normalizeStructuredList(e.target.value))}
+                value={facetsDraft}
+                onChange={(e) => setFacetsDraft(e.target.value)}
                 rows={3}
                 className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
                 placeholder={"Female politician\nCalifornia sports\nAI company"}
               />
+            </div>
+            <div className="mt-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Related Interest Signals</div>
+              <textarea
+                value={relatedInterestSignalsDraft}
+                onChange={(e) => setRelatedInterestSignalsDraft(e.target.value)}
+                rows={4}
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+                placeholder={"Ohio State\nMichigan\nGeorgia"}
+              />
+              <p className="mt-2 text-xs leading-5 text-neutral-500">
+                Hidden from readers. Use this for weaker Following matches when the story matters to an audience without naming them as a primary entity.
+              </p>
             </div>
           </div>
 
