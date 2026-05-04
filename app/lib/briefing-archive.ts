@@ -104,8 +104,20 @@ function archiveDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function archiveTimeKey(date: Date) {
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+  const milliseconds = String(date.getUTCMilliseconds()).padStart(3, "0");
+  return `${hours}${minutes}${seconds}${milliseconds}`;
+}
+
 export function briefingArchiveKey(date = new Date()) {
   return `${archiveDateKey(date)}-${archiveSlot(date)}`;
+}
+
+export function manualBriefingArchiveKey(date = new Date()) {
+  return `${briefingArchiveKey(date)}-manual-${archiveTimeKey(date)}`;
 }
 
 function snapshotFromLayout(layout: BriefingLayout, capturedAt: string): BriefingArchiveSnapshot {
@@ -172,9 +184,9 @@ export async function loadCurrentBriefingLayout() {
   };
 }
 
-export async function createBriefingArchiveSnapshot(now = new Date()) {
+export async function createBriefingArchiveSnapshot(now = new Date(), options: { manual?: boolean } = {}) {
   const capturedAt = now.toISOString();
-  const archive_key = briefingArchiveKey(now);
+  const archive_key = options.manual ? manualBriefingArchiveKey(now) : briefingArchiveKey(now);
   const slot = archiveSlot(now);
   const { briefingUpdatedAt, layout } = await loadCurrentBriefingLayout();
   const snapshot = snapshotFromLayout(layout, capturedAt);
@@ -195,7 +207,7 @@ export async function createBriefingArchiveSnapshot(now = new Date()) {
   }
 
   const previous = (previousRows ?? [])[0] as { archive_key?: string; content_hash?: string } | undefined;
-  if (previous?.archive_key !== archive_key && previous?.content_hash === nextHash) {
+  if (!options.manual && previous?.archive_key !== archive_key && previous?.content_hash === nextHash) {
     return {
       archiveKey: previous.archive_key ?? archive_key,
       created: false,

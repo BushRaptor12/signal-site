@@ -3,7 +3,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
 import AdaptiveBriefingImage from "@/app/briefing/adaptive-briefing-image";
-import { getAccountUserId, getSeenStoryIds } from "@/app/lib/account.server";
+import ManualArchiveButton from "@/app/briefing/manual-archive-button";
+import { getAccountProfileByUserId, getAccountUserId, getSeenStoryIds } from "@/app/lib/account.server";
 import { listBriefingArchives } from "@/app/lib/briefing-archive";
 import { formatStoryDate } from "@/app/lib/dates";
 import { buildBriefingLayout } from "@/app/lib/briefing-layout";
@@ -139,7 +140,17 @@ export default async function BriefingPage() {
 
     const stories = ((data ?? []) as StoryDbRow[]).map(coerceStory);
     const userId = await getAccountUserId();
-    const seenStoryIds = new Set(userId ? await getSeenStoryIds(userId, stories) : []);
+    let seenIds: string[] = [];
+    let isAdmin = false;
+    if (userId) {
+      const [nextSeenIds, accountProfile] = await Promise.all([
+        getSeenStoryIds(userId, stories),
+        getAccountProfileByUserId(userId),
+      ]);
+      seenIds = nextSeenIds;
+      isAdmin = Boolean(accountProfile?.isAdmin);
+    }
+    const seenStoryIds = new Set(seenIds);
     const latestUpdatedAt =
       metaError && /briefing_meta/i.test(metaError.message)
         ? null
@@ -181,8 +192,11 @@ export default async function BriefingPage() {
             <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
               <BackLink href="/" />
               <div className="flex-1" />
-              <div className="text-left text-xs text-neutral-500 sm:text-right sm:text-sm">
-                Updated: <LocalBriefingUpdated value={latestUpdatedAt} />
+              <div className="flex flex-col items-start gap-3 sm:items-end">
+                <div className="text-left text-xs text-neutral-500 sm:text-right sm:text-sm">
+                  Updated: <LocalBriefingUpdated value={latestUpdatedAt} />
+                </div>
+                {isAdmin ? <ManualArchiveButton /> : null}
               </div>
             </div>
           </header>
