@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/account/reset-password",
   },
+  robots: {
+    index: false,
+    follow: true,
+  },
   openGraph: {
     type: "website",
     url: "/account/reset-password",

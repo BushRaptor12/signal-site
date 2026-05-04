@@ -5,8 +5,8 @@ import BackLink from "@/app/back-link";
 import { getAccountProfile, getAccountStoryState, getSeenStoryIds } from "@/app/lib/account.server";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { imageObjectPosition } from "@/app/lib/image-focus";
-import { SITE_NAME, absoluteUrl, buildStoryMetadata, storyDescription, storyKeywords, storyModifiedTime, storyPublishedTime } from "@/app/lib/seo";
-import { PUBLIC_INSET_ELEVATED } from "@/app/lib/surfaces";
+import { SITE_NAME, absoluteUrl, breadcrumbJsonLd, buildStoryMetadata, storyDescription, storyKeywords, storyModifiedTime, storyPublishedTime } from "@/app/lib/seo";
+import { PUBLIC_INSET_ELEVATED, PUBLIC_PAGE } from "@/app/lib/surfaces";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
@@ -34,16 +34,6 @@ function leanBadgeClasses(lean: "Left" | "Center" | "Right") {
 
 function storyHref(id: string, from?: string) {
   return from ? `/story/${id}?from=${encodeURIComponent(from)}` : `/story/${id}`;
-}
-
-function publishedAtMs(story: StoryWithViews): number {
-  const created = new Date(story.created_at ?? "").getTime();
-  if (Number.isFinite(created) && created > 0) return created;
-
-  const dateOnly = new Date(story.date ?? "").getTime();
-  if (Number.isFinite(dateOnly) && dateOnly > 0) return dateOnly;
-
-  return 0;
 }
 
 function shouldShowStoryImageOnStoryPage(story: StoryWithViews) {
@@ -204,10 +194,10 @@ export default async function StoryPage({
 
   if (!story) {
     return (
-      <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
+      <main className={PUBLIC_PAGE}>
         <div className="max-w-3xl mx-auto">
           <BackLink href={backHref} />
-          <div className={`mt-10 ${PUBLIC_INSET_ELEVATED} p-8`}>
+          <div className={`mt-6 ${PUBLIC_INSET_ELEVATED} p-5 sm:mt-10 sm:p-8`}>
             <h1 className="text-2xl font-semibold">Story not found</h1>
             <p className="text-neutral-400 mt-2">
               {`This story is not available: ${slug}`}
@@ -251,16 +241,25 @@ export default async function StoryPage({
   };
 
   const storyLinks = [...relatedStories, ...otherRecentStories];
+  const breadcrumb = breadcrumbJsonLd([
+    { name: SITE_NAME, item: "/" },
+    { name: "Stories", item: "/" },
+    { name: story.title, item: `/story/${story.id}` },
+  ]);
 
   return (
-    <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
+    <main className={PUBLIC_PAGE}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
       <ViewTracker slug={slug} />
       <div className="mx-auto max-w-3xl">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 sm:grid-cols-[1fr_auto_1fr] sm:gap-4">
           <BackLink href={backHref} className="justify-self-start" />
           <div className="justify-self-center text-center">
             <Link href="/" aria-label="Go to The Beacon home page" className="inline-block">
@@ -270,16 +269,16 @@ export default async function StoryPage({
                 width={600}
                 height={140}
                 priority
-                className="h-auto w-[156px] md:w-[184px]"
+                className="h-auto w-[122px] sm:w-[156px] md:w-[184px]"
               />
             </Link>
-            <p className="mt-1 text-[11px] text-neutral-500 md:text-xs">One Story, Multiple Perspectives.</p>
+            <p className="mt-1 hidden text-[11px] text-neutral-500 sm:block md:text-xs">One Story, Multiple Perspectives.</p>
           </div>
           <div className="justify-self-end">
             {isAdmin ? (
               <Link
                 href={`/admin/editor?story=${encodeURIComponent(story.id)}`}
-                className="inline-flex rounded-full border border-[#8f7740]/60 bg-[#08131d] px-4 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0b1824]"
+                className="inline-flex min-h-10 rounded-full border border-[#8f7740]/60 bg-[#08131d] px-3 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0b1824] sm:px-4"
               >
                 Edit story
               </Link>
@@ -289,14 +288,18 @@ export default async function StoryPage({
       </div>
 
       <div
-        className="mx-auto mt-8 max-w-[100rem] xl:grid xl:grid-cols-[1fr_15rem_minmax(0,48rem)_15rem_1fr] xl:gap-6"
+        className="mx-auto mt-6 max-w-[100rem] sm:mt-8 xl:grid xl:grid-cols-[1fr_15rem_minmax(0,48rem)_15rem_1fr] xl:gap-6"
       >
         <div className="hidden xl:block" />
         <div className="hidden xl:block" />
 
         <div className="min-w-0 xl:col-start-3">
-          <article className="min-w-0 max-w-full rounded-[22px] border border-[#1d3952]/50 bg-[#081520]/88 p-8 shadow-[0_12px_28px_rgba(0,0,0,0.12)]">
-            <h1 className="text-3xl font-semibold leading-tight">{story.title}</h1>
+          <article className="min-w-0 max-w-full rounded-[18px] border border-[#1d3952]/50 bg-[#081520]/88 p-4 shadow-[0_12px_28px_rgba(0,0,0,0.12)] sm:rounded-[22px] sm:p-8">
+            <header className="border-b border-[#1a3349]/60 pb-5 sm:pb-6">
+              <h1 className="text-[2rem] font-semibold leading-[1.05] text-neutral-50 sm:text-[2.55rem]">
+                {story.title}
+              </h1>
+            </header>
 
             <div
               className={
@@ -325,12 +328,12 @@ export default async function StoryPage({
               <div
                 className={
                   shouldShowStoryImageOnStoryPage(story) && story.image_display === "contain"
-                    ? "min-w-0 flex-1 space-y-3 text-[1.05rem] text-neutral-200"
-                    : "space-y-3 text-[1.05rem] text-neutral-200"
+                    ? "min-w-0 flex-1 space-y-3.5 text-[1.02rem] text-neutral-200 sm:text-[1.08rem]"
+                    : "space-y-3.5 text-[1.02rem] text-neutral-200 sm:text-[1.08rem]"
                 }
               >
                 {story.summary.map((point, i) => (
-                  <p key={i} className="leading-8">
+                  <p key={i} className="leading-7 sm:leading-8">
                     {point}
                   </p>
                 ))}
@@ -343,20 +346,21 @@ export default async function StoryPage({
               </div>
             </div>
 
-            <section className="mt-7 border-t border-[#1a3349]/60 pt-5">
+            <section className="mt-8 border-t border-[#1a3349]/60 pt-5">
+              <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Sources</div>
               <div className="space-y-3">
                 {story.sources.map((src, i) => (
                   <a
                     key={i}
                     href={src.url}
                     target="_blank"
-                    rel="noreferrer"
-                    className="group block rounded-[14px] border border-[#214765]/70 bg-[#0a1926] p-5 transition hover:-translate-y-0.5 hover:border-[#30516d] hover:bg-[#0c1d2b]"
+                    rel="noopener noreferrer"
+                    className="group block rounded-[14px] border border-[#214765]/70 bg-[#0a1926] p-4 transition hover:-translate-y-0.5 hover:border-[#30516d] hover:bg-[#0c1d2b] sm:p-5"
                   >
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
                       <div className="min-w-0 flex-1">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <div className="min-w-0 text-[1.05rem] font-semibold text-neutral-100">{src.name}</div>
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <div className="min-w-0 text-[1.08rem] font-semibold text-neutral-50">{src.name}</div>
                           {src.badge ? (
                             <span className="shrink-0 rounded-full border border-[#8f7740]/55 bg-[#8f7740]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e3cca0]">
                               {src.badge}
@@ -367,7 +371,7 @@ export default async function StoryPage({
                           {src.title ? (
                             <SourceTitle
                               title={src.title}
-                              className="block text-[15px] leading-6 text-neutral-300 transition group-hover:text-neutral-200"
+                              className="block text-[15px] leading-6 text-neutral-300 transition group-hover:text-neutral-100"
                             />
                           ) : (
                             <div className="text-[15px] leading-6 text-neutral-400 transition group-hover:text-neutral-300">
@@ -376,11 +380,14 @@ export default async function StoryPage({
                           )}
                         </div>
                       </div>
-                      <div className="flex shrink-0 flex-col items-center text-center">
+                      <div className="flex shrink-0 flex-row items-center gap-3 text-center sm:flex-col sm:items-end sm:gap-2">
                         <span className={`rounded-full px-2 py-1 text-xs ${leanBadgeClasses(src.lean)}`}>
                           {src.lean}
                         </span>
-                        <div className="mt-2 text-[15px] text-neutral-500 transition group-hover:text-neutral-300">Read -&gt;</div>
+                        <div className="inline-flex min-h-8 items-center rounded-full border border-[#1c3953]/70 px-3 text-[13px] font-semibold text-neutral-300 transition group-hover:border-[#8f7740]/55 group-hover:text-white">
+                          Read
+                          <span className="ml-1.5" aria-hidden="true">-&gt;</span>
+                        </div>
                       </div>
                     </div>
                   </a>
@@ -388,7 +395,7 @@ export default async function StoryPage({
               </div>
             </section>
 
-            <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-[#1a3349]/60 pt-4">
+            <div className="mt-8 flex flex-col items-stretch justify-between gap-4 border-t border-[#1a3349]/60 pt-4 sm:flex-row sm:flex-wrap sm:items-center">
               <StoryEngagementSummary
                 key={story.id}
                 initialCommentCount={story.comments}

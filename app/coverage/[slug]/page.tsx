@@ -10,8 +10,14 @@ import {
 } from "@/app/lib/coverage-hubs";
 import { getCoverageHub as getStoredCoverageHub } from "@/app/lib/coverage-hubs.server";
 import { formatStoryDate } from "@/app/lib/dates";
-import { DEFAULT_OG_IMAGE, SITE_NAME, absoluteUrl, trimDescription } from "@/app/lib/seo";
-import { PUBLIC_INSET_ELEVATED, PUBLIC_INSET_ELEVATED_INTERACTIVE, PUBLIC_PANEL } from "@/app/lib/surfaces";
+import { DEFAULT_OG_IMAGE, SITE_NAME, absoluteUrl, breadcrumbJsonLd, trimDescription } from "@/app/lib/seo";
+import {
+  PUBLIC_INSET_ELEVATED,
+  PUBLIC_INSET_ELEVATED_INTERACTIVE,
+  PUBLIC_PAGE,
+  PUBLIC_PANEL,
+  PUBLIC_PANEL_PADDING,
+} from "@/app/lib/surfaces";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
@@ -123,9 +129,17 @@ export default async function CoverageHubPage({
   if (!hub) {
     notFound();
   }
+  const breadcrumb = breadcrumbJsonLd([
+    { name: SITE_NAME, item: "/" },
+    { name: hub.title, item: `/coverage/${hub.slug}` },
+  ]);
 
   return (
-    <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
+    <main className={PUBLIC_PAGE}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
       <div className="mx-auto max-w-6xl">
         <div className="flex items-center justify-between gap-4">
           <BackLink href="/" />
@@ -137,11 +151,11 @@ export default async function CoverageHubPage({
           </Link>
         </div>
 
-        <section className={`${PUBLIC_PANEL} mt-8 overflow-hidden p-8`}>
+        <section className={`${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING} mt-8 overflow-hidden`}>
           <div className="max-w-4xl">
             <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d7c08d]">{hub.eyebrow}</div>
             <div className="mt-3 text-sm uppercase tracking-[0.18em] text-neutral-500">{hub.dateLabel}</div>
-            <h1 className="mt-4 text-4xl font-semibold leading-tight text-neutral-100 md:text-6xl">{hub.title}</h1>
+            <h1 className="mt-4 text-[2rem] font-semibold leading-tight text-neutral-100 sm:text-4xl md:text-6xl">{hub.title}</h1>
             <p className="mt-4 max-w-3xl text-lg leading-8 text-neutral-300">{hub.dek}</p>
           </div>
 
@@ -150,10 +164,10 @@ export default async function CoverageHubPage({
         <section className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,1.5fr)_minmax(18rem,0.9fr)]">
           <div className="space-y-8">
             {hub.heroStory ? (
-              <article className={`${PUBLIC_PANEL} p-8`}>
+              <article className={`${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
                 <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">Featured Story</div>
                 <Link href={`/story/${hub.heroStory.id}`} className="mt-4 block">
-                  <h2 className="text-3xl font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d] md:text-5xl">
+                  <h2 className="text-[1.8rem] font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d] sm:text-3xl md:text-5xl">
                     {hub.heroStory.title}
                   </h2>
                 </Link>
@@ -168,7 +182,7 @@ export default async function CoverageHubPage({
                 ) : null}
               </article>
             ) : (
-              <div className={`${PUBLIC_PANEL} p-8`}>
+              <div className={`${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
                 <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">Featured Story</div>
                 <p className="mt-4 text-sm leading-6 text-neutral-400">
                   A featured story will appear here as this coverage develops.

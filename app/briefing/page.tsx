@@ -4,9 +4,10 @@ import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
 import AdaptiveBriefingImage from "@/app/briefing/adaptive-briefing-image";
 import { getAccountUserId, getSeenStoryIds } from "@/app/lib/account.server";
+import { listBriefingArchives } from "@/app/lib/briefing-archive";
 import { formatStoryDate } from "@/app/lib/dates";
 import { buildBriefingLayout } from "@/app/lib/briefing-layout";
-import { DEFAULT_OG_IMAGE, SITE_NAME, trimDescription } from "@/app/lib/seo";
+import { DEFAULT_OG_IMAGE, SITE_NAME, breadcrumbJsonLd, trimDescription } from "@/app/lib/seo";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
@@ -101,10 +102,10 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
           <Link
             key={story.id}
             href={`/story/${story.id}?from=briefing`}
-            className="relative flex flex-col justify-start rounded-[12px] border border-[#183149]/65 bg-[#07131e] p-6 text-left shadow-[0_16px_34px_rgba(0,0,0,0.2)] transition hover:border-[#28445d]"
+            className="relative flex flex-col justify-start rounded-[12px] border border-[#183149]/65 bg-[#07131e] p-4 text-left shadow-[0_16px_34px_rgba(0,0,0,0.2)] transition hover:border-[#28445d] sm:p-6"
           >
             <div className={seen ? "flex flex-col justify-start opacity-90" : "flex flex-col justify-start"}>
-              <div className="text-[1.85rem] font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d]">
+              <div className="text-[1.35rem] font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d] sm:text-[1.85rem]">
                 {displayHeadline(story)}
               </div>
               <StoryMetaRow story={story} />
@@ -146,11 +147,20 @@ export default async function BriefingPage() {
     const { lead, leftColumn, rightColumn } = buildBriefingLayout(stories);
     const leadUsesAlertStyle = lead?.beacon_lead_style === "alert";
     const leadSummaryPoints = lead ? displayLeadBriefingSummaryPoints(lead) : [];
+    const latestArchive = (await listBriefingArchives(1).catch(() => []))[0] ?? null;
+    const breadcrumb = breadcrumbJsonLd([
+      { name: SITE_NAME, item: "/" },
+      { name: "The Briefing", item: "/briefing" },
+    ]);
 
     return (
-      <main className="min-h-screen bg-transparent p-8 text-neutral-100">
+      <main className="min-h-screen bg-transparent px-3 py-5 text-neutral-100 sm:px-5 sm:py-7 lg:p-8">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        />
         <div className="mx-auto max-w-6xl">
-          <div className="mb-8 flex justify-center">
+          <div className="mb-6 flex justify-center sm:mb-8">
             <div className="flex flex-col items-center text-center">
               <Link href="/" aria-label="Go to The Beacon home page">
                 <Image
@@ -159,27 +169,27 @@ export default async function BriefingPage() {
                   width={1920}
                   height={1080}
                   priority
-                  className="h-auto w-full max-w-[420px] md:max-w-[520px]"
+                  className="h-auto w-full max-w-[300px] sm:max-w-[420px] md:max-w-[520px]"
                 />
               </Link>
-              <p className="mt-3 text-neutral-400">One Story, Multiple Perspectives.</p>
-              <div className="mt-8 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80" />
+              <p className="mt-2 text-sm text-neutral-400 sm:mt-3 sm:text-base">One Story, Multiple Perspectives.</p>
+              <div className="mt-5 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80 sm:mt-8" />
             </div>
           </div>
 
-          <header className="mb-8">
-            <div className="flex items-center justify-between gap-4">
+          <header className="mb-6 sm:mb-8">
+            <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
               <BackLink href="/" />
               <div className="flex-1" />
-              <div className="text-right text-sm text-neutral-500">
+              <div className="text-left text-xs text-neutral-500 sm:text-right sm:text-sm">
                 Updated: <LocalBriefingUpdated value={latestUpdatedAt} />
               </div>
             </div>
           </header>
 
           {!lead ? (
-            <div className="mt-8 rounded-2xl border border-[#183149]/65 bg-[#07131e] px-6 py-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.3)]">
-              <h2 className="text-3xl font-semibold text-neutral-100">Nothing queued yet</h2>
+            <div className="mt-8 rounded-2xl border border-[#183149]/65 bg-[#07131e] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.3)] sm:px-6 sm:py-10">
+              <h2 className="text-2xl font-semibold text-neutral-100 sm:text-3xl">Nothing queued yet</h2>
               <p className="mt-3 text-base text-neutral-400">
                 Mark stories in the editor with `Show this story in The Briefing` to publish them here.
               </p>
@@ -188,7 +198,7 @@ export default async function BriefingPage() {
             <>
               <Link
                 href={`/story/${lead.id}?from=briefing`}
-                className={`relative block overflow-hidden rounded-[14px] border bg-[#07131e] p-8 shadow-[0_20px_46px_rgba(0,0,0,0.22)] transition ${
+                className={`relative block overflow-hidden rounded-[14px] border bg-[#07131e] p-4 shadow-[0_20px_46px_rgba(0,0,0,0.22)] transition sm:p-6 lg:p-8 ${
                   leadUsesAlertStyle
                     ? "border-red-500/55 hover:border-red-400"
                     : "border-[#183149]/70 hover:border-[#28445d]"
@@ -196,8 +206,8 @@ export default async function BriefingPage() {
               >
                 <div className={`relative text-center ${seenStoryIds.has(lead.id) ? "opacity-90" : ""}`}>
                   <div
-                    className={`font-semibold leading-[0.95] transition md:text-6xl ${
-                      leadUsesAlertStyle ? "text-4xl text-red-400 hover:text-red-300" : "text-[2.9rem] text-neutral-100 hover:text-[#d7c08d]"
+                    className={`font-semibold leading-tight transition md:text-6xl lg:leading-[0.95] ${
+                      leadUsesAlertStyle ? "text-3xl text-red-500 hover:text-red-400 sm:text-4xl" : "text-[2rem] text-neutral-100 hover:text-[#d7c08d] sm:text-[2.9rem]"
                     }`}
                   >
                     {displayHeadline(lead)}
@@ -205,7 +215,7 @@ export default async function BriefingPage() {
                   <StoryMetaRow story={lead} />
 
                   {leadSummaryPoints.length > 0 ? (
-                    <div className="mx-auto mt-5 max-w-4xl space-y-3 text-lg leading-8 text-neutral-300">
+                    <div className="mx-auto mt-4 max-w-4xl space-y-3 text-base leading-7 text-neutral-300 sm:mt-5 sm:text-lg sm:leading-8">
                       {leadSummaryPoints.map((point, index) => (
                         <p key={`${lead.id}-summary-${index}`}>{point}</p>
                       ))}
@@ -224,6 +234,17 @@ export default async function BriefingPage() {
               ) : null}
             </>
           )}
+
+          {latestArchive ? (
+            <div className="mt-10 flex justify-center border-t border-[#163754]/50 pt-6">
+              <Link
+                href="/briefing/archive"
+                className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-600 underline decoration-[#35556f]/45 underline-offset-4 transition hover:text-neutral-300 hover:decoration-[#8f7740]/65"
+              >
+                View briefing archive
+              </Link>
+            </div>
+          ) : null}
         </div>
       </main>
     );
@@ -231,8 +252,8 @@ export default async function BriefingPage() {
     const message = error instanceof Error ? error.message : String(error);
 
     return (
-      <main className="min-h-screen bg-transparent p-8 text-neutral-100">
-        <div className="mx-auto max-w-4xl rounded-2xl border border-[#183149]/65 bg-[#07131e] p-8 shadow-[0_24px_60px_rgba(0,0,0,0.3)]">
+      <main className="min-h-screen bg-transparent px-3 py-5 text-neutral-100 sm:px-5 sm:py-7 lg:p-8">
+        <div className="mx-auto max-w-4xl rounded-2xl border border-[#183149]/65 bg-[#07131e] p-5 shadow-[0_24px_60px_rgba(0,0,0,0.3)] sm:p-8">
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">The Briefing</div>
           <h1 className="mt-3 text-3xl font-semibold text-neutral-100">Could not load stories</h1>
           <p className="mt-3 text-neutral-400">{message}</p>

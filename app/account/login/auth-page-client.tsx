@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { PUBLIC_PANEL } from "@/app/lib/surfaces";
+import { PUBLIC_PAGE, PUBLIC_PAGE_TITLE, PUBLIC_PANEL, PUBLIC_PANEL_PADDING } from "@/app/lib/surfaces";
 import PageBrandHeader from "@/app/page-brand-header";
 
 type Mode = "login" | "signup";
@@ -73,14 +73,14 @@ export default function AuthPageClient() {
   const copy = MODE_COPY[mode];
 
   return (
-    <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
+    <main className={PUBLIC_PAGE}>
       <div className="mx-auto max-w-4xl">
         <PageBrandHeader backHref="/" />
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-          <section className={`${PUBLIC_PANEL} p-8`}>
+          <section className={`${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
             <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">{copy.eyebrow}</div>
-            <h1 className="mt-3 text-4xl font-semibold text-neutral-100">
+            <h1 className={PUBLIC_PAGE_TITLE}>
               {mode === "login" ? "Log in to your account" : "Create your account"}
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-neutral-300">{copy.blurb}</p>
@@ -179,7 +179,7 @@ export default function AuthPageClient() {
             </form>
           </section>
 
-          <aside className={`${PUBLIC_PANEL} p-8`}>
+          <aside className={`${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
             <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Reader account</div>
             <h2 className="mt-3 text-2xl font-semibold text-neutral-100">What you get</h2>
             <div className="mt-6 space-y-4 text-sm leading-7 text-neutral-300">

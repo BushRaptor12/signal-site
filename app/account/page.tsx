@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { getAccountDashboard, getAccountUserId } from "@/app/lib/account.server";
 import { DEFAULT_OG_IMAGE, SITE_NAME } from "@/app/lib/seo";
-import { PUBLIC_INSET, PUBLIC_INSET_INTERACTIVE, PUBLIC_PANEL } from "@/app/lib/surfaces";
+import { PUBLIC_INSET, PUBLIC_INSET_INTERACTIVE, PUBLIC_PAGE, PUBLIC_PAGE_TITLE, PUBLIC_PANEL, PUBLIC_PANEL_PADDING } from "@/app/lib/surfaces";
 import PageBrandHeader from "@/app/page-brand-header";
 import AccountCommentsHistory from "./account-comments-history";
 
@@ -13,6 +13,10 @@ export const metadata: Metadata = {
   description: "Your Beacon account.",
   alternates: {
     canonical: "/account",
+  },
+  robots: {
+    index: false,
+    follow: true,
   },
   openGraph: {
     type: "website",
@@ -52,13 +56,13 @@ export default async function AccountPage() {
 
   if (!account) {
     return (
-      <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
+      <main className={PUBLIC_PAGE}>
         <div className="mx-auto max-w-4xl">
           <PageBrandHeader backHref="/" />
 
-          <div className={`mt-8 ${PUBLIC_PANEL} p-8`}>
+          <div className={`mt-8 ${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
             <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Account</div>
-            <h1 className="mt-3 text-4xl font-semibold text-neutral-100">We could not load your account</h1>
+            <h1 className={PUBLIC_PAGE_TITLE}>We could not load your account</h1>
             <p className="mt-6 text-base leading-7 text-neutral-300">{message ?? "Please try again in a moment."}</p>
             <Link
               href="/account/settings"
@@ -73,15 +77,15 @@ export default async function AccountPage() {
   }
 
   return (
-    <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
+    <main className={PUBLIC_PAGE}>
       <div className="mx-auto max-w-5xl">
         <PageBrandHeader backHref="/" />
 
-        <section className={`mt-8 ${PUBLIC_PANEL} p-8`}>
+        <section className={`mt-8 ${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div>
               <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Account</div>
-              <h1 className="mt-3 text-4xl font-semibold text-neutral-100">{account.profile.username}</h1>
+              <h1 className={PUBLIC_PAGE_TITLE}>{account.profile.username}</h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-neutral-300">
                 Reader profile for followed interests, tracked stories, comment history, and settings.
               </p>
@@ -108,7 +112,7 @@ export default async function AccountPage() {
         </section>
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-          <section className={`${PUBLIC_PANEL} p-8`}>
+          <section className={`${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Following</div>
@@ -179,7 +183,7 @@ export default async function AccountPage() {
             </div>
           </section>
 
-          <section className={`${PUBLIC_PANEL} p-8`}>
+          <section className={`${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
             <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Comments</div>
@@ -195,7 +199,7 @@ export default async function AccountPage() {
         </div>
 
         {account.profile.isAdmin ? (
-          <section className={`mt-8 ${PUBLIC_PANEL} p-8`}>
+          <section className={`mt-8 ${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Admin</div>

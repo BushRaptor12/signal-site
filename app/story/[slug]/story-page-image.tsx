@@ -57,6 +57,7 @@ export default function StoryPageImage({
               <img
                 src={src}
                 alt={alt}
+                decoding="async"
                 loading="lazy"
                 className="block max-h-[36rem] max-w-full rounded-[12px] object-contain"
               />

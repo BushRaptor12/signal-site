@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
-import { DEFAULT_OG_IMAGE, SITE_NAME } from "@/app/lib/seo";
-import { PUBLIC_PANEL } from "@/app/lib/surfaces";
+import { DEFAULT_OG_IMAGE, SITE_NAME, breadcrumbJsonLd } from "@/app/lib/seo";
+import { PUBLIC_PAGE, PUBLIC_PAGE_TITLE, PUBLIC_PANEL, PUBLIC_PANEL_PADDING } from "@/app/lib/surfaces";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -131,14 +131,23 @@ const sections = [
 ] as const;
 
 export default function PrivacyPage() {
+  const breadcrumb = breadcrumbJsonLd([
+    { name: SITE_NAME, item: "/" },
+    { name: "Privacy Policy", item: "/privacy" },
+  ]);
+
   return (
-    <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
+    <main className={PUBLIC_PAGE}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
       <div className="mx-auto max-w-4xl">
         <BackLink href="/" />
 
-        <div className={`mt-8 ${PUBLIC_PANEL} p-8`}>
+        <div className={`mt-8 ${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Privacy Policy</div>
-          <h1 className="mt-3 text-4xl font-semibold text-neutral-100">How The Beacon handles information</h1>
+          <h1 className={PUBLIC_PAGE_TITLE}>How The Beacon handles information</h1>
           <p className="mt-4 text-sm text-neutral-400">Last updated: {LAST_UPDATED}</p>
           <p className="mt-6 text-base leading-7 text-neutral-300">
             This Privacy Policy describes how The Beacon currently handles information and should be read together with any
@@ -150,7 +159,7 @@ export default function PrivacyPage() {
           {sections.map((section) => (
             <section
               key={section.title}
-              className={`${PUBLIC_PANEL} p-8`}
+              className={`${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}
             >
               <h2 className="text-2xl font-semibold text-neutral-100">{section.title}</h2>
               <div className="mt-4 space-y-4 text-base leading-7 text-neutral-300">

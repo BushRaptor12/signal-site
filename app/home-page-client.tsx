@@ -655,26 +655,27 @@ export default function HomePageClient({
   }, [activeTab, visible, visibleCount]);
 
   return (
-    <main className="min-h-screen bg-transparent p-8 text-neutral-100">
-      <div className="mx-auto mb-8 max-w-5xl">
+    <main className="min-h-screen bg-transparent px-3 py-5 text-neutral-100 sm:px-5 sm:py-7 lg:p-8">
+      <h1 className="sr-only">The Beacon</h1>
+      <div className="mx-auto mb-6 max-w-5xl sm:mb-8">
         <div className="flex flex-col items-center text-center">
           <Link href="/" aria-label="Go to The Beacon home page">
             <Image
               src="/psbeacon.png"
-              alt="The Briefing"
+              alt="The Beacon"
               width={1920}
               height={1080}
               priority
-              className="h-auto w-full max-w-[420px] md:max-w-[520px]"
+              className="h-auto w-full max-w-[300px] sm:max-w-[420px] md:max-w-[520px]"
             />
           </Link>
-          <p className="mt-3 text-neutral-400">One Story, Multiple Perspectives.</p>
+          <p className="mt-2 text-sm text-neutral-400 sm:mt-3 sm:text-base">One Story, Multiple Perspectives.</p>
         </div>
-        <div className="mt-8 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80" />
-        <div className="mt-6 flex justify-center">
+        <div className="mt-5 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80 sm:mt-8" />
+        <div className="mt-5 flex justify-center sm:mt-6">
           <Link
             href="/briefing"
-            className="inline-flex min-w-[260px] justify-center rounded-2xl border border-[#8f7740]/70 bg-[var(--surface)] px-8 py-4 text-base font-semibold text-neutral-100 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#b89a55] hover:bg-[#07101a] hover:text-white"
+            className="inline-flex min-h-12 w-full justify-center rounded-2xl border border-[#8f7740]/70 bg-[var(--surface)] px-6 py-3.5 text-base font-semibold text-neutral-100 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#b89a55] hover:bg-[#07101a] hover:text-white sm:min-w-[260px] sm:w-auto sm:px-8 sm:py-4"
           >
             Read The Briefing
           </Link>
@@ -683,7 +684,7 @@ export default function HomePageClient({
 
       <div className="mx-auto mb-6 max-w-5xl">
         <div className="border-b border-[#163754]/70">
-          <div className="flex items-center gap-6 overflow-x-auto pb-1">
+          <div className="-mx-3 flex items-center gap-5 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:mx-0 sm:gap-6 sm:px-0 [&::-webkit-scrollbar]:hidden">
           {[...BUILTIN_TAB_KEYS, ...PRESET_TOPIC_TABS].map((tab) => (
             <button
               key={tab}
@@ -704,9 +705,9 @@ export default function HomePageClient({
 
       <div className="mx-auto mb-6 max-w-5xl">
         {activeTab === "following" ? (
-          <div className="flex min-h-[44px] items-center justify-between gap-4">
+          <div className="flex min-h-[44px] flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
-              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 sm:text-sm sm:tracking-[0.18em]">Tracking:</div>
               {trackingStories.map((story) => (
                 <Link
                   key={story.id}
@@ -722,16 +723,16 @@ export default function HomePageClient({
             {accountAuthenticated ? (
               <Link
                 href="/account/interests"
-                className="inline-flex shrink-0 rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+                className="inline-flex min-h-11 shrink-0 rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2.5 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
               >
                 Manage interests
               </Link>
             ) : <div className="w-[150px]" />}
           </div>
         ) : activeTab === "popular" || activeTab === "recent" ? trackingStories.length > 0 ? (
-          <div className="flex min-h-[44px] items-center justify-between gap-4">
+          <div className="flex min-h-[44px] flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
-              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracking:</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 sm:text-sm sm:tracking-[0.18em]">Tracking:</div>
               {trackingStories.map((story) => (
                 <Link
                   key={story.id}
@@ -781,15 +782,15 @@ export default function HomePageClient({
         ) : null}
       </div>
 
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-5xl space-y-4 sm:space-y-6">
         {activeTab === "following" && loadingFollowState ? (
-          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
-            <h2 className="text-2xl font-semibold text-neutral-100">Loading stories...</h2>
+          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)] sm:p-10">
+            <h2 className="text-xl font-semibold text-neutral-100 sm:text-2xl">Loading stories...</h2>
             <p className="mt-3 text-neutral-400">Pulling together the latest coverage.</p>
           </div>
         ) : activeTab === "following" && !accountAuthenticated ? (
-          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
-            <h2 className="text-2xl font-semibold text-neutral-100">Log in to use Following</h2>
+          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)] sm:p-10">
+            <h2 className="text-xl font-semibold text-neutral-100 sm:text-2xl">Log in to use Following</h2>
             <p className="mt-3 text-neutral-400">
               Save interests from your interests page and track specific stories from their story pages.
             </p>
@@ -801,8 +802,8 @@ export default function HomePageClient({
             </Link>
           </div>
         ) : activeTab === "following" && followingStories.length === 0 ? (
-          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
-            <h2 className="text-2xl font-semibold text-neutral-100">Nothing followed yet</h2>
+          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)] sm:p-10">
+            <h2 className="text-xl font-semibold text-neutral-100 sm:text-2xl">Nothing followed yet</h2>
             <p className="mt-3 text-neutral-400">
               Add interests from your interests page or track a story to populate this feed.
             </p>
@@ -814,8 +815,8 @@ export default function HomePageClient({
             </Link>
           </div>
         ) : visible.length === 0 ? (
-          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] p-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
-            <h2 className="text-2xl font-semibold text-neutral-100">No stories yet</h2>
+          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)] sm:p-10">
+            <h2 className="text-xl font-semibold text-neutral-100 sm:text-2xl">No stories yet</h2>
             <p className="mt-3 text-neutral-400">
               {activeTab === "recent"
                 ? "Check back soon for the latest stories."
@@ -845,7 +846,7 @@ export default function HomePageClient({
             return (
               <div key={story.id} className="mx-auto max-w-4xl">
                 <div
-                  className={`group relative overflow-hidden border bg-[#06131e] px-5 py-6 shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition md:px-7 ${
+                  className={`group relative overflow-hidden border bg-[#06131e] px-4 py-5 shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition sm:px-5 sm:py-6 md:px-7 ${
                     story.urgent
                       ? "border-red-500/55 hover:border-red-400"
                       : "border-[#183149]/65 hover:border-[#28445d]"
@@ -856,7 +857,7 @@ export default function HomePageClient({
                     onClick={() => persistHomeState()}
                     className="relative block"
                   >
-                    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-[#1d3b56]/75 pb-4">
+                    <div className="mb-4 flex flex-col items-center justify-between gap-2 border-b border-[#1d3b56]/75 pb-4 text-center sm:mb-5 sm:flex-row sm:text-left">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] uppercase tracking-[0.14em] text-neutral-400">
                         <span>{formatStoryDate(story.date)}</span>
                       </div>
@@ -870,16 +871,16 @@ export default function HomePageClient({
                         <h2
                           className={`mx-auto font-semibold tracking-tight text-neutral-50 ${
                             story.urgent
-                              ? "max-w-[42rem] text-3xl text-red-500 md:text-4xl"
+                              ? "max-w-[42rem] text-2xl leading-tight text-red-500 sm:text-3xl md:text-4xl"
                               : isLeadCard
-                                ? "max-w-[42rem] text-[2rem] leading-tight md:text-[2.35rem]"
-                                : "max-w-[40rem] text-[1.85rem] leading-tight"
+                                ? "max-w-[42rem] text-[1.6rem] leading-tight sm:text-[2rem] md:text-[2.35rem]"
+                                : "max-w-[40rem] text-[1.45rem] leading-tight sm:text-[1.85rem]"
                           }`}
                         >
                           {story.title}
                         </h2>
 
-                        <div className={`mx-auto mt-4 space-y-2.5 text-[15px] leading-7 text-neutral-300 ${isLeadCard ? "max-w-[42rem]" : "max-w-[40rem]"}`}>
+                        <div className={`mx-auto mt-3 space-y-2 text-[15px] leading-7 text-neutral-300 sm:mt-4 sm:space-y-2.5 ${isLeadCard ? "max-w-[42rem]" : "max-w-[40rem]"}`}>
                           {(story.summary ?? []).map((line, index) => (
                             <p key={index}>{line}</p>
                           ))}
@@ -930,6 +931,7 @@ export default function HomePageClient({
                             <img
                               src={story.image_url!}
                               alt={story.title}
+                              decoding="async"
                               loading="lazy"
                               className={`block max-w-full object-contain ${isLeadCard ? "max-h-[36rem]" : "max-h-[32rem]"}`}
                             />
@@ -938,8 +940,8 @@ export default function HomePageClient({
                           <div
                             className={`relative overflow-hidden ${
                               isLeadCard
-                                ? "aspect-[4/3] md:aspect-[16/11]"
-                                : "mx-auto w-full max-w-[40rem] aspect-[4/3] md:aspect-[16/10]"
+                                ? "aspect-[5/4] sm:aspect-[4/3] md:aspect-[16/11]"
+                                : "mx-auto aspect-[5/4] w-full max-w-[40rem] sm:aspect-[4/3] md:aspect-[16/10]"
                              }`}
                           >
                             <Image
@@ -968,7 +970,7 @@ export default function HomePageClient({
           <button
             type="button"
             onClick={() => setVisibleCount((count) => count + STORY_BATCH_SIZE)}
-            className="rounded-2xl border border-[#8f7740]/70 bg-[var(--surface)] px-8 py-4 text-base font-semibold text-neutral-100 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#b89a55] hover:bg-[#07101a] hover:text-white"
+            className="min-h-12 w-full rounded-2xl border border-[#8f7740]/70 bg-[var(--surface)] px-8 py-4 text-base font-semibold text-neutral-100 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#b89a55] hover:bg-[#07101a] hover:text-white sm:w-auto"
           >
             Read more
           </button>

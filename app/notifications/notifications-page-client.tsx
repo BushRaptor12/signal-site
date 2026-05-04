@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatUpdatedAt } from "@/app/lib/dates";
 import type { NotificationPreferences, SiteNotificationEntry } from "@/app/lib/notification-store";
-import { PUBLIC_INSET, PUBLIC_INSET_INTERACTIVE, PUBLIC_PANEL } from "@/app/lib/surfaces";
+import { PUBLIC_INSET, PUBLIC_INSET_INTERACTIVE, PUBLIC_PAGE, PUBLIC_PAGE_TITLE, PUBLIC_PANEL, PUBLIC_PANEL_PADDING } from "@/app/lib/surfaces";
 import { getExistingPushSubscription, isPushSupported, registerPushServiceWorker, urlBase64ToUint8Array } from "@/app/lib/push-client";
 import { NOTIFICATIONS_UPDATED_EVENT, emitNotificationsUpdated } from "@/app/lib/notification-store";
 import PageBrandHeader from "@/app/page-brand-header";
@@ -177,19 +177,19 @@ export default function NotificationsPageClient() {
   }
 
   return (
-    <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
+    <main className={PUBLIC_PAGE}>
       <div className="mx-auto max-w-4xl">
         <PageBrandHeader backHref="/" />
 
-        <div className={`mt-8 ${PUBLIC_PANEL} p-8`}>
+        <div className={`mt-8 ${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Notifications</div>
-          <h1 className="mt-3 text-4xl font-semibold text-neutral-100">Alerts and notification settings</h1>
+          <h1 className={PUBLIC_PAGE_TITLE}>Alerts and notification settings</h1>
           <p className="mt-6 text-base leading-7 text-neutral-300">
             Change your notification preferences and see recent alerts.
           </p>
         </div>
 
-        <section className={`mt-8 ${PUBLIC_PANEL} p-8`}>
+        <section className={`mt-8 ${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
           <h2 className="text-2xl font-semibold text-neutral-100">Preferences</h2>
           {!authenticated ? (
             <div className={`mt-6 ${PUBLIC_INSET} p-5 text-sm leading-7 text-neutral-400`}>
@@ -234,7 +234,7 @@ export default function NotificationsPageClient() {
           </p>
         </section>
 
-        <section className={`mt-8 ${PUBLIC_PANEL} p-8`}>
+        <section className={`mt-8 ${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-2xl font-semibold text-neutral-100">Recent notifications</h2>
             <div className="flex items-center gap-3">

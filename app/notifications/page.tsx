@@ -8,6 +8,10 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/notifications",
   },
+  robots: {
+    index: false,
+    follow: true,
+  },
   openGraph: {
     type: "website",
     url: "/notifications",

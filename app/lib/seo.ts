@@ -41,6 +41,19 @@ export function absoluteUrl(path = "/") {
   return new URL(path, getSiteUrl()).toString();
 }
 
+export function breadcrumbJsonLd(items: Array<{ item: string; name: string }>) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: absoluteUrl(item.item),
+    })),
+  };
+}
+
 export function trimDescription(value: string, maxLength = 160) {
   const cleaned = value.replace(/\s+/g, " ").trim();
   if (!cleaned) return SITE_DESCRIPTION;

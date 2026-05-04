@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
-import { DEFAULT_OG_IMAGE, SITE_NAME, trimDescription } from "@/app/lib/seo";
-import { PUBLIC_INSET, PUBLIC_INSET_ELEVATED, PUBLIC_PANEL } from "@/app/lib/surfaces";
+import { DEFAULT_OG_IMAGE, SITE_NAME, breadcrumbJsonLd, trimDescription } from "@/app/lib/seo";
+import { PUBLIC_INSET, PUBLIC_INSET_ELEVATED, PUBLIC_PAGE, PUBLIC_PAGE_TITLE, PUBLIC_PANEL, PUBLIC_PANEL_PADDING } from "@/app/lib/surfaces";
 
 const aboutDescription = trimDescription(
   "Learn how The Beacon uses ranked briefings, Following, special-event coverage, and community features to make staying informed easier."
@@ -75,14 +75,23 @@ export const metadata: Metadata = {
 };
 
 export default function AboutPage() {
+  const breadcrumb = breadcrumbJsonLd([
+    { name: SITE_NAME, item: "/" },
+    { name: "About", item: "/about" },
+  ]);
+
   return (
-    <main className="min-h-screen bg-transparent px-6 py-12 text-neutral-100">
+    <main className={PUBLIC_PAGE}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
       <div className="mx-auto max-w-4xl">
         <BackLink href="/" />
 
-        <div className={`mt-8 ${PUBLIC_PANEL} p-8`}>
+        <div className={`mt-8 ${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
           <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">About</div>
-          <h1 className="mt-3 text-4xl font-semibold text-neutral-100">About The Beacon</h1>
+          <h1 className={PUBLIC_PAGE_TITLE}>About The Beacon</h1>
           <p className="mt-6 text-base leading-7 text-neutral-300">
             The Beacon is a news site built around one simple idea: staying informed should feel clear, useful, and
             manageable. The goal is to help readers understand important stories quickly, return to the stories they

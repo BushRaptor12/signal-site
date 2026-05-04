@@ -31,6 +31,8 @@ export default function AdaptiveBriefingImage({ priority = false, story, variant
             <img
               src={story.image_url!}
               alt={alt}
+              decoding="async"
+              fetchPriority={priority ? "high" : "auto"}
               loading={priority ? "eager" : "lazy"}
               onLoad={(event) => updateAspectRatio(event.currentTarget)}
               className="mx-auto block max-h-[42rem] max-w-full object-contain"
@@ -47,6 +49,7 @@ export default function AdaptiveBriefingImage({ priority = false, story, variant
           <img
             src={story.image_url!}
             alt={alt}
+            decoding="async"
             loading="lazy"
             onLoad={(event) => updateAspectRatio(event.currentTarget)}
             className="mx-auto block max-h-[28rem] max-w-full object-contain"

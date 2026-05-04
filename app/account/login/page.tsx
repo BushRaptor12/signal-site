@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/account/login",
   },
+  robots: {
+    index: false,
+    follow: true,
+  },
   openGraph: {
     type: "website",
     url: "/account/login",

@@ -52,11 +52,32 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const adsense = getAdsenseConfig();
+  const siteUrl = getSiteUrl().toString();
+  const websiteJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: SITE_NAME,
+    url: siteUrl,
+    description: SITE_DESCRIPTION,
+    publisher: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: siteUrl,
+      logo: {
+        "@type": "ImageObject",
+        url: new URL("/small logo.png", siteUrl).toString(),
+      },
+    },
+  };
 
   return (
     <html lang="en">
       <head>
         {adsense ? <meta name="google-adsense-account" content={adsense.metaContent} /> : null}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+        />
       </head>
       <body className={`${inter.className} ${inter.variable} flex min-h-screen flex-col`}>
         <SiteUtilities />
