@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { requestHasAdminAccess } from "@/app/lib/admin.server";
-import { getAdminRssDiscoveryData, scanAdminRssFeeds } from "@/app/lib/rss-discovery";
+import { clearAdminRssItems, getAdminRssDiscoveryData, scanAdminRssFeeds } from "@/app/lib/rss-discovery";
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -28,8 +28,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = (await request.json().catch(() => ({}))) as { feedIds?: unknown; windowDays?: unknown };
+    const body = (await request.json().catch(() => ({}))) as { clearExisting?: unknown; feedIds?: unknown; windowDays?: unknown };
     const feedIds = Array.isArray(body.feedIds) ? body.feedIds.map(String) : undefined;
+    if (body.clearExisting === true) {
+      await clearAdminRssItems({ feedIds });
+    }
+
     const result = await scanAdminRssFeeds({ feedIds });
     const data = await getAdminRssDiscoveryData({ windowDays: Number(body.windowDays ?? 7) });
 

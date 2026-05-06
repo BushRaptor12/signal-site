@@ -192,6 +192,41 @@ export default function RssDiscoveryClient({ initialData }: RssDiscoveryClientPr
     }
   }
 
+  async function runCleanRescan() {
+    if (!window.confirm("Clear stored RSS items and rescan all enabled feeds? Your feed URL list will stay saved.")) {
+      return;
+    }
+
+    setBusyAction("clean-scan");
+    setNotice({ tone: "info", text: "Clearing stored items and rescanning feeds..." });
+
+    try {
+      const response = await fetch("/api/admin/rss-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clearExisting: true, windowDays: timeWindowDays }),
+      });
+      const json = (await response.json().catch(() => ({}))) as {
+        data?: AdminRssDiscoveryData;
+        error?: string;
+        result?: { feedCount: number; itemCount: number; newItemCount: number };
+      };
+      if (!response.ok || !json.data) {
+        throw new Error(json.error ?? "We couldn't rescan RSS feeds.");
+      }
+
+      syncData(json.data);
+      setNotice({
+        tone: "success",
+        text: `Cleared stored items and rescanned ${json.result?.feedCount ?? 0} feeds. Found ${json.result?.itemCount ?? 0} current items.`,
+      });
+    } catch (error) {
+      setNotice({ tone: "error", text: messageFromError(error, "We couldn't rescan RSS feeds.") });
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   function toggleSelectedSource(sourceId: string) {
     setSelectedSourceIds((prev) => {
       const next = new Set(prev);
@@ -383,6 +418,14 @@ export default function RssDiscoveryClient({ initialData }: RssDiscoveryClientPr
               className="rounded-full bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-900 transition disabled:cursor-wait disabled:opacity-70"
             >
               {busyAction === "scan" ? "Scanning..." : "Scan feeds"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void runCleanRescan()}
+              disabled={busyAction === "clean-scan"}
+              className="rounded-full border border-[#8f7740]/60 px-4 py-2 text-sm font-semibold text-[#e3cca0] transition hover:bg-[#8f7740]/10 disabled:cursor-wait disabled:opacity-70"
+            >
+              {busyAction === "clean-scan" ? "Rescanning..." : "Clear and rescan"}
             </button>
           </div>
         </header>

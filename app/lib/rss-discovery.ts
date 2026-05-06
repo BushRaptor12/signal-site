@@ -805,6 +805,19 @@ export async function scanAdminRssFeeds(options?: { feedIds?: string[] }) {
   }
 }
 
+export async function clearAdminRssItems(options?: { feedIds?: string[] }) {
+  const supabase = supabaseServer();
+  const feedIds = options?.feedIds?.map((id) => id.trim()).filter(Boolean) ?? [];
+  let query = supabase.from("admin_rss_items").delete().not("id", "is", null);
+
+  if (feedIds.length > 0) {
+    query = query.in("feed_id", feedIds);
+  }
+
+  const { error } = await query;
+  if (error) throw new Error(error.message);
+}
+
 function tokenize(value: string) {
   return cleanText(value)
     .toLowerCase()
