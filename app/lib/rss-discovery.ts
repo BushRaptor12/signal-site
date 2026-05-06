@@ -422,6 +422,10 @@ function looksLikeNewsArticleUrl(url: string) {
       return !path.includes("/pictures/") && /\d{4}-\d{2}-\d{2}/.test(path);
     }
 
+    if (parsed.hostname.includes("bloomberg.com")) {
+      return /\/(?:news|opinion)\/articles\/\d{4}-\d{2}-\d{2}\//.test(path);
+    }
+
     return path.split("/").filter(Boolean).length >= 2 && !/\/(tag|category|hub|section|topics?)\b/i.test(path);
   } catch {
     return false;
