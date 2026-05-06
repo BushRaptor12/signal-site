@@ -640,6 +640,13 @@ export default function RssDiscoveryClient({ initialData }: RssDiscoveryClientPr
             <h2 className="mt-2 text-2xl font-semibold">Add Sources</h2>
 
             <div className="mt-5 space-y-3">
+              <div className={`${ADMIN_INSET} p-4 text-xs leading-6 text-neutral-400`}>
+                AP and Reuters do not need working RSS endpoints here. Save section pages like
+                <span className="text-neutral-200"> https://apnews.com/politics</span>,
+                <span className="text-neutral-200"> https://apnews.com/world-news</span>, or
+                <span className="text-neutral-200"> https://www.reuters.com/world/</span>. Reuters sitemap also works:
+                <span className="text-neutral-200"> https://www.reuters.com/arc/outboundfeeds/news-sitemap/?outputType=xml</span>.
+              </div>
               <input
                 value={feedTitle}
                 onChange={(event) => setFeedTitle(event.target.value)}

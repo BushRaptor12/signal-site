@@ -237,6 +237,38 @@ function firstNonEmpty(values: string[]) {
   return values.find((value) => value.trim())?.trim() ?? "";
 }
 
+function uniqueByUrl(items: ParsedFeedItem[]) {
+  const byUrl = new Map<string, ParsedFeedItem>();
+
+  for (const item of items) {
+    if (!item.url || byUrl.has(item.url)) continue;
+    byUrl.set(item.url, item);
+  }
+
+  return [...byUrl.values()];
+}
+
+function firstMatch(value: string, patterns: RegExp[]) {
+  for (const pattern of patterns) {
+    const match = pattern.exec(value);
+    const captured = match ? match[match.length - 1] : undefined;
+    const cleaned = cleanText(captured);
+    if (cleaned) return cleaned;
+  }
+
+  return "";
+}
+
+function titleFromHtml(html: string) {
+  return firstNonEmpty([
+    firstMatch(html, [
+      /<meta[^>]+property=["']og:site_name["'][^>]+content=(["'])(.*?)\1[^>]*>/i,
+      /<meta[^>]+content=(["'])(.*?)\1[^>]+property=["']og:site_name["'][^>]*>/i,
+      /<title[^>]*>([^<]+)<\/title>/i,
+    ]),
+  ]).replace(/\s*\|\s*.*$/, "");
+}
+
 function toIsoDate(value: string) {
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed)) return null;
@@ -371,7 +403,114 @@ export function parseRssFeed(xml: string, feedUrl: string) {
 
   return {
     title: feedTitle,
-    items,
+    items: uniqueByUrl(items),
+  };
+}
+
+function looksLikeNewsArticleUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname.toLowerCase();
+    if (path.includes("/video/") || path.includes("/videos/")) return false;
+    if (/\.(jpg|jpeg|png|webp|gif)$/i.test(path)) return false;
+
+    if (parsed.hostname.includes("apnews.com")) {
+      return path.includes("/article/") || /\/[a-f0-9]{32}$/.test(path);
+    }
+
+    if (parsed.hostname.includes("reuters.com")) {
+      return !path.includes("/pictures/") && /\d{4}-\d{2}-\d{2}/.test(path);
+    }
+
+    return path.split("/").filter(Boolean).length >= 2 && !/\/(tag|category|hub|section|topics?)\b/i.test(path);
+  } catch {
+    return false;
+  }
+}
+
+function guessTitleFromUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    const segment = parsed.pathname.split("/").filter(Boolean).at(-1) ?? "";
+    return cleanText(segment
+      .replace(/[a-f0-9]{20,}$/i, "")
+      .replace(/\d{4}-\d{2}-\d{2}$/i, "")
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase()));
+  } catch {
+    return "";
+  }
+}
+
+function parseSitemapFeed(xml: string, feedUrl: string) {
+  const urlBlocks = [...xml.matchAll(/<url\b[\s\S]*?<\/url>/gi)].map((match) => match[0]);
+  const items: ParsedFeedItem[] = [];
+
+  for (const urlXml of urlBlocks.slice(0, MAX_ITEMS_PER_FEED * 3)) {
+    const url = normalizeUrl(childValue(urlXml, "loc"));
+    if (!url || !looksLikeNewsArticleUrl(url)) continue;
+
+    const title = firstNonEmpty([
+      childValue(urlXml, "news:title"),
+      childValue(urlXml, "title"),
+      guessTitleFromUrl(url),
+    ]);
+    if (!title) continue;
+
+    items.push({
+      publishedAt: toIsoDate(firstNonEmpty([
+        childValue(urlXml, "news:publication_date"),
+        childValue(urlXml, "lastmod"),
+      ])),
+      summary: "",
+      title: title.slice(0, 500),
+      url,
+    });
+
+    if (items.length >= MAX_ITEMS_PER_FEED) break;
+  }
+
+  return {
+    items: uniqueByUrl(items),
+    title: guessSourceLabel(feedUrl) ?? "",
+  };
+}
+
+function parseHtmlNewsPage(html: string, feedUrl: string) {
+  const items: ParsedFeedItem[] = [];
+
+  for (const match of html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+    const attributes = match[1] ?? "";
+    const href = attributeValue(attributes, "href");
+    if (!href) continue;
+
+    let url = "";
+    try {
+      url = normalizeUrl(new URL(href, feedUrl).toString());
+    } catch {
+      url = normalizeUrl(href);
+    }
+
+    if (!url || !looksLikeNewsArticleUrl(url)) continue;
+
+    const title = cleanText(match[2]);
+    if (title.length < 25 || title.length > 220) continue;
+    if (/^(watch|listen|sign in|subscribe|read more|learn more)$/i.test(title)) continue;
+
+    items.push({
+      publishedAt: null,
+      summary: "",
+      title: title.slice(0, 500),
+      url,
+    });
+
+    if (items.length >= MAX_ITEMS_PER_FEED) break;
+  }
+
+  return {
+    items: uniqueByUrl(items),
+    title: titleFromHtml(html) || guessSourceLabel(feedUrl) || "",
   };
 }
 
@@ -525,8 +664,14 @@ async function fetchFeed(feed: AdminRssFeed) {
     throw new Error(`Feed returned ${response.status}`);
   }
 
-  const xml = await response.text();
-  return parseRssFeed(xml, feed.url);
+  const body = await response.text();
+  const rss = parseRssFeed(body, feed.url);
+  if (rss.items.length > 0) return rss;
+
+  const sitemap = parseSitemapFeed(body, feed.url);
+  if (sitemap.items.length > 0) return sitemap;
+
+  return parseHtmlNewsPage(body, feed.url);
 }
 
 async function updateFeedAfterScan(feedId: string, input: { itemCount?: number; lastError: string | null; title?: string }) {
