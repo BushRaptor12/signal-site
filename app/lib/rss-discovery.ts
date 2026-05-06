@@ -598,8 +598,9 @@ export async function updateAdminRssFeed(
   const patch: Record<string, string | boolean | null> = {
     updated_at: new Date().toISOString(),
   };
+  const nextTitle = input.title != null ? cleanText(input.title) : null;
 
-  if (input.title != null) patch.title = cleanText(input.title);
+  if (input.title != null) patch.title = nextTitle;
   if (input.category != null) patch.category = cleanCategory(input.category);
   if (input.enabled != null) patch.enabled = input.enabled;
   if (input.url != null) {
@@ -616,7 +617,19 @@ export async function updateAdminRssFeed(
     .single();
 
   if (error) throw new Error(error.message);
-  return toFeed(data as RssFeedRow);
+  const feed = toFeed(data as RssFeedRow);
+
+  if (input.title != null) {
+    const sourceName = nextTitle || guessSourceLabel(feed.url) || "";
+    const { error: itemError } = await supabase
+      .from("admin_rss_items")
+      .update({ source_name: sourceName })
+      .eq("feed_id", feed.id);
+
+    if (itemError) throw new Error(itemError.message);
+  }
+
+  return feed;
 }
 
 export async function deleteAdminRssFeed(id: string) {
@@ -674,7 +687,7 @@ async function fetchFeed(feed: AdminRssFeed) {
   return parseHtmlNewsPage(body, feed.url);
 }
 
-async function updateFeedAfterScan(feedId: string, input: { itemCount?: number; lastError: string | null; title?: string }) {
+async function updateFeedAfterScan(feedId: string, input: { itemCount?: number; lastError: string | null }) {
   const supabase = supabaseServer();
   const patch: Record<string, string | number | null> = {
     last_checked_at: new Date().toISOString(),
@@ -683,7 +696,6 @@ async function updateFeedAfterScan(feedId: string, input: { itemCount?: number; 
   };
 
   if (input.itemCount != null) patch.item_count = input.itemCount;
-  if (input.title) patch.title = input.title;
 
   const { error } = await supabase.from("admin_rss_feeds").update(patch).eq("id", feedId);
   if (error) throw new Error(error.message);
@@ -755,14 +767,13 @@ export async function scanAdminRssFeeds(options?: { feedIds?: string[] }) {
     for (const feed of feeds) {
       try {
         const parsed = await fetchFeed(feed);
-        const sourceName = parsed.title || feed.title || guessSourceLabel(feed.url) || "";
+        const sourceName = feed.title || parsed.title || guessSourceLabel(feed.url) || "";
         const result = await upsertFeedItems(feed, sourceName, parsed.items);
         itemCount += result.itemCount;
         newItemCount += result.newItemCount;
         await updateFeedAfterScan(feed.id, {
           itemCount: result.itemCount,
           lastError: null,
-          title: parsed.title || feed.title,
         });
       } catch (error) {
         await updateFeedAfterScan(feed.id, {
