@@ -30,6 +30,7 @@ type HomePageClientProps = {
   initialAccountAuthenticated: boolean;
   initialFollowedInterests: FollowedInterestWithMatches[];
   initialFollowedStoryIds: string[];
+  initialNowMs: number;
   initialStories: StoryWithViews[];
 };
 
@@ -220,10 +221,10 @@ function storyMatchesRelatedInterestSignal(story: StoryWithViews, query: string)
   return textMatchesKeyword((story.related_interest_signals ?? []).join(" "), normalizedQuery);
 }
 
-function getStoryUpdateLabel(story: StoryWithViews) {
+function getStoryUpdateLabel(story: StoryWithViews, nowMs: number) {
   const updatedValue = story.content_updated_at ?? story.created_at ?? "";
   if (updatedValue) {
-    const relative = formatUpdatedAgo(updatedValue);
+    const relative = formatUpdatedAgo(updatedValue, nowMs);
     if (relative && relative !== "recently") {
       return `Updated ${relative}`;
     }
@@ -240,6 +241,7 @@ export default function HomePageClient({
   initialAccountAuthenticated,
   initialFollowedInterests,
   initialFollowedStoryIds,
+  initialNowMs,
   initialStories,
 }: HomePageClientProps) {
   const router = useRouter();
@@ -252,6 +254,7 @@ export default function HomePageClient({
   const [followedStoryIds, setFollowedStoryIds] = useState<string[]>(initialFollowedStoryIds);
   const [followedInterests, setFollowedInterests] = useState<FollowedInterestWithMatches[]>(initialFollowedInterests);
   const [imageAspectRatios, setImageAspectRatios] = useState<Record<string, number>>({});
+  const [renderNowMs] = useState(initialNowMs);
   const [loadingFollowState, setLoadingFollowState] = useState(false);
   const [topicOrder, setTopicOrder] = useState<TopicOrderKey>("new");
   const [topicTopWindow, setTopicTopWindow] = useState<TopicTopWindowKey>("day");
@@ -602,13 +605,13 @@ export default function HomePageClient({
       }
 
       const durationMs = topicTopWindowDurationMs(topicTopWindow);
-      const cutoffMs = Date.now() - durationMs;
+      const cutoffMs = renderNowMs - durationMs;
       return topicStories
         .filter((story) => publishedAtMs(story) >= cutoffMs)
         .sort(compareByTop);
     }
-    return [...recentStories].sort((a, b) => compareByPopularity(a, b, Date.now()));
-  }, [activeTab, followingStories, recentStories, topicOrder, topicStoriesByTab, topicTopWindow]);
+    return [...recentStories].sort((a, b) => compareByPopularity(a, b, renderNowMs));
+  }, [activeTab, followingStories, recentStories, renderNowMs, topicOrder, topicStoriesByTab, topicTopWindow]);
   const visibleStories = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
   const canLoadMore = visibleCount < visible.length;
   const activeTopicTab = isPresetTopicTab(normalize(activeTab));
@@ -862,7 +865,7 @@ export default function HomePageClient({
                         <span>{formatStoryDate(story.date)}</span>
                       </div>
                       <div className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-                        {getStoryUpdateLabel(story)}
+                        {getStoryUpdateLabel(story, renderNowMs)}
                       </div>
                     </div>
 

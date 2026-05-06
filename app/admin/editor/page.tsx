@@ -19,6 +19,10 @@ type SourceEditorRow = { badge: string; name: string; title: string; url: string
 type SourcePreview = { name: string; title: string; url: string };
 type EditorNotice = { tone: "error" | "info" | "success"; text: string } | null;
 type PendingEditorAction = { action: () => void; description: string } | null;
+type DiscoverySourceImport = {
+  sources?: SourcePreview[];
+  storyTitle?: string;
+};
 type StoryRevision = {
   action: "deleted" | "restored" | "saved";
   createdAt: string;
@@ -26,6 +30,13 @@ type StoryRevision = {
   story: StoryWithViews;
   storyId: string;
 };
+
+const DISCOVERY_SOURCE_IMPORT_KEY = "beacon:admin-discovery-sources";
+const DEFAULT_EDITOR_DATE = "2026-01-01";
+
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 function createSourceRow(): SourceEditorRow {
   return { badge: "", name: "", title: "", url: "", lean: "Center", leanMode: "auto" };
@@ -104,7 +115,7 @@ export default function EditorPage() {
   const [activeStoryId, setActiveStoryId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [slugInput, setSlugInput] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(DEFAULT_EDITOR_DATE);
   const [status, setStatus] = useState<StoryStatus>("draft");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imagePath, setImagePath] = useState<string | null>(null);
@@ -147,6 +158,7 @@ export default function EditorPage() {
   const [sources, setSources] = useState<SourceEditorRow[]>(blankSources());
   const [sourceUrlDraft, setSourceUrlDraft] = useState("");
   const [sourcePreviewLoading, setSourcePreviewLoading] = useState(false);
+  const [discoveryImportChecked, setDiscoveryImportChecked] = useState(false);
   const [pendingKnowledgeAutofill, setPendingKnowledgeAutofill] = useState(false);
   const [notice, setNotice] = useState<EditorNotice>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
@@ -220,7 +232,7 @@ export default function EditorPage() {
     setActiveStoryId(null);
     setTitle("");
     setSlugInput("");
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(todayInputValue());
     setStatus("draft");
     setImageUrl(null);
     setImagePath(null);
@@ -317,6 +329,11 @@ export default function EditorPage() {
   useEffect(() => {
     void loadStories();
   }, [loadStories]);
+
+  useEffect(() => {
+    if (requestedStoryId || date !== DEFAULT_EDITOR_DATE) return;
+    setDate(todayInputValue());
+  }, [date, requestedStoryId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -574,6 +591,43 @@ export default function EditorPage() {
       return next;
     });
   }
+
+  useEffect(() => {
+    if (discoveryImportChecked) return;
+    setDiscoveryImportChecked(true);
+    if (requestedStoryId || searchParams.get("from") !== "discovery") return;
+
+    try {
+      const raw = window.sessionStorage.getItem(DISCOVERY_SOURCE_IMPORT_KEY);
+      if (!raw) return;
+
+      const imported = JSON.parse(raw) as DiscoverySourceImport;
+      const importedSources = Array.isArray(imported.sources)
+        ? imported.sources
+            .map((source) => ({
+              name: String(source.name ?? "").trim(),
+              title: String(source.title ?? "").trim(),
+              url: String(source.url ?? "").trim(),
+            }))
+            .filter((source) => source.url)
+        : [];
+
+      if (importedSources.length === 0) return;
+
+      for (const source of importedSources) {
+        applySourceSuggestion(source);
+      }
+
+      if (!title.trim() && imported.storyTitle?.trim()) {
+        setTitle(imported.storyTitle.trim());
+      }
+
+      window.sessionStorage.removeItem(DISCOVERY_SOURCE_IMPORT_KEY);
+      showNotice(`Imported ${importedSources.length} selected source links from RSS discovery.`, "success");
+    } catch {
+      showNotice("We couldn't import the selected RSS discovery links.", "error");
+    }
+  }, [discoveryImportChecked, requestedStoryId, searchParams, showNotice, title]);
 
   async function addSourceFromUrl(rawUrl: string, preferredIndex?: number) {
     const url = rawUrl.trim();
@@ -1070,6 +1124,9 @@ export default function EditorPage() {
             </button>
             <Link href="/admin/briefing" className="text-xs text-neutral-400 hover:text-neutral-200">
               Manage briefing order
+            </Link>
+            <Link href="/admin/discovery" className="text-xs text-neutral-400 hover:text-neutral-200">
+              RSS discovery
             </Link>
             <Link href="/admin/moderation" className="text-xs text-neutral-400 hover:text-neutral-200">
               Moderation

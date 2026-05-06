@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/briefing-archive",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/rss-scan",
+      "schedule": "20 5 * * *"
     }
   ]
 }

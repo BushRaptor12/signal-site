@@ -24,10 +24,15 @@ async function loadInitialStories(): Promise<StoryWithViews[]> {
   }
 }
 
+function serverRenderNowMs() {
+  return Date.now();
+}
+
 export default async function HomePage() {
   const [initialStories, userId] = await Promise.all([loadInitialStories(), getAccountUserId()]);
   const initialFollowedStoryIds = userId ? await getFollowedStoryIds(userId).catch(() => []) : [];
   const initialFollowedInterests = userId ? await getFollowedInterestsWithMatches(userId).catch(() => []) : [];
+  const initialNowMs = serverRenderNowMs();
 
   return (
     <HomePageClient
@@ -35,6 +40,7 @@ export default async function HomePage() {
       initialAccountAuthenticated={Boolean(userId)}
       initialFollowedInterests={initialFollowedInterests}
       initialFollowedStoryIds={initialFollowedStoryIds}
+      initialNowMs={initialNowMs}
     />
   );
 }

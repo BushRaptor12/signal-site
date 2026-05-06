@@ -71,7 +71,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   };
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         {adsense ? <meta name="google-adsense-account" content={adsense.metaContent} /> : null}
         <script
@@ -79,7 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
       </head>
-      <body className={`${inter.className} ${inter.variable} flex min-h-screen flex-col`}>
+      <body className={`${inter.className} ${inter.variable} flex min-h-screen flex-col`} suppressHydrationWarning>
         <SiteUtilities />
         <div className="flex-1">{children}</div>
         <footer className="border-t border-[#0d2438] bg-[var(--surface)] px-6 py-4 text-center text-sm text-neutral-400">
