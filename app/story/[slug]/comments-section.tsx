@@ -657,10 +657,12 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
   const [reportingComment, setReportingComment] = useState<StoryComment | null>(null);
   const [sort, setSort] = useState<CommentSort>("top");
   const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [commentsRequested, setCommentsRequested] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [authDialogAction, setAuthDialogAction] = useState<string | null>(null);
+  const sectionRef = useRef<HTMLElement | null>(null);
   const loadRequestRef = useRef(0);
   const historyFocusCommentRef = useRef<string | null>(null);
   const pendingRealtimeRefreshRef = useRef(false);
@@ -729,8 +731,42 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
 
   useEffect(() => {
     setSort("top");
+    setCommentsRequested(false);
+    setComments([]);
+    setTotalCount(0);
+    setLoading(false);
+  }, [storyId]);
+
+  useEffect(() => {
+    if (commentsRequested) return;
+
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("comment") || window.location.hash.startsWith("#comment-")) {
+        setCommentsRequested(true);
+        return;
+      }
+    }
+
+    const node = sectionRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setCommentsRequested(true);
+        }
+      },
+      { rootMargin: "640px 0px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [commentsRequested, storyId]);
+
+  useEffect(() => {
+    if (!commentsRequested) return;
     void loadComments("top");
-  }, [loadComments, storyId]);
+  }, [commentsRequested, loadComments, storyId]);
 
   useEffect(() => {
     emitStoryCommentCountUpdated(storyId, totalCount);
@@ -741,7 +777,7 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
   }, [storyId]);
 
   useEffect(() => {
-    if (!communitySettings.allowCommentRealtime) {
+    if (!commentsRequested || !communitySettings.allowCommentRealtime) {
       pendingRealtimeRefreshRef.current = false;
       return;
     }
@@ -830,7 +866,7 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [busyAction, communitySettings.allowCommentRealtime, editingCommentId, loadComments, loading, replyParentId, reportingComment, sort, storyId]);
+  }, [busyAction, commentsRequested, communitySettings.allowCommentRealtime, editingCommentId, loadComments, loading, replyParentId, reportingComment, sort, storyId]);
 
   useEffect(() => {
     if (loading || comments.length === 0 || typeof window === "undefined") {
@@ -1194,7 +1230,7 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
   }
 
   return (
-    <section className={embedded ? "mt-6 border-t border-[#163754]/70 pt-5" : "mt-10 rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]"}>
+    <section ref={sectionRef} className={embedded ? "mt-6 border-t border-[#163754]/70 pt-5" : "mt-10 rounded-2xl border border-[#13314b] bg-[#03101b] p-6 shadow-[0_16px_38px_rgba(0,0,0,0.18)]"}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <h2 className={`font-semibold text-neutral-200 ${embedded ? "text-base" : "text-lg"}`}>Comments</h2>
         <label className={`flex items-center gap-3 text-neutral-400 ${embedded ? "text-[13px]" : "text-sm"}`}>
@@ -1213,6 +1249,20 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
           </select>
         </label>
       </div>
+
+      {!commentsRequested ? (
+        <div className="mt-5 rounded-[20px] border border-[#183149]/60 bg-[#07131e]/76 p-5 text-sm leading-7 text-neutral-400">
+          <div>Comments load when you reach this section.</div>
+          <button
+            type="button"
+            onClick={() => setCommentsRequested(true)}
+            className="mt-4 inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+          >
+            Load comments
+          </button>
+        </div>
+      ) : (
+        <>
 
       <div className="mt-5 rounded-[20px] border border-[#183149]/60 bg-[#07131e]/76 p-4">
         <textarea
@@ -1300,6 +1350,8 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
         />
       ) : null}
       <AuthRequiredDialog actionLabel={authDialogAction} onClose={() => setAuthDialogAction(null)} />
+        </>
+      )}
     </section>
   );
 }

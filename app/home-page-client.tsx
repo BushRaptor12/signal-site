@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FollowedInterestWithMatches } from "@/app/lib/account.server";
+import type { FollowedInterestWithMatches, FollowedStory } from "@/app/lib/account.server";
 import { shouldUseContainedStoryImage } from "@/app/lib/story-image-layout";
 import { ACCOUNT_FOLLOWS_UPDATED_EVENT } from "./lib/account-events";
 import {
@@ -32,6 +32,12 @@ type HomePageClientProps = {
   initialFollowedStoryIds: string[];
   initialNowMs: number;
   initialStories: StoryWithViews[];
+};
+
+type StoryFeedResponse = {
+  error?: string;
+  hasMore?: boolean;
+  stories?: StoryWithViews[];
 };
 
 const HOME_STATE_KEY = "signal:homeState:v2";
@@ -252,17 +258,87 @@ export default function HomePageClient({
   const [visibleCount, setVisibleCount] = useState(STORY_BATCH_SIZE);
   const [accountAuthenticated, setAccountAuthenticated] = useState(initialAccountAuthenticated);
   const [followedStoryIds, setFollowedStoryIds] = useState<string[]>(initialFollowedStoryIds);
+  const [followedStories, setFollowedStories] = useState<FollowedStory[]>([]);
   const [followedInterests, setFollowedInterests] = useState<FollowedInterestWithMatches[]>(initialFollowedInterests);
   const [imageAspectRatios, setImageAspectRatios] = useState<Record<string, number>>({});
   const [renderNowMs] = useState(initialNowMs);
   const [loadingFollowState, setLoadingFollowState] = useState(false);
   const [topicOrder, setTopicOrder] = useState<TopicOrderKey>("new");
   const [topicTopWindow, setTopicTopWindow] = useState<TopicTopWindowKey>("day");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [overlaySearchResults, setOverlaySearchResults] = useState<StoryWithViews[]>([]);
+  const [overlaySearchLoading, setOverlaySearchLoading] = useState(false);
+  const [overlaySearchError, setOverlaySearchError] = useState("");
+  const [feedHasMore, setFeedHasMore] = useState(initialStories.length >= 30);
+  const [loadingFeed, setLoadingFeed] = useState(false);
+  const [feedError, setFeedError] = useState("");
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const pendingScrollRestoreRef = useRef<{ attempts: number; scrollY: number; tabKey: TabKey } | null>(null);
 
   useEffect(() => {
     setStories(initialStories);
+    setFeedHasMore(initialStories.length >= 30);
   }, [initialStories]);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+
+    searchInputRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSearchOpen(false);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [searchOpen]);
+
+  useEffect(() => {
+    const query = searchDraft.trim();
+    if (!searchOpen || !query) {
+      setOverlaySearchResults([]);
+      setOverlaySearchLoading(false);
+      setOverlaySearchError("");
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      const params = new URLSearchParams({
+        limit: "8",
+        offset: "0",
+        search: query,
+        tab: "recent",
+      });
+
+      setOverlaySearchLoading(true);
+      setOverlaySearchError("");
+      try {
+        const response = await fetch(`/api/stories/feed?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const data = (await response.json().catch(() => ({}))) as StoryFeedResponse;
+        if (!response.ok || !Array.isArray(data.stories)) {
+          throw new Error(data.error ?? "We couldn't search stories.");
+        }
+
+        setOverlaySearchResults(data.stories);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setOverlaySearchResults([]);
+        setOverlaySearchError(error instanceof Error ? error.message : "We couldn't search stories.");
+      } finally {
+        if (!controller.signal.aborted) setOverlaySearchLoading(false);
+      }
+    }, 180);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [searchDraft, searchOpen]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -440,15 +516,18 @@ export default function HomePageClient({
       const response = await fetch("/api/account/follows", { cache: "no-store" });
       const data = (await response.json().catch(() => ({}))) as {
         authenticated?: boolean;
+        followedStories?: FollowedStory[];
         interests?: FollowedInterestWithMatches[];
         storyIds?: string[];
       };
 
       setAccountAuthenticated(Boolean(data.authenticated));
       setFollowedStoryIds(Array.isArray(data.storyIds) ? data.storyIds.map((value) => String(value)) : []);
+      setFollowedStories(Array.isArray(data.followedStories) ? data.followedStories : []);
       setFollowedInterests(Array.isArray(data.interests) ? data.interests : []);
     } catch {
       setAccountAuthenticated(false);
+      setFollowedStories([]);
       setFollowedStoryIds([]);
       setFollowedInterests([]);
     } finally {
@@ -474,14 +553,55 @@ export default function HomePageClient({
     };
   }, [loadFollowState]);
 
+  const loadStoryFeed = useCallback(
+    async (options?: { append?: boolean; offset?: number }) => {
+      const append = Boolean(options?.append);
+      const params = new URLSearchParams();
+      const normalizedTab = normalize(activeTab);
+      params.set("limit", "30");
+      params.set("offset", append ? String(options?.offset ?? 0) : "0");
+      params.set("tab", normalizedTab === "recent" ? "recent" : "popular");
+      if (isPresetTopicTab(normalizedTab)) {
+        params.set("topic", normalizedTab);
+        params.set("topicOrder", topicOrder);
+        params.set("topWindow", topicTopWindow);
+      }
+
+      setLoadingFeed(true);
+      setFeedError("");
+      try {
+        const response = await fetch(`/api/stories/feed?${params.toString()}`, { cache: "no-store" });
+        const data = (await response.json().catch(() => ({}))) as StoryFeedResponse;
+        if (!response.ok || !Array.isArray(data.stories)) {
+          throw new Error(data.error ?? "We couldn't load stories.");
+        }
+
+        setStories((current) => {
+          const incoming = data.stories ?? [];
+          if (!append) return incoming;
+          const seen = new Set(current.map((story) => story.id));
+          return [...current, ...incoming.filter((story) => !seen.has(story.id))];
+        });
+        setFeedHasMore(Boolean(data.hasMore));
+      } catch (error) {
+        setFeedError(error instanceof Error ? error.message : "We couldn't load stories.");
+      } finally {
+        setLoadingFeed(false);
+      }
+    },
+    [activeTab, topicOrder, topicTopWindow]
+  );
+
+  useEffect(() => {
+    if (activeTab === "following") return;
+    void loadStoryFeed({ append: false });
+  }, [activeTab, loadStoryFeed, topicOrder, topicTopWindow]);
+
   const trackingStories = useMemo(
     () => [...stories].filter((story) => story.pinned).sort((a, b) => updatedAtMs(b) - updatedAtMs(a)),
     [stories]
   );
-  const recentStories = useMemo(
-    () => [...stories].filter((story) => !story.pinned).sort((a, b) => publishedAtMs(b) - publishedAtMs(a)),
-    [stories]
-  );
+  const recentStories = useMemo(() => [...stories].filter((story) => !story.pinned), [stories]);
   const followedStoryIdSet = useMemo(() => new Set(followedStoryIds), [followedStoryIds]);
   const followedInterestQueries = useMemo(
     () => followedInterests.map((interest) => interest.normalizedQuery).filter(Boolean),
@@ -550,7 +670,14 @@ export default function HomePageClient({
       }
     }
 
-    for (const story of recentStories) {
+    const followCandidateStories = [
+      ...recentStories,
+      ...followedStories.map((item) => item.story),
+      ...followedInterests.flatMap((interest) => (interest.matches ?? []).map((match) => match.story)),
+    ];
+    const uniqueFollowCandidateStories = [...new Map(followCandidateStories.map((story) => [story.id, story])).values()];
+
+    for (const story of uniqueFollowCandidateStories) {
       for (const query of followedInterestQueries) {
         if (hiddenInterestStoryIdsByQuery.get(query)?.has(story.id)) {
           continue;
@@ -568,13 +695,21 @@ export default function HomePageClient({
     }
 
     return next;
-  }, [followedInterestQueries, hiddenInterestStoryIdsByQuery, recentStories, semanticInterestMatchesByStoryId]);
+  }, [followedInterestQueries, followedInterests, followedStories, hiddenInterestStoryIdsByQuery, recentStories, semanticInterestMatchesByStoryId]);
   const followingStories = useMemo(
     () => {
       const directMatches: StoryWithViews[] = [];
       const relatedMatches: StoryWithViews[] = [];
 
-      for (const story of recentStories) {
+      const followCandidateStories = [
+        ...recentStories,
+        ...followedStories.map((item) => item.story),
+        ...followedInterests.flatMap((interest) => (interest.matches ?? []).map((match) => match.story)),
+      ];
+      const uniqueFollowCandidateStories = [...new Map(followCandidateStories.map((story) => [story.id, story])).values()]
+        .sort((left, right) => updatedAtMs(right) - updatedAtMs(left));
+
+      for (const story of uniqueFollowCandidateStories) {
         if (followedStoryIdSet.has(story.id)) {
           directMatches.push(story);
           continue;
@@ -593,13 +728,13 @@ export default function HomePageClient({
 
       return [...directMatches, ...relatedMatches];
     },
-    [followedStoryIdSet, followingInterestMatchesByStoryId, recentStories]
+    [followedInterests, followedStories, followedStoryIdSet, followingInterestMatchesByStoryId, recentStories]
   );
   const visible = useMemo(() => {
     if (activeTab === "following") return followingStories;
     if (activeTab === "recent") return recentStories;
     if (isPresetTopicTab(normalize(activeTab))) {
-      const topicStories = topicStoriesByTab.get(normalize(activeTab)) ?? [];
+      const topicStories = topicStoriesByTab.get(normalize(activeTab)) ?? recentStories;
       if (topicOrder === "new") {
         return topicStories;
       }
@@ -613,8 +748,22 @@ export default function HomePageClient({
     return [...recentStories].sort((a, b) => compareByPopularity(a, b, renderNowMs));
   }, [activeTab, followingStories, recentStories, renderNowMs, topicOrder, topicStoriesByTab, topicTopWindow]);
   const visibleStories = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
-  const canLoadMore = visibleCount < visible.length;
+  const overlaySearchQuery = searchDraft.trim();
+  const canLoadMore = visibleCount < visible.length || (activeTab !== "following" && feedHasMore);
   const activeTopicTab = isPresetTopicTab(normalize(activeTab));
+  function handleReadMore() {
+    if (visibleCount < visible.length) {
+      setVisibleCount((count) => count + STORY_BATCH_SIZE);
+      return;
+    }
+
+    if (activeTab !== "following" && feedHasMore && !loadingFeed) {
+      void loadStoryFeed({ append: true, offset: stories.length }).then(() => {
+        setVisibleCount((count) => count + STORY_BATCH_SIZE);
+      });
+    }
+  }
+
   useEffect(() => {
     const pending = pendingScrollRestoreRef.current;
     if (!pending || pending.tabKey !== activeTab) return;
@@ -685,25 +834,158 @@ export default function HomePageClient({
         </div>
       </div>
 
+      {searchOpen ? (
+        <div
+          aria-labelledby="story-search-title"
+          aria-modal="true"
+          className="fixed inset-0 z-50 bg-black/70 px-4 py-10 text-neutral-100 backdrop-blur-sm"
+          role="dialog"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSearchOpen(false);
+          }}
+        >
+          <div className="mx-auto mt-8 flex max-h-[calc(100vh-4rem)] max-w-3xl flex-col rounded-2xl border border-[#163754]/90 bg-[#06131e] p-4 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:mt-14 sm:p-5">
+            <div className="mb-3 flex items-center justify-between gap-4">
+              <h2 id="story-search-title" className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                Search
+              </h2>
+              <button
+                type="button"
+                aria-label="Close search"
+                onClick={() => setSearchOpen(false)}
+                className="inline-flex size-10 items-center justify-center rounded-full border border-[#163754]/80 bg-[#020b14] text-neutral-300 transition hover:border-[#8f7740]/70 hover:text-white"
+              >
+                <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none">
+                  <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+            <label className="sr-only" htmlFor="story-search">
+              Search stories
+            </label>
+            <div className="flex items-center gap-3 rounded-2xl border border-[#214765] bg-[#020b14] px-4 py-3 focus-within:border-[#8f7740]/80">
+              <svg aria-hidden="true" className="size-5 shrink-0 text-neutral-500" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M10.75 18.5a7.75 7.75 0 1 1 0-15.5 7.75 7.75 0 0 1 0 15.5ZM16.25 16.25 21 21"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <input
+                ref={searchInputRef}
+                id="story-search"
+                type="search"
+                value={searchDraft}
+                onChange={(event) => setSearchDraft(event.target.value)}
+                placeholder="Search stories, sources, topics, or people"
+                className="min-w-0 flex-1 bg-transparent text-lg font-semibold text-neutral-100 outline-none placeholder:text-neutral-500 sm:text-2xl"
+              />
+              {searchDraft ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchDraft("");
+                    searchInputRef.current?.focus();
+                  }}
+                  className="rounded-full border border-[#163754]/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-400 transition hover:border-[#8f7740]/70 hover:text-white"
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+            {overlaySearchQuery ? (
+              <div className="mt-4 min-h-0 overflow-y-auto pr-1">
+                <div className="mb-2 flex items-center justify-between gap-4 text-xs uppercase tracking-[0.14em] text-neutral-500">
+                  <span>{overlaySearchLoading ? "Searching" : "Results"}</span>
+                  <span>{overlaySearchResults.length ? `${overlaySearchResults.length} shown` : overlaySearchError ? "Error" : "No matches"}</span>
+                </div>
+                {overlaySearchResults.length > 0 ? (
+                  <div className="space-y-2">
+                    {overlaySearchResults.map((story) => {
+                      const sourceNames = (story.sources ?? [])
+                        .slice(0, 2)
+                        .map((source) => source.name)
+                        .filter(Boolean)
+                        .join(" / ");
+                      return (
+                        <Link
+                          key={`overlay-search-${story.id}`}
+                          href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
+                          onClick={() => {
+                            persistHomeState();
+                            setSearchOpen(false);
+                          }}
+                          className="block rounded-xl border border-[#163754]/70 bg-[#020b14] px-4 py-3 transition hover:border-[#8f7740]/70 hover:bg-[#07101a]"
+                        >
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] uppercase tracking-[0.14em] text-neutral-500">
+                            <span>{formatStoryDate(story.date)}</span>
+                            {sourceNames ? (
+                              <>
+                                <span className="text-[#35556f]">/</span>
+                                <span>{sourceNames}</span>
+                              </>
+                            ) : null}
+                          </div>
+                          <div className="mt-1.5 text-base font-semibold leading-snug text-neutral-100">{story.title}</div>
+                          {story.summary[0] ? (
+                            <p className="mt-1.5 line-clamp-2 text-sm leading-6 text-neutral-400">{story.summary[0]}</p>
+                          ) : null}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-[#163754]/70 bg-[#020b14] px-4 py-6 text-center text-sm text-neutral-400">
+                    {overlaySearchError || (overlaySearchLoading ? "Searching stories..." : "No stories match this search yet.")}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <div className="mx-auto mb-6 max-w-5xl">
         <div className="border-b border-[#163754]/70">
-          <div className="-mx-3 flex items-center gap-5 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:mx-0 sm:gap-6 sm:px-0 [&::-webkit-scrollbar]:hidden">
-          {[...BUILTIN_TAB_KEYS, ...PRESET_TOPIC_TABS].map((tab) => (
+          <div className="flex items-center gap-3">
+            <div className="-mx-3 flex min-w-0 flex-1 items-center gap-5 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:mx-0 sm:gap-6 sm:px-0 [&::-webkit-scrollbar]:hidden">
+              {[...BUILTIN_TAB_KEYS, ...PRESET_TOPIC_TABS].map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTabAndUrl(tab)}
+                  className={`whitespace-nowrap border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition ${
+                    activeTab === tab
+                      ? "border-[#d7c08d] text-neutral-100"
+                      : "border-transparent text-[#c5d3e1] hover:border-[#214765] hover:text-white"
+                  }`}
+                >
+                  {toTitleCase(tab)}
+                </button>
+              ))}
+            </div>
             <button
-              key={tab}
               type="button"
-              onClick={() => setActiveTabAndUrl(tab)}
-              className={`whitespace-nowrap border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition ${
-                activeTab === tab
-                  ? "border-[#d7c08d] text-neutral-100"
-                  : "border-transparent text-[#c5d3e1] hover:border-[#214765] hover:text-white"
+              aria-label="Search stories"
+              onClick={() => setSearchOpen(true)}
+              className={`inline-flex size-10 shrink-0 -translate-y-1.5 items-center justify-center rounded-full border bg-[#020b14] transition hover:text-white ${
+                searchDraft.trim()
+                  ? "border-[#8f7740]/80 text-[#e3cca0]"
+                  : "border-[#163754]/80 text-neutral-300 hover:border-[#8f7740]/70"
               }`}
             >
-              {toTitleCase(tab)}
+              <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M10.75 18.5a7.75 7.75 0 1 1 0-15.5 7.75 7.75 0 0 1 0 15.5ZM16.25 16.25 21 21"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
             </button>
-          ))}
+          </div>
         </div>
-      </div>
       </div>
 
       <div className="mx-auto mb-6 max-w-5xl">
@@ -786,6 +1068,17 @@ export default function HomePageClient({
       </div>
 
       <div className="mx-auto max-w-5xl space-y-4 sm:space-y-6">
+        {feedError ? (
+          <div className="rounded-2xl border border-red-500/35 bg-red-950/20 px-5 py-4 text-sm text-red-100">
+            {feedError}
+          </div>
+        ) : null}
+        {loadingFeed && visibleStories.length === 0 ? (
+          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)] sm:p-10">
+            <h2 className="text-xl font-semibold text-neutral-100 sm:text-2xl">Loading stories...</h2>
+            <p className="mt-3 text-neutral-400">Searching the latest coverage.</p>
+          </div>
+        ) : null}
         {activeTab === "following" && loadingFollowState ? (
           <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)] sm:p-10">
             <h2 className="text-xl font-semibold text-neutral-100 sm:text-2xl">Loading stories...</h2>
@@ -817,7 +1110,7 @@ export default function HomePageClient({
               Manage interests
             </Link>
           </div>
-        ) : visible.length === 0 ? (
+        ) : visible.length === 0 && !loadingFeed ? (
           <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)] sm:p-10">
             <h2 className="text-xl font-semibold text-neutral-100 sm:text-2xl">No stories yet</h2>
             <p className="mt-3 text-neutral-400">
@@ -925,6 +1218,7 @@ export default function HomePageClient({
                             ))}
                           </div>
                         ) : null}
+
                       </div>
 
                       {shouldShowStoryImageOnHomepage(story) ? (
@@ -972,10 +1266,11 @@ export default function HomePageClient({
         <div className="mx-auto mt-8 flex max-w-5xl justify-center">
           <button
             type="button"
-            onClick={() => setVisibleCount((count) => count + STORY_BATCH_SIZE)}
+            onClick={handleReadMore}
+            disabled={loadingFeed}
             className="min-h-12 w-full rounded-2xl border border-[#8f7740]/70 bg-[var(--surface)] px-8 py-4 text-base font-semibold text-neutral-100 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#b89a55] hover:bg-[#07101a] hover:text-white sm:w-auto"
           >
-            Read more
+            {loadingFeed ? "Loading..." : "Read more"}
           </button>
         </div>
       ) : null}

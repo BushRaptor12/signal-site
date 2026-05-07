@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { requestHasAdminAccess } from "@/app/lib/admin.server";
+import { checkRateLimit, rateLimitIdentifier, rateLimitResponse } from "@/app/lib/rate-limit";
 import { clearAdminRssItems, getAdminRssDiscoveryData, scanAdminRssFeeds } from "@/app/lib/rss-discovery";
 
 function errorMessage(error: unknown, fallback: string) {
@@ -24,6 +25,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const rateLimit = checkRateLimit({
+      key: `admin:rss-scan:${rateLimitIdentifier(request)}`,
+      limit: 6,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (rateLimit.limited) {
+      return rateLimitResponse(rateLimit.retryAfter);
+    }
+
     if (!(await requestHasAdminAccess(request))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAccountUserIdFromCookieHeader } from "@/app/lib/account.server";
 import { createComment, listStoryComments, parseCommentSort } from "@/app/lib/comments";
 import { getCommunitySettings } from "@/app/lib/community-settings";
+import { checkRateLimit, rateLimitIdentifier, rateLimitResponse } from "@/app/lib/rate-limit";
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -25,6 +26,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ storyId: string }> }) {
   try {
+    const rateLimit = checkRateLimit({
+      key: `comments:create:${rateLimitIdentifier(request)}`,
+      limit: 20,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (rateLimit.limited) {
+      return rateLimitResponse(rateLimit.retryAfter);
+    }
+
     const storyId = (await params).storyId?.trim();
     if (!storyId) {
       return NextResponse.json({ error: "Story id is required." }, { status: 400 });

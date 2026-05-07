@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { accountSessionCookie, signupWithEmail } from "@/app/lib/account.server";
+import { checkRateLimit, rateLimitIdentifier, rateLimitResponse } from "@/app/lib/rate-limit";
 
 type SignupRequest = {
   email?: string;
@@ -9,6 +10,15 @@ type SignupRequest = {
 
 export async function POST(request: Request) {
   try {
+    const rateLimit = checkRateLimit({
+      key: `signup:${rateLimitIdentifier(request)}`,
+      limit: 5,
+      windowMs: 30 * 60 * 1000,
+    });
+    if (rateLimit.limited) {
+      return rateLimitResponse(rateLimit.retryAfter);
+    }
+
     const body = (await request.json()) as SignupRequest;
     const profile = await signupWithEmail(body.email ?? "", body.password ?? "", body.username ?? "");
 

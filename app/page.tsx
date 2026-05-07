@@ -1,24 +1,25 @@
 import { getAccountUserId, getFollowedInterestsWithMatches, getFollowedStoryIds } from "@/app/lib/account.server";
 import { supabaseServer } from "@/app/lib/supabase.server";
-import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
+import { coerceStory, STORY_CARD_SELECT, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
 import HomePageClient from "./home-page-client";
 
 async function loadInitialStories(): Promise<StoryWithViews[]> {
   try {
-    const supabase = supabaseServer();
-    const { data, error } = await supabase
-      .from("stories")
-      .select("*")
-      .eq("status", "published")
-      .order("updated_at", { ascending: false, nullsFirst: false })
-      .order("created_at", { ascending: false, nullsFirst: false });
+      const supabase = supabaseServer();
+      const { data, error } = await supabase
+        .from("stories")
+        .select(STORY_CARD_SELECT)
+        .eq("status", "published")
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .limit(30);
 
     if (error) {
       throw error;
     }
 
-    return ((data ?? []) as StoryDbRow[]).map(coerceStory);
+    return ((data ?? []) as unknown as StoryDbRow[]).map(coerceStory);
   } catch {
     return [];
   }

@@ -2,14 +2,17 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
-import { getAccountProfile, getAccountStoryState, getSeenStoryIds } from "@/app/lib/account.server";
+import FollowInterestButton from "@/app/follow-interest-button";
+import { getAccountProfile, getAccountStoryState, getFollowedInterests, getSeenStoryIds } from "@/app/lib/account.server";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { imageObjectPosition } from "@/app/lib/image-focus";
 import { SITE_NAME, absoluteUrl, breadcrumbJsonLd, buildStoryMetadata, storyDescription, storyKeywords, storyModifiedTime, storyPublishedTime } from "@/app/lib/seo";
 import { PUBLIC_INSET_ELEVATED, PUBLIC_PAGE } from "@/app/lib/surfaces";
 import { supabaseServer } from "@/app/lib/supabase.server";
+import { isPaywalledSource } from "@/app/lib/source-access";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
+import { normalize, toTitleCase } from "@/app/lib/vocab";
 import ViewTracker from "./view-tracker";
 import ReactionBar from "./reaction-bar";
 import SourceTitle from "./source-title";
@@ -48,6 +51,18 @@ function SeenBadge() {
         <circle cx="12" cy="12" r="3.25" />
       </svg>
       <span>Seen</span>
+    </span>
+  );
+}
+
+function PaywallBadge() {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#d7c08d]">
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3 w-3 fill-none stroke-current stroke-[2]">
+        <rect x="5" y="10" width="14" height="10" rx="2" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </svg>
+      <span>PayWall</span>
     </span>
   );
 }
@@ -210,6 +225,11 @@ export default async function StoryPage({
 
   const updatedAt = story.content_updated_at ?? story.created_at ?? null;
   const storyState = accountProfile ? await getAccountStoryState(accountProfile.userId, story) : null;
+  const followedInterestSet = new Set(
+    accountProfile
+      ? (await getFollowedInterests(accountProfile.userId).catch(() => [])).map((interest) => interest.normalizedQuery)
+      : []
+  );
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
@@ -361,6 +381,7 @@ export default async function StoryPage({
                       <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
                           <div className="min-w-0 text-[1.08rem] font-semibold text-neutral-50">{src.name}</div>
+                          {isPaywalledSource(src.name, src.url) ? <PaywallBadge /> : null}
                           {src.badge ? (
                             <span className="shrink-0 rounded-full border border-[#8f7740]/55 bg-[#8f7740]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e3cca0]">
                               {src.badge}
@@ -384,7 +405,7 @@ export default async function StoryPage({
                         <span className={`rounded-full px-2 py-1 text-xs ${leanBadgeClasses(src.lean)}`}>
                           {src.lean}
                         </span>
-                        <div className="inline-flex min-h-8 items-center rounded-full border border-[#1c3953]/70 px-3 text-[13px] font-semibold text-neutral-300 transition group-hover:border-[#8f7740]/55 group-hover:text-white">
+                        <div className="inline-flex min-h-8 items-center text-[13px] font-semibold text-neutral-400 transition group-hover:text-white">
                           Read
                           <span className="ml-1.5" aria-hidden="true">-&gt;</span>
                         </div>
@@ -395,7 +416,26 @@ export default async function StoryPage({
               </div>
             </section>
 
-            <div className="mt-8 flex flex-col items-stretch justify-between gap-4 border-t border-[#1a3349]/60 pt-4 sm:flex-row sm:flex-wrap sm:items-center">
+            {(story.topics[0] || story.primary_entities[0]) ? (
+              <div className="mt-8 flex flex-wrap items-center gap-2 border-t border-[#1a3349]/60 pt-4">
+                {[story.topics[0], story.primary_entities[0]]
+                  .filter((value, valueIndex, values): value is string => Boolean(value) && values.indexOf(value) === valueIndex)
+                  .map((value) => {
+                    const normalizedValue = normalize(value);
+                    return (
+                      <FollowInterestButton
+                        key={`${story.id}-follow-${normalizedValue}`}
+                        authenticated={Boolean(accountProfile)}
+                        initialFollowing={followedInterestSet.has(normalizedValue)}
+                        label={toTitleCase(normalizedValue)}
+                        query={value}
+                      />
+                    );
+                  })}
+              </div>
+            ) : null}
+
+            <div className={`${story.topics[0] || story.primary_entities[0] ? "mt-4" : "mt-8"} flex flex-col items-stretch justify-between gap-4 border-t border-[#1a3349]/60 pt-4 sm:flex-row sm:flex-wrap sm:items-center`}>
               <StoryEngagementSummary
                 key={story.id}
                 initialCommentCount={story.comments}
@@ -488,7 +528,7 @@ export default async function StoryPage({
         </div>
 
         {storyLinks.length > 0 ? (
-          <aside className="xl:col-start-4 xl:w-60 xl:self-start xl:pt-1">
+          <aside className="hidden xl:col-start-4 xl:block xl:w-60 xl:self-start xl:pt-1">
             <div className="rounded-[22px] border border-[#183149]/45 bg-[#06131d]/64 p-5 shadow-[0_10px_22px_rgba(0,0,0,0.1)]">
               {relatedStories.length > 0 ? (
                 <div>

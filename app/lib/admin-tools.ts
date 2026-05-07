@@ -99,9 +99,18 @@ export type AdminEntity = {
   name: string;
 };
 
+export type AdminOperationalHealth = {
+  embeddingErrors: number;
+  embeddingPending: number;
+  feedErrors: Array<{ lastError: string; title: string; url: string }>;
+  latestRssScan: { error: string | null; finishedAt: string | null; startedAt: string; status: string } | null;
+  pushSubscriptions: number;
+};
+
 export type AdminDashboardData = {
   attentionStories: AdminDashboardStoryIssue[];
   communitySettings: Awaited<ReturnType<typeof getCommunitySettings>>;
+  operationalHealth: AdminOperationalHealth;
   recentInterestSignals: AdminInterestSignal[];
   recentComments: AdminDashboardRecentComment[];
   recentRevisions: AdminDashboardRecentRevision[];
@@ -117,6 +126,10 @@ export type AdminDashboardData = {
     unreadAdminNotifications: number;
   };
 };
+
+function relationMissing(error: unknown, relationName: string) {
+  return error instanceof Error && new RegExp(`relation .*${relationName}.* does not exist`, "i").test(error.message);
+}
 
 function sanitizeSearchTerm(value: string) {
   return value.replace(/[,%]/g, " ").trim();
@@ -433,6 +446,71 @@ export async function listAdminInterestSignals(limit = 12) {
     });
 }
 
+async function getAdminOperationalHealth(): Promise<AdminOperationalHealth> {
+  const supabase = supabaseServer();
+  const [
+    latestScanResult,
+    feedErrorResult,
+    storyEmbeddingPendingResult,
+    storyEmbeddingErrorResult,
+    interestEmbeddingPendingResult,
+    interestEmbeddingErrorResult,
+    pushSubscriptionResult,
+  ] = await Promise.all([
+    supabase.from("admin_rss_scan_runs").select("started_at, finished_at, status, error").order("started_at", { ascending: false }).limit(1),
+    supabase.from("admin_rss_feeds").select("title, url, last_error").not("last_error", "is", null).order("updated_at", { ascending: false }).limit(5),
+    supabase.from("story_embeddings").select("story_id", { count: "exact", head: true }).eq("embedding_state", "pending"),
+    supabase.from("story_embeddings").select("story_id", { count: "exact", head: true }).eq("embedding_state", "error"),
+    supabase.from("user_interest_follows").select("id", { count: "exact", head: true }).eq("embedding_state", "pending"),
+    supabase.from("user_interest_follows").select("id", { count: "exact", head: true }).eq("embedding_state", "error"),
+    supabase.from("push_subscriptions").select("endpoint", { count: "exact", head: true }),
+  ]);
+
+  const ignorableErrors = [
+    [latestScanResult.error, "admin_rss_scan_runs"],
+    [feedErrorResult.error, "admin_rss_feeds"],
+    [storyEmbeddingPendingResult.error, "story_embeddings"],
+    [storyEmbeddingErrorResult.error, "story_embeddings"],
+    [interestEmbeddingPendingResult.error, "user_interest_follows"],
+    [interestEmbeddingErrorResult.error, "user_interest_follows"],
+    [pushSubscriptionResult.error, "push_subscriptions"],
+  ] as const;
+
+  for (const [error, relation] of ignorableErrors) {
+    if (error && !relationMissing(new Error(error.message), relation)) {
+      throw new Error(error.message);
+    }
+  }
+
+  const latestScan = ((latestScanResult.data ?? []) as Array<{
+    error: string | null;
+    finished_at: string | null;
+    started_at: string;
+    status: string;
+  }>)[0];
+
+  return {
+    embeddingErrors: (storyEmbeddingErrorResult.count ?? 0) + (interestEmbeddingErrorResult.count ?? 0),
+    embeddingPending: (storyEmbeddingPendingResult.count ?? 0) + (interestEmbeddingPendingResult.count ?? 0),
+    feedErrors: ((feedErrorResult.data ?? []) as Array<{ last_error: string | null; title: string | null; url: string | null }>)
+      .filter((feed) => feed.last_error)
+      .map((feed) => ({
+        lastError: feed.last_error ?? "",
+        title: feed.title?.trim() || feed.url?.trim() || "Feed",
+        url: feed.url ?? "",
+      })),
+    latestRssScan: latestScan
+      ? {
+          error: latestScan.error,
+          finishedAt: latestScan.finished_at,
+          startedAt: latestScan.started_at,
+          status: latestScan.status,
+        }
+      : null,
+    pushSubscriptions: pushSubscriptionResult.count ?? 0,
+  };
+}
+
 export async function getAdminDashboardData(adminUserId: string): Promise<AdminDashboardData> {
   const supabase = supabaseServer();
   const startOfDay = new Date();
@@ -451,6 +529,7 @@ export async function getAdminDashboardData(adminUserId: string): Promise<AdminD
     { data: recentRevisionsData, error: revisionsError },
     communitySettings,
     recentInterestSignals,
+    operationalHealth,
   ] = await Promise.all([
     supabase
       .from("stories")
@@ -477,6 +556,7 @@ export async function getAdminDashboardData(adminUserId: string): Promise<AdminD
       .limit(8),
     getCommunitySettings(),
     listAdminInterestSignals(12),
+    getAdminOperationalHealth(),
   ]);
 
   if (storyError) throw new Error(storyError.message);
@@ -539,6 +619,7 @@ export async function getAdminDashboardData(adminUserId: string): Promise<AdminD
   return {
     attentionStories,
     communitySettings,
+    operationalHealth,
     recentInterestSignals,
     recentComments: recentComments.map((comment) => ({
       body: comment.body,

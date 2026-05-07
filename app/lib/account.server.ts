@@ -545,6 +545,33 @@ export async function getFollowedStoryIds(userId: string) {
   return ((data ?? []) as UserStoryFollowRow[]).map((row) => row.story_id);
 }
 
+export async function getFollowedStories(userId: string) {
+  const supabase = supabaseServer();
+  const { data, error } = await supabase
+    .from("user_story_follows")
+    .select("story_id, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(friendlyAuthError(error.message, "We couldn't load followed stories."));
+  }
+
+  const rows = (data ?? []) as UserStoryFollowRow[];
+  const storiesById = await getStoriesById(rows.map((row) => row.story_id));
+  return rows
+    .map((row) => {
+      const story = storiesById.get(row.story_id);
+      return story
+        ? {
+            followedAt: row.created_at,
+            story,
+          }
+        : null;
+    })
+    .filter((value): value is FollowedStory => Boolean(value));
+}
+
 export async function getFollowedInterests(userId: string) {
   const supabase = supabaseServer();
   const { data, error } = await supabase

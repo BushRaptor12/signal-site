@@ -288,6 +288,66 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
           <section className={`${ADMIN_PANEL} p-8`}>
             <div className="flex items-center justify-between gap-4">
               <div>
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Operations</div>
+                <h2 className="mt-2 text-2xl font-semibold text-neutral-100">System Health</h2>
+              </div>
+              <div className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+                {initialData.operationalHealth.latestRssScan?.status ?? "No scan"}
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className={`${ADMIN_INSET} p-4`}>
+                <div className="text-xs uppercase tracking-[0.16em] text-neutral-500">Embeddings pending</div>
+                <div className="mt-2 text-2xl font-semibold text-neutral-100">{initialData.operationalHealth.embeddingPending}</div>
+              </div>
+              <div className={`${ADMIN_INSET} p-4`}>
+                <div className="text-xs uppercase tracking-[0.16em] text-neutral-500">Embedding errors</div>
+                <div className="mt-2 text-2xl font-semibold text-neutral-100">{initialData.operationalHealth.embeddingErrors}</div>
+              </div>
+              <div className={`${ADMIN_INSET} p-4`}>
+                <div className="text-xs uppercase tracking-[0.16em] text-neutral-500">Push subscribers</div>
+                <div className="mt-2 text-2xl font-semibold text-neutral-100">{initialData.operationalHealth.pushSubscriptions}</div>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {initialData.operationalHealth.latestRssScan ? (
+                <div className={`${ADMIN_INSET} p-4`}>
+                  <div className="text-sm font-medium text-neutral-100">Latest RSS scan</div>
+                  <div className="mt-1 text-xs uppercase tracking-[0.16em] text-neutral-500">
+                    Started {formatUpdatedAt(initialData.operationalHealth.latestRssScan.startedAt)}
+                    {initialData.operationalHealth.latestRssScan.finishedAt
+                      ? ` • Finished ${formatUpdatedAt(initialData.operationalHealth.latestRssScan.finishedAt)}`
+                      : ""}
+                  </div>
+                  {initialData.operationalHealth.latestRssScan.error ? (
+                    <div className="mt-2 text-sm leading-6 text-red-200">{initialData.operationalHealth.latestRssScan.error}</div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {initialData.operationalHealth.feedErrors.length > 0 ? (
+                <div className={`${ADMIN_INSET} p-4`}>
+                  <div className="text-sm font-medium text-neutral-100">Feed errors</div>
+                  <div className="mt-3 space-y-3">
+                    {initialData.operationalHealth.feedErrors.map((feed) => (
+                      <div key={feed.url}>
+                        <div className="text-sm text-neutral-200">{feed.title}</div>
+                        <div className="mt-1 line-clamp-2 text-sm leading-6 text-red-200">{feed.lastError}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className={`${ADMIN_INSET} p-4 text-sm text-neutral-500`}>No feed errors currently reported.</div>
+              )}
+            </div>
+          </section>
+
+          <section className={`${ADMIN_PANEL} p-8`}>
+            <div className="flex items-center justify-between gap-4">
+              <div>
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Staff</div>
                 <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Access</h2>
               </div>

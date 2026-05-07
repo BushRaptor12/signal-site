@@ -1,5 +1,39 @@
 import type { Entity, Source, StoryWithViews } from "@/app/lib/types";
 
+export const STORY_CARD_SELECT = [
+  "id",
+  "status",
+  "title",
+  "summary",
+  "sources",
+  "date",
+  "image_url",
+  "image_path",
+  "image_focus_x",
+  "image_focus_y",
+  "image_display",
+  "image_show_on_homepage",
+  "views",
+  "urgent",
+  "pinned",
+  "topics",
+  "tags",
+  "entities",
+  "primary_entities",
+  "locations",
+  "organizations",
+  "people",
+  "industries",
+  "sports_teams",
+  "offices",
+  "facets",
+  "related_interest_signals",
+  "comments",
+  "created_at",
+  "updated_at",
+  "content_updated_at",
+].join(", ");
+
 export type StoryDbRow = {
   id: string;
   status?: string | null;
@@ -43,6 +77,40 @@ export type StoryDbRow = {
   updated_at?: string | null;
   content_updated_at?: string | null;
 };
+
+function normalizeSearchText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+export function storyMatchesSearch(story: StoryWithViews, query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery) return true;
+
+  const searchableText = [
+    story.id,
+    story.title,
+    ...(story.summary ?? []),
+    ...(story.topics ?? []),
+    ...(story.tags ?? []),
+    ...(story.primary_entities ?? []),
+    ...(story.locations ?? []),
+    ...(story.organizations ?? []),
+    ...(story.people ?? []),
+    ...(story.industries ?? []),
+    ...(story.sports_teams ?? []),
+    ...(story.offices ?? []),
+    ...(story.facets ?? []),
+    ...(story.related_interest_signals ?? []),
+    ...(story.entities ?? []).flatMap((entity) => [entity.name, ...(entity.aliases ?? [])]),
+    ...(story.sources ?? []).flatMap((source) => [source.name, source.title ?? "", source.badge ?? ""]),
+  ].join(" ");
+
+  return normalizeSearchText(searchableText).includes(normalizedQuery);
+}
 
 export function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];

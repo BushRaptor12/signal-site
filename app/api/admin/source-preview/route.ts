@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { requestHasAdminAccess } from "@/app/lib/admin.server";
+import { checkRateLimit, rateLimitIdentifier, rateLimitResponse } from "@/app/lib/rate-limit";
 import { guessSourceLabel } from "@/app/lib/source-lean";
 
 function messageFromError(error: unknown) {
@@ -99,6 +100,15 @@ function guessTitleFromPath(url: URL) {
 
 export async function POST(req: Request) {
   try {
+    const rateLimit = checkRateLimit({
+      key: `admin:source-preview:${rateLimitIdentifier(req)}`,
+      limit: 40,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (rateLimit.limited) {
+      return rateLimitResponse(rateLimit.retryAfter);
+    }
+
     if (!(await requestHasAdminAccess(req))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
