@@ -1012,6 +1012,48 @@ function priorityForCluster(options: {
   ).toFixed(2));
 }
 
+function clusterIdForItems(items: AdminRssItem[]) {
+  return createHash("sha1").update(items.map((item) => item.url).join("\n")).digest("hex").slice(0, 16);
+}
+
+function actionStatusForCluster(
+  items: AdminRssItem[],
+  actionStatusByClusterId: Map<string, "hidden" | "reviewed">
+): { id: string; status: AdminRssCluster["actionStatus"] } {
+  const id = clusterIdForItems(items);
+  const directStatus = actionStatusByClusterId.get(id);
+  if (directStatus) return { id, status: directStatus };
+
+  const maxRemovedItems = Math.min(3, items.length - 2);
+
+  function findSubsetAction(
+    startIndex: number,
+    removeCount: number,
+    removedIndexes: number[]
+  ): { id: string; status: "hidden" | "reviewed" } | null {
+    if (removeCount === 0) {
+      const removed = new Set(removedIndexes);
+      const subsetId = clusterIdForItems(items.filter((_, index) => !removed.has(index)));
+      const status = actionStatusByClusterId.get(subsetId);
+      return status ? { id: subsetId, status } : null;
+    }
+
+    for (let index = startIndex; index <= items.length - removeCount; index += 1) {
+      const matched = findSubsetAction(index + 1, removeCount - 1, [...removedIndexes, index]);
+      if (matched) return matched;
+    }
+
+    return null;
+  }
+
+  for (let removeCount = 1; removeCount <= maxRemovedItems; removeCount += 1) {
+    const matched = findSubsetAction(0, removeCount, []);
+    if (matched) return { id: matched.id, status: matched.status };
+  }
+
+  return { id, status: "new" };
+}
+
 function clusterRecentItems(
   items: AdminRssItem[],
   feeds: AdminRssFeed[],
@@ -1068,12 +1110,12 @@ function clusterRecentItems(
         weightedSourceCount,
         wireServiceCount,
       });
-      const id = createHash("sha1").update(clusterItems.map((item) => item.url).join("\n")).digest("hex").slice(0, 16);
+      const action = actionStatusForCluster(clusterItems, actionStatusByClusterId);
       return {
-        actionStatus: actionStatusByClusterId.get(id) ?? "new",
+        actionStatus: action.status,
         categoryCoverage,
         existingStoryMatches: existingStoryMatchesForCluster(clusterItems, stories),
-        id,
+        id: action.id,
         newestPublishedAt,
         priorityScore,
         score: Number(cluster.score.toFixed(3)),
