@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   },
 };
 
-const LAST_UPDATED = "April 23, 2026";
+const LAST_UPDATED = "May 11, 2026";
 
 const sections = [
   {
@@ -68,6 +68,8 @@ const sections = [
     paragraphs: [
       "We do not sell personal information through the current version of the site.",
       "Information may be processed by service providers that help run the site, including Vercel for hosting and analytics and Supabase for application data, realtime updates, and storage.",
+      "If advertising is enabled, third-party vendors, including Google, may use cookies, web beacons, IP addresses, or other identifiers to serve ads, measure ad performance, prevent fraud and abuse, and personalize ads where permitted by law and your choices.",
+      "Google's use of advertising cookies enables Google and its partners to serve ads based on a user's visit to The Beacon and/or other sites on the internet. You can learn more about how Google uses information from sites and apps that use its services at https://policies.google.com/technologies/partner-sites.",
       "Stories on The Beacon link out to third-party publisher sites. When you click one of those links, you leave The Beacon and the third party's own terms and privacy practices apply.",
     ],
   },
@@ -76,6 +78,7 @@ const sections = [
     paragraphs: [
       "The Beacon currently uses a mix of first-party browser storage, first-party cookies, realtime browser subscriptions, push-notification subscriptions, and service-provider analytics.",
       "Local storage keys are used for saved tab preferences and limited client-side interface state. Session storage is used for temporary per-session view tracking in your browser. The `beacon_account` cookie is used to maintain signed-in account sessions, and the `signal_vid` cookie is used by the site to help manage view and reaction integrity. If you enable web push, your browser may also keep a service-worker registration and push subscription. Vercel Web Analytics is also enabled at the app level.",
+      "If Google AdSense or other ad services are enabled, Google and other ad technology providers may place or read cookies and use similar technologies when ads are requested or shown. AdSense cookies may be associated with Google domains such as google.com or doubleclick.net.",
       "You can usually remove or block cookies and local storage through your browser settings. If you do, some site behavior, such as saved tabs or engagement counting, may stop working as intended.",
     ],
   },
@@ -93,6 +96,8 @@ const sections = [
     paragraphs: [
       "You can browse much of the site without creating an account or directly submitting identifying information.",
       "You can avoid using reaction features, clear cookies and browser storage, or use browser privacy controls to limit certain types of tracking.",
+      "You can opt out of personalized advertising from Google through Google's Ads Settings at https://adssettings.google.com. You can also learn about opt-out choices for some third-party vendors at https://www.aboutads.info/choices/.",
+      "Visitors in regions that require consent for advertising cookies or personalized ads may be shown a consent message before personalized advertising is used.",
       "Depending on where you live, you may have privacy rights under applicable law, such as rights to request access to or deletion of certain information. Account holders can manage some information through the account area, and privacy requests may also be sent to contact@readthebeacon.news.",
     ],
   },

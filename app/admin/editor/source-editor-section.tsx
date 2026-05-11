@@ -110,10 +110,10 @@ export default function SourceEditorSection({
               <option value="Center">Center</option>
               <option value="Right">Right</option>
             </select>
-            <details className="md:col-span-6 rounded-xl border border-neutral-800 bg-neutral-950/35">
-              <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400 [&::-webkit-details-marker]:hidden">
+            <div className="md:col-span-6 rounded-xl border border-neutral-800 bg-neutral-950/35">
+              <div className="px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">
                 Advanced Source Settings
-              </summary>
+              </div>
               <div className="border-t border-neutral-800 px-3 py-3">
                 <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">
                   Badge
@@ -128,7 +128,7 @@ export default function SourceEditorSection({
                   Rare. Shows as a gold pill next to the source name on story pages.
                 </p>
               </div>
-            </details>
+            </div>
             <div className="md:col-span-6 flex flex-wrap items-center gap-3 text-xs text-neutral-500">
               {source.url.trim() ? (
                 <button

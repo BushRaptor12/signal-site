@@ -83,23 +83,23 @@ type EditorSectionProps = {
   title: string;
   description?: string;
   defaultOpen?: boolean;
+  id?: string;
   children: ReactNode;
 };
 
-function EditorSection({ title, description, defaultOpen = false, children }: EditorSectionProps) {
+function EditorSection({ title, description, defaultOpen = false, id, children }: EditorSectionProps) {
+  void defaultOpen;
+
   return (
-    <details open={defaultOpen} className={`group ${ADMIN_PANEL}`}>
-      <summary className="flex cursor-pointer list-none items-start justify-between gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
+    <section id={id} className={`${ADMIN_PANEL} scroll-mt-24`}>
+      <div className="flex items-start justify-between gap-4 px-5 py-4">
         <div>
           <div className="text-sm font-semibold uppercase tracking-[0.14em] text-neutral-200">{title}</div>
           {description ? <p className="mt-2 text-sm text-neutral-500">{description}</p> : null}
         </div>
-        <span className="shrink-0 rounded-full border border-neutral-700 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-neutral-400">
-          Toggle
-        </span>
-      </summary>
+      </div>
       <div className="border-t border-neutral-800 px-5 py-5">{children}</div>
-    </details>
+    </section>
   );
 }
 
@@ -121,7 +121,7 @@ export default function EditorPage() {
   const [imagePath, setImagePath] = useState<string | null>(null);
   const [imageFocusX, setImageFocusX] = useState(DEFAULT_IMAGE_FOCUS);
   const [imageFocusY, setImageFocusY] = useState(DEFAULT_IMAGE_FOCUS);
-  const [imageDisplay, setImageDisplay] = useState<StoryImageDisplay>("cover");
+  const [imageDisplay, setImageDisplay] = useState<StoryImageDisplay>("contain");
   const [imageShowOnHomepage, setImageShowOnHomepage] = useState(true);
   const [imageShowOnBriefing, setImageShowOnBriefing] = useState(true);
   const [imageShowOnStoryPage, setImageShowOnStoryPage] = useState(false);
@@ -158,6 +158,8 @@ export default function EditorPage() {
   const [sources, setSources] = useState<SourceEditorRow[]>(blankSources());
   const [sourceUrlDraft, setSourceUrlDraft] = useState("");
   const [sourcePreviewLoading, setSourcePreviewLoading] = useState(false);
+  const [sourceDragIndex, setSourceDragIndex] = useState<number | null>(null);
+  const [sourceDropIndex, setSourceDropIndex] = useState<number | null>(null);
   const [discoveryImportChecked, setDiscoveryImportChecked] = useState(false);
   const [pendingKnowledgeAutofill, setPendingKnowledgeAutofill] = useState(false);
   const [notice, setNotice] = useState<EditorNotice>(null);
@@ -238,7 +240,7 @@ export default function EditorPage() {
     setImagePath(null);
     setImageFocusX(DEFAULT_IMAGE_FOCUS);
     setImageFocusY(DEFAULT_IMAGE_FOCUS);
-    setImageDisplay("cover");
+    setImageDisplay("contain");
     setImageShowOnHomepage(true);
     setImageShowOnBriefing(true);
     setImageShowOnStoryPage(false);
@@ -484,6 +486,21 @@ export default function EditorPage() {
     ]
   );
   const isDirty = Boolean(savedSnapshot) && savedSnapshot !== editorSnapshot;
+  const readinessChecklist = useMemo(() => {
+    const filledSummary = summary.map((line) => line.trim()).filter(Boolean);
+    const filledSources = sources.filter((source) => source.name.trim() && source.url.trim());
+    const sourceTitleCount = sources.filter((source) => source.title.trim()).length;
+
+    return [
+      { label: "Title", done: Boolean(title.trim()) },
+      { label: "3+ summary points", done: filledSummary.length >= 3 },
+      { label: "2+ sources", done: filledSources.length >= 2, detail: `${filledSources.length} sources` },
+      { label: "Source titles", done: sourceTitleCount >= Math.min(2, filledSources.length) },
+      { label: "Topic", done: topics.length > 0 },
+      { label: "Entity", done: selectedEntities.length > 0 },
+      { label: "Image decision", done: Boolean(imageUrl ? imageShowOnHomepage || imageShowOnBriefing || imageShowOnStoryPage : true) },
+    ];
+  }, [imageShowOnBriefing, imageShowOnHomepage, imageShowOnStoryPage, imageUrl, selectedEntities.length, sources, summary, title, topics.length]);
 
   useEffect(() => {
     if (!pendingBaselineSync) return;
@@ -566,6 +583,19 @@ export default function EditorPage() {
       const next = [...prev];
       const [row] = next.splice(index, 1);
       next.splice(targetIndex, 0, row);
+      return next;
+    });
+  }
+
+  function moveSourceRowTo(fromIndex: number, toIndex: number) {
+    setSources((prev) => {
+      if (fromIndex < 0 || fromIndex >= prev.length) return prev;
+      if (toIndex < 0 || toIndex >= prev.length) return prev;
+      if (fromIndex === toIndex) return prev;
+
+      const next = [...prev];
+      const [row] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, row);
       return next;
     });
   }
@@ -832,7 +862,7 @@ export default function EditorPage() {
       setImageUrl(json.imageUrl);
       setImageFocusX(DEFAULT_IMAGE_FOCUS);
       setImageFocusY(DEFAULT_IMAGE_FOCUS);
-      setImageDisplay("cover");
+      setImageDisplay("contain");
       setImageShowOnHomepage(true);
       setImageShowOnBriefing(true);
       setImageShowOnStoryPage(false);
@@ -865,7 +895,7 @@ export default function EditorPage() {
     setImagePath(null);
     setImageFocusX(DEFAULT_IMAGE_FOCUS);
     setImageFocusY(DEFAULT_IMAGE_FOCUS);
-    setImageDisplay("cover");
+    setImageDisplay("contain");
     setImageShowOnHomepage(true);
     setImageShowOnBriefing(true);
     setImageShowOnStoryPage(false);
@@ -1108,11 +1138,14 @@ export default function EditorPage() {
     }
   }
   return (
-    <main className="min-h-screen bg-neutral-900 text-neutral-100 p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Story Editor</h1>
-          <div className="flex items-center gap-4">
+    <main className="min-h-screen bg-transparent px-3 pb-24 pt-5 text-neutral-100 sm:px-5 sm:py-7 lg:p-8">
+      <div className="mx-auto max-w-6xl">
+        <div className="flex flex-col gap-4 rounded-2xl border border-[#183149]/65 bg-[#07131e] p-4 shadow-[0_16px_36px_rgba(0,0,0,0.2)] sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Admin</div>
+            <div className="mt-1 text-lg font-semibold text-neutral-100">Story Editor</div>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
             <Link href="/admin" className="text-xs text-neutral-400 hover:text-neutral-200">
               Control center
             </Link>
@@ -1182,28 +1215,33 @@ export default function EditorPage() {
           </div>
         ) : null}
 
-        <div className="mt-8 grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className={`${ADMIN_PANEL} h-fit p-5 xl:sticky xl:top-8`}>
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-semibold uppercase text-neutral-300">Current Stories</div>
+        <details id="editor-stories" className={`${ADMIN_PANEL} mt-6 scroll-mt-24 p-5`}>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold uppercase tracking-[0.14em] text-neutral-300 [&::-webkit-details-marker]:hidden">
+            <span>Current Stories</span>
+            <span className="inline-flex items-center gap-3 text-xs font-normal normal-case tracking-normal text-neutral-500">
+              {loadingStories ? "Loading..." : `${filteredStories.length} stories`}
+              <span className="rounded-full border border-[#28445d] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-neutral-400">
+                Toggle
+              </span>
+            </span>
+          </summary>
+          <div className="mt-5">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <input
+                value={storySearch}
+                onChange={(e) => setStorySearch(e.target.value)}
+                placeholder="Search stories..."
+                className="min-h-11 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
+              />
               <button
                 onClick={() => void loadStories()}
-                className="text-xs text-neutral-400 hover:text-neutral-200"
+                className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
                 type="button"
               >
                 Refresh
               </button>
             </div>
-            <input
-              value={storySearch}
-              onChange={(e) => setStorySearch(e.target.value)}
-              placeholder="Search stories..."
-              className="mt-4 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
-            />
-            <div className="mt-4 text-xs text-neutral-500">
-              {loadingStories ? "Loading..." : `${filteredStories.length} stories`}
-            </div>
-            <div className="mt-4 max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+            <div className="mt-4 grid max-h-[26rem] gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
               {filteredStories.map((story) => {
                 const active = story.id === activeStoryId;
                 return (
@@ -1211,64 +1249,633 @@ export default function EditorPage() {
                     key={story.id}
                     type="button"
                     onClick={() => requestEditorTransition(() => loadStoryIntoForm(story), `open "${story.title}"`)}
-                    className={`w-full rounded-xl border p-4 text-left transition ${
+                    className={`rounded-xl border p-4 text-left transition ${
                       active
                         ? "border-neutral-300 bg-neutral-100/10"
                         : "border-[#1a334b]/75 bg-[#081521] hover:border-neutral-500"
                     }`}
                   >
                     <div className="text-xs uppercase tracking-[0.18em] text-neutral-500">{story.date}</div>
-                    <div className="mt-2 text-sm font-semibold text-neutral-100">{story.title}</div>
-                    <div className="mt-2 text-xs text-neutral-500">{story.id}</div>
-                    <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-neutral-400">{story.status}</div>
-                    {story.beacon_include ? (
-                      <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-red-300">In briefing</div>
-                    ) : null}
-                    {story.pinned ? (
-                      <div className="mt-1 text-[11px] uppercase tracking-[0.18em] text-amber-300">Tracking</div>
-                    ) : null}
+                    <div className="mt-2 line-clamp-2 text-sm font-semibold text-neutral-100">{story.title}</div>
+                    <div className="mt-2 truncate text-xs text-neutral-500">{story.id}</div>
+                    <div className="mt-2 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em] text-neutral-400">
+                      <span>{story.status}</span>
+                      {story.beacon_include ? <span className="text-red-300">Briefing</span> : null}
+                      {story.pinned ? <span className="text-amber-300">Tracking</span> : null}
+                    </div>
                   </button>
                 );
               })}
             </div>
-          </aside>
+          </div>
+        </details>
+      </div>
 
-          <div className="space-y-6">
-            <div className={`${ADMIN_PANEL} p-6`}>
-              <div className="text-sm font-semibold uppercase text-neutral-300">
-                {activeStoryId ? "Editing Existing Story" : "Creating New Story"}
+      <div className="mx-auto mt-6 max-w-3xl sm:mt-8">
+        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 sm:grid-cols-[1fr_auto_1fr] sm:gap-4">
+          <BackLink href="/admin" className="justify-self-start" />
+          <div className="justify-self-center text-center">
+            <Link href="/" aria-label="Go to The Beacon home page" className="inline-block">
+              <Image
+                src="/small logo.png"
+                alt="Signal logo"
+                width={600}
+                height={140}
+                priority
+                className="h-auto w-[122px] sm:w-[156px] md:w-[184px]"
+              />
+            </Link>
+            <p className="mt-1 hidden text-[11px] text-neutral-500 sm:block md:text-xs">One Story, Multiple Perspectives.</p>
+          </div>
+          <div className="justify-self-end">
+            <button
+              type="button"
+              onClick={() => requestEditorTransition(resetForm, "start a new story")}
+              className="inline-flex min-h-10 rounded-full border border-[#8f7740]/60 bg-[#08131d] px-3 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0b1824] sm:px-4"
+            >
+              New story
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <nav className="sticky top-0 z-30 -mx-3 mt-5 border-y border-[#183149]/70 bg-[#020b14]/95 px-3 py-2 backdrop-blur xl:hidden">
+        <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {[
+            { href: "#editor-story", label: "Story" },
+            { href: "#editor-setup", label: "Setup" },
+            { href: "#editor-metadata", label: "Metadata" },
+            { href: "#editor-sources", label: "Sources" },
+            { href: "#editor-related", label: "Related" },
+            { href: "#editor-publish-mobile", label: "Publish" },
+          ].map((item) => (
+            <a
+              key={item.href}
+              href={item.href}
+              className="shrink-0 rounded-full border border-[#28445d] bg-[#06131e] px-4 py-2 text-xs font-semibold text-neutral-200"
+            >
+              {item.label}
+            </a>
+          ))}
+        </div>
+      </nav>
+
+      <div className="mx-auto mt-6 max-w-[108rem] sm:mt-8 xl:grid xl:grid-cols-[1fr_20rem_minmax(0,48rem)_18rem_1fr] xl:gap-6">
+        <div className="hidden xl:block" />
+        <aside className="hidden xl:col-start-2 xl:block xl:w-80 xl:self-start xl:pt-1">
+          <div className="space-y-5">
+          <div className="rounded-[22px] border border-[#183149]/45 bg-[#06131d]/64 p-5 shadow-[0_10px_22px_rgba(0,0,0,0.1)]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Story Setup</div>
+            <div className="mt-4 space-y-4 text-sm">
+              <label className="block">
+                <span className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Date</span>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(event) => setDate(event.target.value)}
+                  className="mt-2 w-full rounded-lg border border-[#214765]/70 bg-[#020b14] px-3 py-2 text-sm text-neutral-200 outline-none focus:border-[#8f7740]/70"
+                />
+              </label>
+
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Status</div>
+                <div className="mt-2 grid gap-2">
+                  {([
+                    { value: "draft" as StoryStatus, label: "Draft" },
+                    { value: "published" as StoryStatus, label: "Published" },
+                    { value: "archived" as StoryStatus, label: "Archived" },
+                  ]).map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setStatus(option.value)}
+                      className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                        status === option.value
+                          ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                          : "border-[#214765]/70 bg-[#020b14] text-neutral-300 hover:border-[#8f7740]/70"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="mt-3 text-sm text-neutral-500">
-                Story slug: <span className="text-neutral-300">{storyId}</span>
-              </div>
-              {activeStoryId ? (
-                <p className="mt-2 text-xs text-neutral-500">
-                  Existing stories keep their saved slug here so links stay stable.
-                </p>
-              ) : null}
-              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
-                <span
-                  className={`rounded-full border px-3 py-1 uppercase tracking-[0.18em] ${
-                    status === "published"
-                      ? "border-emerald-500/40 text-emerald-300"
-                      : status === "archived"
-                        ? "border-neutral-600 text-neutral-400"
-                        : "border-amber-500/40 text-amber-300"
-                  }`}
-                >
-                  {status}
-                </span>
-                {isDirty ? <span className="text-amber-300">Unsaved changes</span> : <span className="text-neutral-500">All changes saved</span>}
+
+              <label className="block">
+                <span className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Story slug</span>
+                <input
+                  value={activeStoryId ? storyId : slugInput || generatedId}
+                  onChange={(event) => setSlugInput(normalizeStoryIdInput(event.target.value))}
+                  readOnly={Boolean(activeStoryId)}
+                  className="mt-2 w-full rounded-lg border border-[#214765]/70 bg-[#020b14] px-3 py-2 text-sm text-neutral-200 outline-none read-only:opacity-70 focus:border-[#8f7740]/70"
+                  placeholder="story-slug"
+                />
+              </label>
+            </div>
+          </div>
+          <div className="rounded-[22px] border border-[#183149]/45 bg-[#06131d]/64 p-5 shadow-[0_10px_22px_rgba(0,0,0,0.1)]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Entities</div>
+              <button
+                type="button"
+                onClick={() => void autofillStoryKnowledge()}
+                disabled={pendingKnowledgeAutofill}
+                className="rounded-full border border-[#8f7740]/60 px-3 py-1 text-[11px] font-semibold text-[#e3cca0] transition hover:bg-[#8f7740]/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pendingKnowledgeAutofill ? "Filling" : "Auto-fill"}
+              </button>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <input
+                value={entitySearch}
+                onChange={(event) => setEntitySearch(event.target.value)}
+                placeholder="Search or add entity"
+                className="min-w-0 flex-1 rounded-lg border border-[#214765]/70 bg-[#020b14] px-3 py-2 text-sm text-neutral-200 outline-none focus:border-[#8f7740]/70"
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  const name = entitySearch.trim();
+                  if (!name) return;
+                  const existing = entities.find((entity) => entity.name.toLowerCase() === name.toLowerCase());
+                  const entity = existing ?? (await createEntity(name));
+                  if (!entity) return;
+                  setSelectedEntities((current) => (current.includes(entity.name) ? current : [...current, entity.name]));
+                  setEntitySearch("");
+                }}
+                className="rounded-lg bg-neutral-100 px-3 py-2 text-sm font-semibold text-neutral-900"
+              >
+                Add
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {selectedEntities.length > 0 ? (
+                selectedEntities.map((name) => (
+                  <button
+                    key={`left-selected-${name}`}
+                    type="button"
+                    onClick={() => togglePrimary(name)}
+                    className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                      primaryEntities.includes(name)
+                        ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                        : "border-[#28445d] text-neutral-300 hover:border-[#8f7740]/70"
+                    }`}
+                    title="Click to toggle primary"
+                  >
+                    {name}
+                  </button>
+                ))
+              ) : (
+                <span className="text-xs text-neutral-500">No entities selected.</span>
+              )}
+            </div>
+            <div className="mt-4 max-h-48 space-y-2 overflow-y-auto pr-1">
+              {entities
+                .filter((entity) =>
+                  entitySearch.trim()
+                    ? entity.name.toLowerCase().includes(entitySearch.trim().toLowerCase())
+                    : selectedEntities.length > 0
+                      ? !selectedEntities.includes(entity.name)
+                      : true
+                )
+                .slice(0, 18)
+                .map((entity) => {
+                  const selected = selectedEntities.includes(entity.name);
+                  return (
+                    <button
+                      key={`left-entity-${entity.name}`}
+                      type="button"
+                      onClick={() => toggleEntity(entity.name)}
+                      className={`block w-full rounded-lg border px-3 py-2 text-left text-xs transition ${
+                        selected
+                          ? "border-neutral-100 bg-neutral-100/10 text-neutral-100"
+                          : "border-[#214765]/70 bg-[#020b14] text-neutral-300 hover:border-[#8f7740]/70"
+                      }`}
+                    >
+                      {selected ? "Selected: " : "+ "}
+                      {entity.name}
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+          <div className="rounded-[22px] border border-[#183149]/45 bg-[#06131d]/64 p-5 shadow-[0_10px_22px_rgba(0,0,0,0.1)]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Metadata</div>
+            <div className="mt-4">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Topics</div>
+              <div className="mt-2 flex max-h-44 flex-wrap gap-2 overflow-y-auto pr-1">
+                {TOPICS.map((topic) => {
+                  const selected = topics.map(normalize).includes(normalize(topic));
+                  return (
+                    <button
+                      key={`left-topic-${topic}`}
+                      type="button"
+                      onClick={() => toggleTopic(topic)}
+                      className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                        selected
+                          ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                          : "border-[#28445d] text-neutral-300 hover:border-[#8f7740]/70"
+                      }`}
+                    >
+                      {topic}
+                    </button>
+                  );
+                })}
               </div>
             </div>
+            <div className="mt-4 grid gap-3">
+              {[
+                { label: "People", value: peopleDraft, setValue: setPeopleDraft, placeholder: "Name per line" },
+                { label: "Organizations", value: organizationsDraft, setValue: setOrganizationsDraft, placeholder: "Org per line" },
+                { label: "Locations", value: locationsDraft, setValue: setLocationsDraft, placeholder: "Place per line" },
+                { label: "Industries", value: industriesDraft, setValue: setIndustriesDraft, placeholder: "Industry per line" },
+                { label: "Sports Teams", value: sportsTeamsDraft, setValue: setSportsTeamsDraft, placeholder: "Team per line" },
+                { label: "Offices", value: officesDraft, setValue: setOfficesDraft, placeholder: "Office per line" },
+                { label: "Facets", value: facetsDraft, setValue: setFacetsDraft, placeholder: "Facet per line" },
+                {
+                  label: "Related Signals",
+                  value: relatedInterestSignalsDraft,
+                  setValue: setRelatedInterestSignalsDraft,
+                  placeholder: "Signal per line",
+                },
+              ].map((field) => (
+                <label key={`left-meta-${field.label}`} className="block">
+                  <span className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">{field.label}</span>
+                  <textarea
+                    value={field.value}
+                    onChange={(event) => field.setValue(event.target.value)}
+                    rows={2}
+                    className="mt-2 w-full resize-y rounded-lg border border-[#214765]/70 bg-[#020b14] px-3 py-2 text-xs leading-5 text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-[#8f7740]/70"
+                    placeholder={field.placeholder}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+          </div>
+        </aside>
 
-            <div className="space-y-4">
+        <div className="min-w-0 xl:col-start-3">
+            <article id="editor-story" className="min-w-0 max-w-full scroll-mt-24 rounded-[18px] border border-[#1d3952]/50 bg-[#081520]/88 p-4 shadow-[0_12px_28px_rgba(0,0,0,0.12)] sm:rounded-[22px] sm:p-8">
+              <header className="border-b border-[#1a3349]/70 pb-5 sm:pb-6">
+                <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                  <span>{date || "Set date below"}</span>
+                  <span className="text-[#35556f]">/</span>
+                  <span>{status}</span>
+                  {isDirty ? (
+                    <>
+                      <span className="text-[#35556f]">/</span>
+                      <span className="text-amber-300">Unsaved</span>
+                    </>
+                  ) : null}
+                </div>
+                <textarea
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  rows={2}
+                  className="block w-full resize-none rounded-xl border border-transparent bg-transparent px-0 py-1 text-[2rem] font-semibold leading-[1.05] text-neutral-50 outline-none transition placeholder:text-neutral-600 focus:border-[#28445d] focus:bg-[#06131e] focus:px-4 sm:text-[2.55rem]"
+                  placeholder="Click to add the story title..."
+                />
+              </header>
+
+              <div
+                className={
+                  imageUrl && imageShowOnStoryPage && imageDisplay === "contain"
+                    ? "mt-6 flex flex-col gap-6 xl:flex-row xl:items-start"
+                    : "mt-6"
+                }
+              >
+                <div
+                  className={
+                    imageUrl && imageShowOnStoryPage && imageDisplay === "contain"
+                      ? "min-w-0 w-full xl:w-auto xl:max-w-[24rem] xl:shrink-0"
+                      : "min-w-0 w-full"
+                  }
+                >
+                  {imageUrl && imageShowOnStoryPage ? (
+                    <button
+                      type="button"
+                      onClick={updateImageFocusFromClick}
+                      className="block w-full overflow-hidden rounded-[18px] border border-[#214765]/70 bg-[#06131e] text-left"
+                      title={imageDisplay === "cover" ? "Click to set the crop focus point" : "Image is shown fully in fit mode"}
+                    >
+                      <div
+                        className={`relative ${
+                          imageDisplay === "contain"
+                            ? "flex min-h-[260px] items-center justify-center p-4"
+                            : "aspect-[16/10]"
+                        }`}
+                      >
+                        {imageDisplay === "contain" ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={imageUrl}
+                            alt="Story image preview"
+                            className="block max-h-[420px] max-w-full object-contain"
+                          />
+                        ) : (
+                          <>
+                            <Image
+                              src={imageUrl}
+                              alt="Story image preview"
+                              fill
+                              sizes="(max-width: 768px) 100vw, 720px"
+                              className="object-cover"
+                              style={{ objectPosition: imageObjectPosition({ image_focus_x: imageFocusX, image_focus_y: imageFocusY }) }}
+                            />
+                            <div
+                              className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-white/20"
+                              style={{ left: `${imageFocusX}%`, top: `${imageFocusY}%` }}
+                            />
+                          </>
+                        )}
+                      </div>
+                    </button>
+                  ) : (
+                    <label className="flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-[18px] border border-dashed border-[#214765]/80 bg-[#06131e]/70 px-5 py-8 text-center transition hover:border-[#8f7740]/70 hover:bg-[#071622]">
+                      <span className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Story image</span>
+                      <span className="mt-2 text-base text-neutral-300">
+                        {imageUrl ? "Image is hidden on story pages" : "Click to upload an image"}
+                      </span>
+                      <span className="mt-1 text-xs text-neutral-500">Use the image controls below for placement and framing.</span>
+                      <input
+                        type="file"
+                        accept={STORY_IMAGE_ACCEPT}
+                        className="sr-only"
+                        disabled={uploadingImage}
+                        onChange={async (event) => {
+                          const file = event.target.files?.[0];
+                          event.target.value = "";
+                          if (!file) return;
+                          await uploadImage(file);
+                          setImageShowOnStoryPage(true);
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                <div
+                  className={
+                    imageUrl && imageShowOnStoryPage && imageDisplay === "contain"
+                      ? "min-w-0 flex-1 space-y-3.5 text-[1.02rem] text-neutral-200 sm:text-[1.08rem]"
+                      : "space-y-3.5 text-[1.02rem] text-neutral-200 sm:text-[1.08rem]"
+                  }
+                >
+                  {summary.map((point, index) => (
+                    <textarea
+                      key={index}
+                      value={point}
+                      onChange={(event) => updateSummary(index, event.target.value)}
+                      rows={2}
+                      className="block w-full resize-y rounded-xl border border-transparent bg-transparent px-0 py-1 leading-7 text-neutral-200 outline-none transition placeholder:text-neutral-600 focus:border-[#28445d] focus:bg-[#06131e] focus:px-4 sm:leading-8"
+                      placeholder={`Click to add summary point ${index + 1}...`}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setSummary((current) => [...current, ""])}
+                    className="rounded-full border border-[#28445d] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400 transition hover:border-[#8f7740]/70 hover:text-neutral-100"
+                  >
+                    Add summary point
+                  </button>
+                </div>
+              </div>
+
+              <section className="mt-8 border-t border-[#1a3349]/70 pt-5">
+                <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Sources</div>
+                <div className="mb-4 rounded-[14px] border border-[#214765]/70 bg-[#06131e] p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                    Add source from URL
+                  </div>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={sourceUrlDraft}
+                      onChange={(event) => setSourceUrlDraft(event.target.value)}
+                      className="min-h-11 flex-1 rounded-lg border border-[#214765]/70 bg-[#020b14] px-3 py-2 text-sm text-neutral-200 outline-none transition placeholder:text-neutral-600 focus:border-[#8f7740]/70"
+                      placeholder="Paste article URL"
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addSourceFromUrl(sourceUrlDraft);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => addSourceFromUrl(sourceUrlDraft)}
+                      disabled={sourcePreviewLoading || !sourceUrlDraft.trim()}
+                      className="rounded-lg bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {sourcePreviewLoading ? "Adding..." : "Add from link"}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {sources.map((source, index) => {
+                    const isDragging = sourceDragIndex === index;
+                    const isDropTarget = sourceDropIndex === index && sourceDragIndex !== null && sourceDragIndex !== index;
+                    const dropBefore = isDropTarget && sourceDragIndex > index;
+                    const dropAfter = isDropTarget && sourceDragIndex < index;
+
+                    return (
+                    <div
+                      key={index}
+                      className="relative"
+                    >
+                      {dropBefore ? (
+                        <div className="mb-3 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#e3cca0]">
+                          <span className="h-px flex-1 bg-[#e3cca0]" />
+                          Drop here
+                          <span className="h-px flex-1 bg-[#e3cca0]" />
+                        </div>
+                      ) : null}
+                      <div
+                        draggable
+                        onDragStart={(event) => {
+                          setSourceDragIndex(index);
+                          setSourceDropIndex(index);
+                          event.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragEnter={(event) => {
+                          event.preventDefault();
+                          setSourceDropIndex(index);
+                        }}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          setSourceDropIndex(index);
+                          event.dataTransfer.dropEffect = "move";
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          if (sourceDragIndex != null) moveSourceRowTo(sourceDragIndex, index);
+                          setSourceDragIndex(null);
+                          setSourceDropIndex(null);
+                        }}
+                        onDragEnd={() => {
+                          setSourceDragIndex(null);
+                          setSourceDropIndex(null);
+                        }}
+                        className={`rounded-[14px] border bg-[#0a1926] p-4 transition focus-within:border-[#8f7740]/70 sm:p-5 ${
+                          isDragging
+                            ? "scale-[0.99] border-[#8f7740]/80 opacity-55"
+                            : isDropTarget
+                              ? "border-[#e3cca0] shadow-[0_0_0_1px_rgba(227,204,160,0.35)]"
+                              : "border-[#214765]/70"
+                        }`}
+                      >
+                      <div className="mb-3 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.16em] text-neutral-500">
+                        <span>Source {index + 1}</span>
+                        <span className="cursor-grab select-none rounded-full border border-[#28445d] px-3 py-1 text-neutral-400 active:cursor-grabbing">
+                          Drag
+                        </span>
+                      </div>
+                      <input
+                        value={source.name}
+                        onChange={(event) => updateSource(index, { name: event.target.value })}
+                        className="w-full rounded-lg border border-transparent bg-transparent px-0 py-1 text-[1.08rem] font-semibold text-neutral-50 outline-none transition placeholder:text-neutral-600 focus:border-[#28445d] focus:bg-[#06131e] focus:px-3"
+                        placeholder="Source outlet"
+                      />
+                      <input
+                        value={source.title}
+                        onChange={(event) => updateSource(index, { title: event.target.value })}
+                        className="mt-2 w-full rounded-lg border border-transparent bg-transparent px-0 py-1 text-[15px] leading-6 text-neutral-300 outline-none transition placeholder:text-neutral-600 focus:border-[#28445d] focus:bg-[#06131e] focus:px-3"
+                        placeholder="Source article title"
+                      />
+                      <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_8rem]">
+                        <input
+                          value={source.url}
+                          onChange={(event) => updateSource(index, { url: event.target.value })}
+                          onBlur={() => {
+                            if (!source.name.trim()) {
+                              const guessedName = guessSourceLabel(source.url);
+                              if (guessedName) updateSource(index, { name: guessedName });
+                            }
+                          }}
+                          className="rounded-lg border border-[#214765]/70 bg-[#06131e] px-3 py-2 text-sm text-neutral-200 outline-none transition placeholder:text-neutral-600 focus:border-[#8f7740]/70"
+                          placeholder="https://..."
+                        />
+                        <select
+                          value={source.lean}
+                          onChange={(event) => updateSource(index, { lean: event.target.value as Lean, leanMode: "manual" })}
+                          className="rounded-lg border border-[#214765]/70 bg-[#06131e] px-3 py-2 text-sm text-neutral-200 outline-none transition focus:border-[#8f7740]/70"
+                        >
+                          <option value="Left">Left</option>
+                          <option value="Center">Center</option>
+                          <option value="Right">Right</option>
+                        </select>
+                      </div>
+                      <input
+                        value={source.badge ?? ""}
+                        onChange={(event) => updateSource(index, { badge: event.target.value })}
+                        className="mt-3 w-full rounded-lg border border-[#214765]/70 bg-[#06131e] px-3 py-2 text-sm text-neutral-200 outline-none transition placeholder:text-neutral-600 focus:border-[#8f7740]/70"
+                        placeholder="Optional badge, e.g. Press Release or Official Broadcast"
+                      />
+                      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-neutral-500">
+                        <button
+                          type="button"
+                          onClick={() => addSourceFromUrl(source.url, index)}
+                          disabled={sourcePreviewLoading || !source.url.trim()}
+                          className="rounded-full border border-[#28445d] px-3 py-1.5 font-semibold text-neutral-300 transition hover:border-[#8f7740]/70 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+                        >
+                          {sourcePreviewLoading ? "Autofilling..." : "Autofill from URL"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSourceLeanMode(index, "auto")}
+                          className="rounded-full border border-[#28445d] px-3 py-1.5 font-semibold text-neutral-300 transition hover:border-[#8f7740]/70 hover:text-white"
+                        >
+                          Use auto lean
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveSourceRow(index, "up")}
+                          disabled={index === 0}
+                          className="rounded-full border border-[#28445d] px-3 py-1.5 font-semibold text-neutral-300 transition hover:border-[#8f7740]/70 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Move up
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveSourceRow(index, "down")}
+                          disabled={index === sources.length - 1}
+                          className="rounded-full border border-[#28445d] px-3 py-1.5 font-semibold text-neutral-300 transition hover:border-[#8f7740]/70 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Move down
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeSourceRow(index)}
+                          className="rounded-full border border-[#5b2a2a] px-3 py-1.5 font-semibold text-[#f0c8c8] transition hover:bg-[#190b0c]"
+                        >
+                          Remove
+                        </button>
+                        <span>
+                          {source.leanMode === "auto"
+                            ? `Auto-detected lean: ${source.lean}`
+                            : `Manual override: ${source.lean}`}
+                        </span>
+                      </div>
+                      </div>
+                      {dropAfter ? (
+                        <div className="mt-3 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#e3cca0]">
+                          <span className="h-px flex-1 bg-[#e3cca0]" />
+                          Drop here
+                          <span className="h-px flex-1 bg-[#e3cca0]" />
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={addSourceRow}
+                  className="mt-4 rounded-full border border-[#28445d] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400 transition hover:border-[#8f7740]/70 hover:text-neutral-100"
+                >
+                  Add source
+                </button>
+              </section>
+
+              <div className="mt-8 flex flex-col gap-3 border-t border-[#1a3349]/70 pt-5 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => void onSave()}
+                  className="flex-1 rounded-xl bg-neutral-100 py-3 font-semibold text-neutral-900 transition hover:bg-white"
+                >
+                  {status === "published" ? "Save and publish" : status === "archived" ? "Save as archived" : "Save draft"}
+                </button>
+                <Link
+                  href={`/story/${storyId}`}
+                  target="_blank"
+                  className="rounded-xl border border-[#28445d] px-6 py-3 text-center text-sm font-semibold text-neutral-200 transition hover:border-[#8f7740]/70 hover:text-white"
+                >
+                  Preview public URL
+                </Link>
+              </div>
+            </article>
+
+            <section className={`mt-8 ${ADMIN_PANEL} p-6`}>
+              <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">
+                    Editor Controls
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-neutral-500">
+                    The page above is the story canvas. Use these panels for hidden fields, matching, entities, briefing placement, and revision history.
+                  </p>
+                </div>
+                <div className="text-xs uppercase tracking-[0.18em] text-neutral-500">
+                  {activeStoryId ? "Existing story" : "New story"}
+                </div>
+              </div>
+              <div className="space-y-4">
               <EditorSection
+                id="editor-setup"
                 title="Story Setup"
                 description="Core story details, image, and publishing controls."
-                defaultOpen
               >
-          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
+          <div id="editor-related" className="scroll-mt-24 bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <label className="block text-sm text-neutral-300 mb-2">Title</label>
             <input
               value={title}
@@ -1587,6 +2194,7 @@ export default function EditorPage() {
               </EditorSection>
 
               <EditorSection
+                id="editor-metadata"
                 title="Metadata and Matching"
                 description="Topics, entities, summary, and structured hints used around the site."
               >
@@ -1941,9 +2549,9 @@ export default function EditorPage() {
               </EditorSection>
 
               <EditorSection
+                id="editor-sources"
                 title="Sources"
                 description="Source links, titles, and lean settings."
-                defaultOpen
               >
                 <SourceEditorSection
                   addSourceFromUrl={(url, preferredIndex) => void addSourceFromUrl(url, preferredIndex)}
@@ -1960,6 +2568,7 @@ export default function EditorPage() {
               </EditorSection>
 
               <EditorSection
+                id="editor-revisions"
                 title="Revision History"
                 description="Restore an earlier saved version if you need to roll something back."
               >
@@ -2007,7 +2616,7 @@ export default function EditorPage() {
           </div>
               </EditorSection>
 
-              <div className={`${ADMIN_PANEL} p-5`}>
+              <div id="editor-publish-mobile" className={`${ADMIN_PANEL} scroll-mt-24 p-5`}>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <button onClick={() => void onSave()} className="flex-1 rounded-xl bg-neutral-100 py-3 font-semibold text-neutral-900">
                     {status === "published" ? "Save and publish" : status === "archived" ? "Save as archived" : "Save draft"}
@@ -2052,8 +2661,352 @@ export default function EditorPage() {
                   )}
                 </div>
               </div>
-            </div>
+              </div>
+            </section>
           </div>
+          <aside id="editor-publish" className="hidden scroll-mt-24 xl:sticky xl:top-8 xl:col-start-4 xl:block xl:w-72 xl:self-start xl:pt-1">
+            <div className="max-h-[calc(100vh-5rem)] overflow-y-auto rounded-[22px] border border-[#183149]/45 bg-[#06131d]/64 p-5 shadow-[0_10px_22px_rgba(0,0,0,0.1)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Publish</div>
+              <div className="mt-4 space-y-4 text-sm">
+                <button
+                  type="button"
+                  onClick={() => void onSave()}
+                  className="w-full rounded-xl bg-neutral-100 px-4 py-3 font-semibold text-neutral-900 transition hover:bg-white"
+                >
+                  {status === "published" ? "Save and publish" : status === "archived" ? "Save as archived" : "Save draft"}
+                </button>
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Story slug</div>
+                  <div className="mt-1 break-words text-neutral-300">{storyId}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Status</div>
+                  <div
+                    className={`mt-1 font-semibold ${
+                      status === "published"
+                        ? "text-emerald-300"
+                        : status === "archived"
+                          ? "text-neutral-400"
+                          : "text-amber-300"
+                    }`}
+                  >
+                    {status}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Changes</div>
+                  <div className={`mt-1 font-semibold ${isDirty ? "text-amber-300" : "text-neutral-400"}`}>
+                    {isDirty ? "Unsaved" : "Saved"}
+                  </div>
+                </div>
+                <div className="space-y-2 border-t border-[#183149]/65 pt-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Readiness</div>
+                  <div className="space-y-1.5">
+                    {readinessChecklist.map((item) => (
+                      <div key={item.label} className="flex items-start justify-between gap-3 text-xs">
+                        <span className={item.done ? "text-neutral-300" : "text-amber-300"}>
+                          {item.done ? "OK" : "Fix"} {item.label}
+                        </span>
+                        {item.detail ? <span className="shrink-0 text-neutral-500">{item.detail}</span> : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2 border-t border-[#183149]/65 pt-4">
+                  <label className="flex items-start gap-3 text-sm text-neutral-300">
+                    <input
+                      type="checkbox"
+                      checked={urgent}
+                      onChange={(event) => setUrgent(event.target.checked)}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <span>Urgent emphasis</span>
+                  </label>
+                  <label className="flex items-start gap-3 text-sm text-neutral-300">
+                    <input
+                      type="checkbox"
+                      checked={pinnedStory}
+                      onChange={(event) => setPinnedStory(event.target.checked)}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <span>Pin as tracking story</span>
+                  </label>
+                  <label className="flex items-start gap-3 text-sm text-neutral-300">
+                    <input
+                      type="checkbox"
+                      checked={beaconInclude}
+                      onChange={(event) => setBeaconInclude(event.target.checked)}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <span>Show in The Briefing</span>
+                  </label>
+                  {beaconInclude ? (
+                    <div className="space-y-3 rounded-xl border border-[#214765]/70 bg-[#020b14] p-3">
+                      <label className="block">
+                        <span className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Lead style</span>
+                        <select
+                          value={beaconLeadStyle}
+                          onChange={(event) => setBeaconLeadStyle(event.target.value as BriefingLeadStyle)}
+                          className="mt-2 w-full rounded-lg border border-[#214765]/70 bg-[#06131e] px-3 py-2 text-sm text-neutral-200 outline-none focus:border-[#8f7740]/70"
+                        >
+                          <option value="default">Default lead</option>
+                          <option value="alert">Huge story alert</option>
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Briefing headline</span>
+                        <input
+                          value={beaconHeadline}
+                          onChange={(event) => setBeaconHeadline(event.target.value)}
+                          className="mt-2 w-full rounded-lg border border-[#214765]/70 bg-[#06131e] px-3 py-2 text-sm text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-[#8f7740]/70"
+                          placeholder="Optional alternate headline"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Briefing summary</span>
+                        <textarea
+                          value={beaconSummary}
+                          onChange={(event) => setBeaconSummary(event.target.value)}
+                          rows={3}
+                          className="mt-2 w-full resize-y rounded-lg border border-[#214765]/70 bg-[#06131e] px-3 py-2 text-sm leading-6 text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-[#8f7740]/70"
+                          placeholder="Optional alternate summary"
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="space-y-2 border-t border-[#183149]/65 pt-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Image</div>
+                  <label className="block cursor-pointer rounded-lg border border-[#28445d] px-4 py-2 text-center text-xs font-semibold text-neutral-200 transition hover:border-[#8f7740]/70 hover:text-white">
+                    {uploadingImage ? "Uploading..." : imageUrl ? "Replace image" : "Upload image"}
+                    <input
+                      type="file"
+                      accept={STORY_IMAGE_ACCEPT}
+                      className="sr-only"
+                      disabled={uploadingImage}
+                      onChange={async (event) => {
+                        const file = event.target.files?.[0];
+                        event.target.value = "";
+                        if (!file) return;
+                        await uploadImage(file);
+                      }}
+                    />
+                  </label>
+                  {imageUrl ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        {([
+                          { value: "contain" as StoryImageDisplay, label: "Fit whole" },
+                          { value: "cover" as StoryImageDisplay, label: "Crop" },
+                        ]).map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setImageDisplay(option.value)}
+                            className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                              imageDisplay === option.value
+                                ? "border-neutral-100 bg-neutral-100 text-neutral-900"
+                                : "border-[#28445d] text-neutral-300 hover:border-[#8f7740]/70"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="grid gap-2">
+                        <label className="flex items-start gap-3 text-xs text-neutral-300">
+                          <input
+                            type="checkbox"
+                            checked={imageShowOnHomepage}
+                            onChange={(event) => setImageShowOnHomepage(event.target.checked)}
+                            className="mt-0.5 h-4 w-4"
+                          />
+                          <span>Homepage</span>
+                        </label>
+                        <label className="flex items-start gap-3 text-xs text-neutral-300">
+                          <input
+                            type="checkbox"
+                            checked={imageShowOnBriefing}
+                            onChange={(event) => setImageShowOnBriefing(event.target.checked)}
+                            className="mt-0.5 h-4 w-4"
+                          />
+                          <span>Briefing</span>
+                        </label>
+                        <label className="flex items-start gap-3 text-xs text-neutral-300">
+                          <input
+                            type="checkbox"
+                            checked={imageShowOnStoryPage}
+                            onChange={(event) => setImageShowOnStoryPage(event.target.checked)}
+                            className="mt-0.5 h-4 w-4"
+                          />
+                          <span>Story page</span>
+                        </label>
+                      </div>
+                      {imageDisplay === "cover" ? (
+                        <div className="space-y-3 rounded-xl border border-[#214765]/70 bg-[#020b14] p-3">
+                          <label className="block text-xs text-neutral-300">
+                            Horizontal focus: {Math.round(imageFocusX)}%
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              step="1"
+                              value={imageFocusX}
+                              onChange={(event) => setImageFocusX(clampImageFocus(Number(event.target.value)))}
+                              className="mt-2 w-full"
+                            />
+                          </label>
+                          <label className="block text-xs text-neutral-300">
+                            Vertical focus: {Math.round(imageFocusY)}%
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              step="1"
+                              value={imageFocusY}
+                              onChange={(event) => setImageFocusY(clampImageFocus(Number(event.target.value)))}
+                              className="mt-2 w-full"
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImageFocusX(DEFAULT_IMAGE_FOCUS);
+                              setImageFocusY(DEFAULT_IMAGE_FOCUS);
+                            }}
+                            className="rounded-lg border border-[#28445d] px-3 py-2 text-xs font-semibold text-neutral-300 transition hover:border-[#8f7740]/70"
+                          >
+                            Reset crop focus
+                          </button>
+                        </div>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => void removeImage()}
+                        className="w-full rounded-lg border border-[#5b2a2a] px-3 py-2 text-xs font-semibold text-[#f0c8c8] transition hover:bg-[#190b0c]"
+                      >
+                        Remove image
+                      </button>
+                      {savedImagePath && !imagePath ? (
+                        <p className="text-xs leading-5 text-amber-300">This saved image will be removed after you save.</p>
+                      ) : null}
+                    </>
+                  ) : null}
+                </div>
+                <div className="space-y-3 border-t border-[#183149]/65 pt-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Related Stories</div>
+                    <span className="text-[11px] text-neutral-500">{selectedRelatedStories.length}</span>
+                  </div>
+                  <input
+                    value={relatedStorySearch}
+                    onChange={(event) => setRelatedStorySearch(event.target.value)}
+                    placeholder="Search stories"
+                    className="w-full rounded-lg border border-[#214765]/70 bg-[#020b14] px-3 py-2 text-sm text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-[#8f7740]/70"
+                  />
+                  <div className="space-y-2">
+                    {selectedRelatedStories.length > 0 ? (
+                      selectedRelatedStories.map((story) => (
+                        <button
+                          key={`rail-related-selected-${story.id}`}
+                          type="button"
+                          onClick={() => toggleRelatedStory(story.id)}
+                          className="block w-full rounded-lg border border-[#8f7740]/50 bg-[#8f7740]/10 px-3 py-2 text-left text-xs text-neutral-200 transition hover:border-[#b89a55]"
+                          title="Remove related story"
+                        >
+                          <span className="line-clamp-2">{story.title}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="text-xs leading-5 text-neutral-500">No manual related stories selected.</div>
+                    )}
+                  </div>
+                  <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                    {relatedStoryOptions.slice(0, 8).map((story) => (
+                      <button
+                        key={`rail-related-option-${story.id}`}
+                        type="button"
+                        onClick={() => toggleRelatedStory(story.id)}
+                        className="block w-full rounded-lg border border-[#214765]/70 bg-[#020b14] px-3 py-2 text-left text-xs text-neutral-300 transition hover:border-[#8f7740]/70 hover:text-neutral-100"
+                      >
+                        <span className="line-clamp-2">{story.title}</span>
+                        <span className="mt-1 block truncate text-[11px] text-neutral-500">{story.id}</span>
+                      </button>
+                    ))}
+                    {relatedStoryOptions.length === 0 && relatedStorySearch.trim() ? (
+                      <div className="text-xs text-neutral-500">No matching stories found.</div>
+                    ) : null}
+                  </div>
+                </div>
+                <Link
+                  href={`/story/${storyId}`}
+                  target="_blank"
+                  className="block rounded-full border border-[#28445d] px-4 py-2 text-center text-xs font-semibold text-neutral-200 transition hover:border-[#8f7740]/70 hover:text-white"
+                >
+                  Public URL
+                </Link>
+                {pendingDelete ? (
+                  <div className="rounded-xl border border-red-500/50 bg-red-950/20 p-3">
+                    <div className="text-sm font-semibold text-red-100">Delete this story?</div>
+                    <p className="mt-2 text-xs leading-5 text-red-100/80">This permanently removes {storyId}.</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPendingDelete(false)}
+                        className="rounded-lg border border-neutral-700 px-3 py-2 text-xs text-neutral-200 hover:bg-neutral-800"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void onDeleteConfirmed()}
+                        className="rounded-lg border border-red-400 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-950/30"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!activeStoryId) {
+                        showNotice("Save the story before trying to delete it.", "error");
+                        return;
+                      }
+                      setPendingDelete(true);
+                    }}
+                    className="w-full rounded-full border border-red-400 px-4 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-950/30"
+                  >
+                    Delete story
+                  </button>
+                )}
+              </div>
+            </div>
+          </aside>
+          <div className="hidden xl:block" />
+        </div>
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#183149]/80 bg-[#020b14]/96 px-3 py-3 shadow-[0_-18px_44px_rgba(0,0,0,0.42)] backdrop-blur xl:hidden">
+        <div className="mx-auto flex max-w-3xl items-center gap-2">
+          <a
+            href="#editor-stories"
+            className="rounded-xl border border-[#28445d] px-3 py-3 text-center text-xs font-semibold text-neutral-200"
+          >
+            Stories
+          </a>
+          <a
+            href="#editor-publish-mobile"
+            className="rounded-xl border border-[#28445d] px-3 py-3 text-center text-xs font-semibold text-neutral-200"
+          >
+            Publish
+          </a>
+          <button
+            type="button"
+            onClick={() => void onSave()}
+            className="min-h-11 flex-1 rounded-xl bg-neutral-100 px-4 py-3 text-sm font-semibold text-neutral-900"
+          >
+            {status === "published" ? "Save and publish" : status === "archived" ? "Save archived" : "Save draft"}
+          </button>
         </div>
       </div>
     </main>

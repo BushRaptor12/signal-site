@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import BackLink from "@/app/back-link";
 import { DEFAULT_OG_IMAGE, SITE_NAME, breadcrumbJsonLd, trimDescription } from "@/app/lib/seo";
 import { PUBLIC_INSET, PUBLIC_INSET_ELEVATED, PUBLIC_PAGE, PUBLIC_PAGE_TITLE, PUBLIC_PANEL, PUBLIC_PANEL_PADDING } from "@/app/lib/surfaces";
@@ -125,6 +126,20 @@ export default function AboutPage() {
                 </li>
               ))}
             </ul>
+          </section>
+
+          <section className={`mt-6 ${PUBLIC_INSET} p-6`}>
+            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Standards</div>
+            <p className="mt-4 text-sm leading-7 text-neutral-300">
+              The Beacon publishes under a site-level editorial process for sourcing, corrections, updates, and story
+              presentation.
+            </p>
+            <Link
+              href="/editorial-standards"
+              className="mt-4 inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+            >
+              Read editorial standards
+            </Link>
           </section>
         </div>
       </div>

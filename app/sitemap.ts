@@ -29,8 +29,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.5,
     },
     {
+      url: absoluteUrl("/about"),
+      lastModified: new Date("2026-05-11T00:00:00.000Z"),
+      changeFrequency: "monthly",
+      priority: 0.4,
+    },
+    {
+      url: absoluteUrl("/editorial-standards"),
+      lastModified: new Date("2026-05-11T00:00:00.000Z"),
+      changeFrequency: "yearly",
+      priority: 0.35,
+    },
+    {
       url: absoluteUrl("/privacy"),
-      lastModified: new Date("2026-04-06T00:00:00.000Z"),
+      lastModified: new Date("2026-05-11T00:00:00.000Z"),
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
+    {
+      url: absoluteUrl("/cookie-policy"),
+      lastModified: new Date("2026-05-11T00:00:00.000Z"),
       changeFrequency: "yearly",
       priority: 0.3,
     },
@@ -39,7 +57,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const supabase = supabaseServer();
     const [{ data, error }, archives] = await Promise.all([
-      supabase.from("stories").select("*").order("created_at", { ascending: false }),
+      supabase.from("stories").select("*").eq("status", "published").order("created_at", { ascending: false }),
       listBriefingArchives(100).catch(() => []),
     ]);
     if (error) throw error;

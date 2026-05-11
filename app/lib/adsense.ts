@@ -21,6 +21,8 @@ function normalizeAdsenseClient(value: string | undefined) {
 
 export function getAdsenseConfig() {
   return normalizeAdsenseClient(
-    process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT ?? process.env.GOOGLE_ADSENSE_CLIENT
+    process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT ??
+      process.env.GOOGLE_ADSENSE_CLIENT ??
+      process.env.GOOGLE_ADSENSE_PUBLISHER_ID
   );
 }
