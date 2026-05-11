@@ -86,10 +86,23 @@ export async function GET(request: NextRequest) {
       query = query.order("updated_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false, nullsFirst: false });
     }
 
-    const { data, error } = await query.limit(fetchLimit);
+    const [feedResult, trackingResult] = await Promise.all([
+      query.limit(fetchLimit),
+      supabase
+        .from("stories")
+        .select(STORY_CARD_SELECT)
+        .eq("status", "published")
+        .eq("pinned", true)
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false }),
+    ]);
+
+    const { data, error } = feedResult;
     if (error) throw error;
+    if (trackingResult.error) throw trackingResult.error;
 
     let stories = ((data ?? []) as unknown as StoryDbRow[]).map(coerceStory).filter((story) => !story.pinned);
+    const trackingStories = ((trackingResult.data ?? []) as unknown as StoryDbRow[]).map(coerceStory);
     if (search) {
       stories = stories.filter((story) => storyMatchesSearch(story, search));
     }
@@ -114,6 +127,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       hasMore: stories.length > offset + limit || (data?.length ?? 0) >= fetchLimit,
       stories: page,
+      trackingStories,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "We couldn't load stories.";

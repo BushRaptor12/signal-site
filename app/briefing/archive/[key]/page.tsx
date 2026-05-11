@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
+import { ArchiveCapturedTitle } from "@/app/briefing/archive/archive-time";
 import { ArchiveBriefingView, ArchiveTimestamp, archiveTitle, displayArchiveHeadline } from "@/app/briefing/archive/archive-rendering";
 import { getBriefingArchive } from "@/app/lib/briefing-archive";
 import { DEFAULT_OG_IMAGE, SITE_NAME, breadcrumbJsonLd, trimDescription } from "@/app/lib/seo";
@@ -28,7 +29,7 @@ export async function generateMetadata({
     };
   }
 
-  const title = archiveTitle(archive.archive_key);
+  const title = archiveTitle(archive.captured_at);
   const leadHeadline = archive.snapshot.lead ? displayArchiveHeadline(archive.snapshot.lead) : "Archived briefing";
   const description = trimDescription(`${title}: ${leadHeadline}`);
 
@@ -73,7 +74,7 @@ export default async function BriefingArchiveDetailPage({
   if (!archive) {
     notFound();
   }
-  const title = archiveTitle(archive.archive_key);
+  const title = archiveTitle(archive.captured_at);
   const breadcrumb = breadcrumbJsonLd([
     { name: SITE_NAME, item: "/" },
     { name: "The Briefing", item: "/briefing" },
@@ -108,7 +109,10 @@ export default async function BriefingArchiveDetailPage({
         <header className="mb-6 flex flex-col items-start justify-between gap-3 sm:mb-8 sm:flex-row sm:items-end">
           <BackLink href="/briefing/archive" />
           <div className="text-left sm:text-right">
-            <h1 className="text-2xl font-semibold text-neutral-100 sm:text-3xl">{title}</h1>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Archived</div>
+            <h1 className="mt-3 text-2xl font-semibold leading-tight text-neutral-100 sm:text-3xl">
+              <ArchiveCapturedTitle value={archive.captured_at} />
+            </h1>
             <div className="mt-2">
               <ArchiveTimestamp archive={archive} />
             </div>

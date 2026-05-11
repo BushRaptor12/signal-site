@@ -103,10 +103,10 @@ function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; se
           <Link
             key={story.id}
             href={`/story/${story.id}?from=briefing`}
-            className="relative flex flex-col justify-start rounded-[12px] border border-[#183149]/65 bg-[#07131e] p-4 text-left shadow-[0_16px_34px_rgba(0,0,0,0.2)] transition hover:border-[#28445d] sm:p-6"
+            className="group relative flex flex-col justify-start rounded-[12px] border border-[#183149]/65 bg-[#07131e] p-4 text-left shadow-[0_12px_28px_rgba(0,0,0,0.16)] transition-colors duration-200 hover:border-[#8f7740]/45 hover:bg-[#071622] sm:p-6"
           >
             <div className={seen ? "flex flex-col justify-start opacity-90" : "flex flex-col justify-start"}>
-              <div className="text-[1.35rem] font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d] sm:text-[1.85rem]">
+              <div className="text-[1.35rem] font-semibold leading-tight text-neutral-100 transition-colors group-hover:text-[#d7c08d] sm:text-[1.85rem]">
                 {displayHeadline(story)}
               </div>
               <StoryMetaRow story={story} />
@@ -171,7 +171,7 @@ export default async function BriefingPage() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
         />
         <div className="mx-auto max-w-6xl">
-          <div className="mb-6 flex justify-center sm:mb-8">
+          <div className="mb-5 flex justify-center sm:mb-6">
             <div className="flex flex-col items-center text-center">
               <Link href="/" aria-label="Go to The Beacon home page">
                 <Image
@@ -183,26 +183,31 @@ export default async function BriefingPage() {
                   className="h-auto w-full max-w-[300px] sm:max-w-[420px] md:max-w-[520px]"
                 />
               </Link>
-              <p className="mt-2 text-sm text-neutral-400 sm:mt-3 sm:text-base">One Story, Multiple Perspectives.</p>
-              <div className="mt-5 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80 sm:mt-8" />
+              <p className="mt-1.5 text-sm text-neutral-400 sm:mt-2 sm:text-base">One Story, Multiple Perspectives.</p>
+              <div className="mt-4 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80 sm:mt-6" />
             </div>
           </div>
 
-          <header className="mb-6 sm:mb-8">
+          <header className="mb-5 sm:mb-7">
             <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
               <BackLink href="/" />
               <div className="flex-1" />
               <div className="flex flex-col items-start gap-3 sm:items-end">
-                <div className="text-left text-xs text-neutral-500 sm:text-right sm:text-sm">
-                  Updated: <LocalBriefingUpdated value={latestUpdatedAt} />
+                <div className="text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500 sm:text-right">
+                  <span className="text-neutral-600">Updated</span>
+                  <span className="ml-1 normal-case tracking-normal text-neutral-400">
+                    <LocalBriefingUpdated value={latestUpdatedAt} />
+                  </span>
                 </div>
                 {isAdmin ? <ManualArchiveButton /> : null}
               </div>
             </div>
           </header>
 
+          <div className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-[#d7c08d]">The Briefing</div>
+
           {!lead ? (
-            <div className="mt-8 rounded-2xl border border-[#183149]/65 bg-[#07131e] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.3)] sm:px-6 sm:py-10">
+            <div className="mt-8 rounded-2xl border border-[#183149]/65 bg-[#07131e] px-5 py-8 text-center shadow-[0_16px_36px_rgba(0,0,0,0.2)] sm:px-6 sm:py-10">
               <h2 className="text-2xl font-semibold text-neutral-100 sm:text-3xl">Nothing queued yet</h2>
               <p className="mt-3 text-base text-neutral-400">
                 Mark stories in the editor with `Show this story in The Briefing` to publish them here.
@@ -212,16 +217,16 @@ export default async function BriefingPage() {
             <>
               <Link
                 href={`/story/${lead.id}?from=briefing`}
-                className={`relative block overflow-hidden rounded-[14px] border bg-[#07131e] p-4 shadow-[0_20px_46px_rgba(0,0,0,0.22)] transition sm:p-6 lg:p-8 ${
+                className={`group relative block overflow-hidden rounded-[14px] border bg-[#07131e] p-4 shadow-[0_16px_36px_rgba(0,0,0,0.18)] transition-colors duration-200 sm:p-6 lg:p-8 ${
                   leadUsesAlertStyle
-                    ? "border-red-500/55 hover:border-red-400"
-                    : "border-[#183149]/70 hover:border-[#28445d]"
+                    ? "border-red-500/55 hover:border-red-400 hover:bg-[#07111c]"
+                    : "border-[#183149]/70 hover:border-[#8f7740]/45 hover:bg-[#071622]"
                 }`}
               >
                 <div className={`relative text-center ${seenStoryIds.has(lead.id) ? "opacity-90" : ""}`}>
                   <div
-                    className={`font-semibold leading-tight transition md:text-6xl lg:leading-[0.95] ${
-                      leadUsesAlertStyle ? "text-3xl text-red-500 hover:text-red-400 sm:text-4xl" : "text-[2rem] text-neutral-100 hover:text-[#d7c08d] sm:text-[2.9rem]"
+                    className={`font-semibold leading-tight transition-colors md:text-6xl lg:leading-[0.95] ${
+                      leadUsesAlertStyle ? "text-3xl text-red-500 group-hover:text-red-400 sm:text-4xl" : "text-[2rem] text-neutral-100 group-hover:text-[#d7c08d] sm:text-[2.9rem]"
                     }`}
                   >
                     {displayHeadline(lead)}

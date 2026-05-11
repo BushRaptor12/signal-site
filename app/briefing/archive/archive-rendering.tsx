@@ -4,38 +4,24 @@ import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { imageObjectPosition } from "@/app/lib/image-focus";
 import type { BriefingArchiveRecord, BriefingArchiveStory } from "@/app/lib/briefing-archive";
 
-export function archiveTitle(archiveKey: string) {
-  const [year, month, day, slot, marker, timeKey] = archiveKey.split("-");
-  const date = new Date(`${year}-${month}-${day}T12:00:00.000Z`);
-  const dateLabel = Number.isNaN(date.getTime())
-    ? archiveKey
-    : new Intl.DateTimeFormat("en", {
-        dateStyle: "long",
-        timeZone: "UTC",
-      }).format(date);
+export function archiveTitle(capturedAt: string) {
+  const date = new Date(capturedAt);
+  if (Number.isNaN(date.getTime())) return "Archived briefing";
 
-  if (marker === "manual" && timeKey && timeKey.length >= 4) {
-    const hours = timeKey.slice(0, 2);
-    const minutes = timeKey.slice(2, 4);
-    const seconds = timeKey.slice(4, 6) || "00";
-    const capturedTime = new Date(`${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000Z`);
-    const timeLabel = Number.isNaN(capturedTime.getTime())
-      ? null
-      : new Intl.DateTimeFormat("en", {
-          hour: "numeric",
-          minute: "2-digit",
-          timeZone: "UTC",
-          timeZoneName: "short",
-        }).format(capturedTime);
-
-    return `${dateLabel}${timeLabel ? ` ${timeLabel}` : ""} Manual Briefing`;
-  }
-
-  return `${dateLabel} ${slot === "pm" ? "PM" : "AM"} Briefing`;
+  return `Archived ${new Intl.DateTimeFormat("en", {
+    day: "numeric",
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    month: "long",
+    timeZone: "UTC",
+    timeZoneName: "short",
+    year: "numeric",
+  }).format(date)}`;
 }
 
-export function archiveSnapshotLabel(archiveKey: string, slot: "am" | "pm") {
-  return archiveKey.includes("-manual-") ? "Manual Snapshot" : `${slot === "pm" ? "PM" : "AM"} Snapshot`;
+export function archiveEyebrow() {
+  return "Archived";
 }
 
 export function displayArchiveHeadline(story: BriefingArchiveStory) {
@@ -115,10 +101,11 @@ function ArchiveBriefingList({ stories }: { stories: BriefingArchiveStory[] }) {
 }
 
 export function ArchiveTimestamp({ archive }: { archive: BriefingArchiveRecord }) {
+  if (!archive.briefing_updated_at) return null;
+
   return (
     <div className="text-sm text-neutral-500">
-      Captured {formatUpdatedAt(archive.captured_at)}
-      {archive.briefing_updated_at ? <span> from a briefing updated {formatUpdatedAt(archive.briefing_updated_at)}</span> : null}
+      Briefing updated {formatUpdatedAt(archive.briefing_updated_at)}
     </div>
   );
 }

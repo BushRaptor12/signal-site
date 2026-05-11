@@ -38,6 +38,7 @@ type StoryFeedResponse = {
   error?: string;
   hasMore?: boolean;
   stories?: StoryWithViews[];
+  trackingStories?: StoryWithViews[];
 };
 
 const HOME_STATE_KEY = "signal:homeState:v2";
@@ -149,6 +150,14 @@ function compareByTop(left: StoryWithViews, right: StoryWithViews): number {
   return publishedAtMs(right) - publishedAtMs(left);
 }
 
+function getFeedStories(stories: StoryWithViews[]) {
+  return stories.filter((story) => !story.pinned);
+}
+
+function getTrackingStories(stories: StoryWithViews[]) {
+  return [...stories].filter((story) => story.pinned).sort((a, b) => updatedAtMs(b) - updatedAtMs(a));
+}
+
 function topicTopWindowDurationMs(window: TopicTopWindowKey) {
   if (window === "day") return 24 * 3_600_000;
   if (window === "week") return 7 * 24 * 3_600_000;
@@ -243,6 +252,59 @@ function shouldShowStoryImageOnHomepage(story: StoryWithViews) {
   return Boolean(story.image_url) && (story.image_show_on_homepage ?? true);
 }
 
+function TrackingStoriesStrip({
+  accountAuthenticated,
+  activeTab,
+  onNavigate,
+  showManageLink = false,
+  stories,
+}: {
+  accountAuthenticated: boolean;
+  activeTab: TabKey;
+  onNavigate: () => void;
+  showManageLink?: boolean;
+  stories: StoryWithViews[];
+}) {
+  return (
+    <div className="flex min-h-[44px] flex-col items-start justify-between gap-4 py-1 sm:flex-row sm:items-center">
+      <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
+        <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase leading-none tracking-[0.18em] text-[#d7c08d] sm:text-sm">
+          <span className="size-1.5 rounded-full bg-[#d7c08d] motion-safe:animate-pulse" />
+          <span>Tracking</span>
+        </div>
+
+        {stories.length > 0 ? (
+          stories.map((story) => (
+            <Link
+              key={story.id}
+              href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
+              onClick={onNavigate}
+              className="inline-flex min-w-0 items-center text-[17px] font-medium leading-6 text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
+            >
+              <span>{story.title}</span>
+            </Link>
+          ))
+        ) : (
+          <div className="text-sm text-neutral-500">No tracked stories yet</div>
+        )}
+      </div>
+
+      {showManageLink ? (
+        accountAuthenticated ? (
+          <Link
+            href="/account/interests"
+            className="inline-flex min-h-11 shrink-0 rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2.5 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+          >
+            Manage interests
+          </Link>
+        ) : (
+          <div className="w-[150px]" />
+        )
+      ) : null}
+    </div>
+  );
+}
+
 export default function HomePageClient({
   initialAccountAuthenticated,
   initialFollowedInterests,
@@ -253,7 +315,8 @@ export default function HomePageClient({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [stories, setStories] = useState(initialStories);
+  const [stories, setStories] = useState(() => getFeedStories(initialStories));
+  const [trackingStories, setTrackingStories] = useState(() => getTrackingStories(initialStories));
   const [activeTab, setActiveTab] = useState<TabKey>(getInitialActiveTab);
   const [visibleCount, setVisibleCount] = useState(STORY_BATCH_SIZE);
   const [accountAuthenticated, setAccountAuthenticated] = useState(initialAccountAuthenticated);
@@ -270,15 +333,17 @@ export default function HomePageClient({
   const [overlaySearchResults, setOverlaySearchResults] = useState<StoryWithViews[]>([]);
   const [overlaySearchLoading, setOverlaySearchLoading] = useState(false);
   const [overlaySearchError, setOverlaySearchError] = useState("");
-  const [feedHasMore, setFeedHasMore] = useState(initialStories.length >= 30);
+  const [feedHasMore, setFeedHasMore] = useState(() => getFeedStories(initialStories).length >= 30);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [feedError, setFeedError] = useState("");
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const pendingScrollRestoreRef = useRef<{ attempts: number; scrollY: number; tabKey: TabKey } | null>(null);
 
   useEffect(() => {
-    setStories(initialStories);
-    setFeedHasMore(initialStories.length >= 30);
+    const feedStories = getFeedStories(initialStories);
+    setStories(feedStories);
+    setTrackingStories(getTrackingStories(initialStories));
+    setFeedHasMore(feedStories.length >= 30);
   }, [initialStories]);
 
   useEffect(() => {
@@ -577,11 +642,14 @@ export default function HomePageClient({
         }
 
         setStories((current) => {
-          const incoming = data.stories ?? [];
+          const incoming = getFeedStories(data.stories ?? []);
           if (!append) return incoming;
           const seen = new Set(current.map((story) => story.id));
           return [...current, ...incoming.filter((story) => !seen.has(story.id))];
         });
+        if (Array.isArray(data.trackingStories)) {
+          setTrackingStories(getTrackingStories(data.trackingStories));
+        }
         setFeedHasMore(Boolean(data.hasMore));
       } catch (error) {
         setFeedError(error instanceof Error ? error.message : "We couldn't load stories.");
@@ -597,11 +665,7 @@ export default function HomePageClient({
     void loadStoryFeed({ append: false });
   }, [activeTab, loadStoryFeed, topicOrder, topicTopWindow]);
 
-  const trackingStories = useMemo(
-    () => [...stories].filter((story) => story.pinned).sort((a, b) => updatedAtMs(b) - updatedAtMs(a)),
-    [stories]
-  );
-  const recentStories = useMemo(() => [...stories].filter((story) => !story.pinned), [stories]);
+  const recentStories = useMemo(() => getFeedStories(stories), [stories]);
   const followedStoryIdSet = useMemo(() => new Set(followedStoryIds), [followedStoryIds]);
   const followedInterestQueries = useMemo(
     () => followedInterests.map((interest) => interest.normalizedQuery).filter(Boolean),
@@ -809,7 +873,7 @@ export default function HomePageClient({
   return (
     <main className="min-h-screen bg-transparent px-3 py-5 text-neutral-100 sm:px-5 sm:py-7 lg:p-8">
       <h1 className="sr-only">The Beacon</h1>
-      <div className="mx-auto mb-6 max-w-5xl sm:mb-8">
+      <div className="mx-auto mb-5 max-w-5xl sm:mb-6">
         <div className="flex flex-col items-center text-center">
           <Link href="/" aria-label="Go to The Beacon home page">
             <Image
@@ -821,13 +885,13 @@ export default function HomePageClient({
               className="h-auto w-full max-w-[300px] sm:max-w-[420px] md:max-w-[520px]"
             />
           </Link>
-          <p className="mt-2 text-sm text-neutral-400 sm:mt-3 sm:text-base">One Story, Multiple Perspectives.</p>
+          <p className="mt-1.5 text-sm text-neutral-400 sm:mt-2 sm:text-base">One Story, Multiple Perspectives.</p>
         </div>
-        <div className="mt-5 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80 sm:mt-8" />
-        <div className="mt-5 flex justify-center sm:mt-6">
+        <div className="mt-4 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80 sm:mt-6" />
+        <div className="mt-4 flex justify-center sm:mt-5">
           <Link
             href="/briefing"
-            className="inline-flex min-h-12 w-full justify-center rounded-2xl border border-[#8f7740]/70 bg-[var(--surface)] px-6 py-3.5 text-base font-semibold text-neutral-100 shadow-[0_24px_60px_rgba(0,0,0,0.35)] transition hover:border-[#b89a55] hover:bg-[#07101a] hover:text-white sm:min-w-[260px] sm:w-auto sm:px-8 sm:py-4"
+            className="inline-flex min-h-12 w-full justify-center rounded-2xl border border-[#8f7740]/50 bg-[#06131e] px-6 py-3.5 text-base font-semibold text-neutral-100 shadow-[0_12px_28px_rgba(0,0,0,0.18)] transition hover:border-[#b89a55]/75 hover:bg-[#07101a] hover:text-white sm:min-w-[260px] sm:w-auto sm:px-8 sm:py-4"
           >
             Read The Briefing
           </Link>
@@ -946,7 +1010,7 @@ export default function HomePageClient({
         </div>
       ) : null}
 
-      <div className="mx-auto mb-6 max-w-5xl">
+      <div className="mx-auto mb-5 max-w-5xl sm:mb-6">
         <div className="border-b border-[#163754]/70">
           <div className="flex items-center gap-3">
             <div className="-mx-3 flex min-w-0 flex-1 items-center gap-5 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:mx-0 sm:gap-6 sm:px-0 [&::-webkit-scrollbar]:hidden">
@@ -955,10 +1019,10 @@ export default function HomePageClient({
                   key={tab}
                   type="button"
                   onClick={() => setActiveTabAndUrl(tab)}
-                  className={`whitespace-nowrap border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition ${
+                  className={`whitespace-nowrap border-b-[3px] px-1 pb-3 pt-1 text-sm font-semibold transition ${
                     activeTab === tab
-                      ? "border-[#d7c08d] text-neutral-100"
-                      : "border-transparent text-[#c5d3e1] hover:border-[#214765] hover:text-white"
+                      ? "border-[#e3cca0] text-neutral-100"
+                      : "border-transparent text-[#c5d3e1] hover:border-[#30516d] hover:text-white"
                   }`}
                 >
                   {toTitleCase(tab)}
@@ -988,48 +1052,22 @@ export default function HomePageClient({
         </div>
       </div>
 
-      <div className="mx-auto mb-6 max-w-5xl">
+      <div className="mx-auto mb-7 max-w-5xl sm:mb-8">
         {activeTab === "following" ? (
-          <div className="flex min-h-[44px] flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-            <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 sm:text-sm sm:tracking-[0.18em]">Tracking:</div>
-              {trackingStories.map((story) => (
-                <Link
-                  key={story.id}
-                  href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
-                  onClick={() => persistHomeState()}
-                  className="min-w-0 text-[17px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
-                >
-                  {story.title}
-                </Link>
-              ))}
-            </div>
-
-            {accountAuthenticated ? (
-              <Link
-                href="/account/interests"
-                className="inline-flex min-h-11 shrink-0 rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2.5 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
-              >
-                Manage interests
-              </Link>
-            ) : <div className="w-[150px]" />}
-          </div>
+          <TrackingStoriesStrip
+            accountAuthenticated={accountAuthenticated}
+            activeTab={activeTab}
+            onNavigate={persistHomeState}
+            showManageLink
+            stories={trackingStories}
+          />
         ) : activeTab === "popular" || activeTab === "recent" ? trackingStories.length > 0 ? (
-          <div className="flex min-h-[44px] flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[17px]">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 sm:text-sm sm:tracking-[0.18em]">Tracking:</div>
-              {trackingStories.map((story) => (
-                <Link
-                  key={story.id}
-                  href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
-                  onClick={() => persistHomeState()}
-                  className="min-w-0 text-[17px] font-medium text-neutral-300 underline decoration-[#8f7740]/45 decoration-1 underline-offset-4 transition hover:text-white hover:decoration-[#b89a55]"
-                >
-                  {story.title}
-                </Link>
-              ))}
-            </div>
-          </div>
+          <TrackingStoriesStrip
+            accountAuthenticated={accountAuthenticated}
+            activeTab={activeTab}
+            onNavigate={persistHomeState}
+            stories={trackingStories}
+          />
         ) : null : activeTopicTab ? (
           <div className="flex min-h-[44px] flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
             <div className="flex items-center gap-2">
@@ -1142,10 +1180,10 @@ export default function HomePageClient({
             return (
               <div key={story.id} className="mx-auto max-w-4xl">
                 <div
-                  className={`group relative overflow-hidden border bg-[#06131e] px-4 py-5 shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition sm:px-5 sm:py-6 md:px-7 ${
+                  className={`group relative overflow-hidden border bg-[#06131e] px-4 py-5 shadow-[0_14px_30px_rgba(0,0,0,0.16)] transition-colors duration-200 sm:px-5 sm:py-6 md:px-7 ${
                     story.urgent
-                      ? "border-red-500/55 hover:border-red-400"
-                      : "border-[#183149]/65 hover:border-[#28445d]"
+                      ? "border-red-500/55 hover:border-red-400 hover:bg-[#07111c]"
+                      : "border-[#183149]/65 hover:border-[#8f7740]/45 hover:bg-[#071622]"
                   } ${isLeadCard ? "rounded-[14px]" : "rounded-[12px]"}`}
                 >
                   <Link

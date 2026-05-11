@@ -2,10 +2,11 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
+import { ArchiveCapturedTitle } from "@/app/briefing/archive/archive-time";
 import { listBriefingArchives } from "@/app/lib/briefing-archive";
 import { DEFAULT_OG_IMAGE, SITE_NAME, breadcrumbJsonLd, trimDescription } from "@/app/lib/seo";
 import { PUBLIC_PANEL } from "@/app/lib/surfaces";
-import { archiveSnapshotLabel, archiveTitle } from "@/app/briefing/archive/archive-rendering";
+import { archiveEyebrow } from "@/app/briefing/archive/archive-rendering";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -92,9 +93,11 @@ export default async function BriefingArchivePage() {
                 className={`${PUBLIC_PANEL} block p-5 transition hover:border-[#28445d] hover:bg-[#081724]`}
               >
                 <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">
-                  {archiveSnapshotLabel(archive.archive_key, archive.slot)}
+                  {archiveEyebrow()}
                 </div>
-                <h2 className="mt-3 text-xl font-semibold leading-tight text-neutral-100">{archiveTitle(archive.archive_key)}</h2>
+                <h2 className="mt-3 text-xl font-semibold leading-tight text-neutral-100">
+                  <ArchiveCapturedTitle value={archive.captured_at} />
+                </h2>
                 <p className="mt-3 text-sm text-neutral-500">{archive.story_count} stories archived</p>
               </Link>
             ))}
