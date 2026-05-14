@@ -109,18 +109,16 @@ function StoryMetaRow({ seen = false, story }: { seen?: boolean; story: StoryWit
 
 function BriefingList({
   compactMobile = false,
-  showRank = false,
   stories,
   seenStoryIds,
 }: {
   compactMobile?: boolean;
-  showRank?: boolean;
   stories: StoryWithViews[];
   seenStoryIds: Set<string>;
 }) {
   return (
     <div className={compactMobile ? "space-y-3 sm:space-y-6" : "space-y-6"}>
-      {stories.map((story, index) => {
+      {stories.map((story) => {
         const seen = seenStoryIds.has(story.id);
 
         return (
@@ -131,11 +129,6 @@ function BriefingList({
           >
             <div className={seen ? "flex flex-col justify-start opacity-90" : "flex flex-col justify-start"}>
               <div className="flex items-start gap-3">
-                {showRank ? (
-                  <div className="mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-[#214765]/70 bg-[#020b14] text-[11px] font-semibold text-[#d7c08d] sm:hidden">
-                    {index + 2}
-                  </div>
-                ) : null}
                 <div className="min-w-0 flex-1">
                   <div className="text-[1.08rem] font-semibold leading-snug text-neutral-100 transition-colors group-hover:text-[#d7c08d] sm:text-[1.85rem] sm:leading-tight">
                     {displayHeadline(story)}
@@ -273,7 +266,6 @@ export default async function BriefingPage() {
                 <div className={`relative text-left sm:text-center ${seenStoryIds.has(lead.id) ? "opacity-90" : ""}`}>
                   <div className="mb-2 flex items-center justify-between gap-3 sm:mb-0 sm:hidden">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d]">Top Story</span>
-                    {seenStoryIds.has(lead.id) ? <InlineSeenPill /> : null}
                   </div>
                   <div
                     className={`font-semibold leading-tight transition-colors md:text-6xl lg:leading-[0.95] ${
@@ -298,7 +290,7 @@ export default async function BriefingPage() {
 
               {mobileRankedStories.length > 0 ? (
                 <section className="mt-4 md:hidden">
-                  <BriefingList compactMobile showRank stories={mobileRankedStories} seenStoryIds={seenStoryIds} />
+                  <BriefingList compactMobile stories={mobileRankedStories} seenStoryIds={seenStoryIds} />
                 </section>
               ) : null}
 
