@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
 import FollowInterestButton from "@/app/follow-interest-button";
+import { FunnelView, TrackedLink } from "@/app/funnel-analytics";
 import InstallAppPrompt from "@/app/install-app-prompt";
 import { getAccountProfile, getAccountStoryState, getFollowedInterests, getSeenStoryIds } from "@/app/lib/account.server";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
@@ -281,6 +282,13 @@ export default async function StoryPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
       />
       <ViewTracker slug={slug} />
+      <FunnelView
+        name="story_page_viewed"
+        properties={{
+          from: from ?? "direct",
+          storyId: story.id,
+        }}
+      />
       <div className="mx-auto max-w-3xl">
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 sm:grid-cols-[1fr_auto_1fr] sm:gap-4">
           <BackLink href={backHref} className="justify-self-start" />
@@ -316,20 +324,23 @@ export default async function StoryPage({
               <span>{formatStoryDate(story.date)}</span>
             </div>
             <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
-              <Link
+              <TrackedLink
                 href="/briefing"
+                eventName="briefing_opened_from_story_top"
+                properties={{ from: from ?? "direct", storyId: story.id }}
                 className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
               >
                 Read Briefing
-              </Link>
+              </TrackedLink>
               <StoryReaderActions
                 authenticated={Boolean(accountProfile)}
                 className="min-h-10 rounded-full px-4 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-70"
                 disableMarkSeen
                 initialFollowing={Boolean(storyState?.following)}
                 storyId={story.id}
+                trackingContext="story_top_mobile"
               />
-              <ShareButton title={story.title} path={`/story/${story.id}`} variant="soft" />
+              <ShareButton title={story.title} path={`/story/${story.id}`} trackingContext="story_top_mobile" variant="soft" />
             </div>
           </div>
           <InstallAppPrompt compact />
@@ -394,6 +405,32 @@ export default async function StoryPage({
                 ) : null}
               </div>
             </div>
+
+            <section className="mt-6 rounded-[14px] border border-[#28445d]/70 bg-[#07131e] p-4 md:hidden">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Want the full picture?</div>
+              <p className="mt-2 text-sm leading-6 text-neutral-300">
+                Open the ranked briefing, track this story, or share it from your phone.
+              </p>
+              <div className="mt-4 grid grid-cols-[1fr_auto_auto] items-center gap-2">
+                <TrackedLink
+                  href="/briefing"
+                  eventName="briefing_opened_from_story_landing"
+                  properties={{ from: from ?? "direct", storyId: story.id }}
+                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+                >
+                  Briefing
+                </TrackedLink>
+                <StoryReaderActions
+                  authenticated={Boolean(accountProfile)}
+                  className="min-h-10 rounded-full px-4 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-70"
+                  disableMarkSeen
+                  initialFollowing={Boolean(storyState?.following)}
+                  storyId={story.id}
+                  trackingContext="story_landing_module"
+                />
+                <ShareButton title={story.title} path={`/story/${story.id}`} trackingContext="story_landing_module" variant="soft" />
+              </div>
+            </section>
 
             <section className="mt-8 border-t border-[#1a3349]/60 pt-5">
               <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Sources</div>
@@ -476,8 +513,9 @@ export default async function StoryPage({
                   authenticated={Boolean(accountProfile)}
                   initialFollowing={Boolean(storyState?.following)}
                   storyId={story.id}
+                  trackingContext="story_footer"
                 />
-                <ShareButton title={story.title} path={`/story/${story.id}`} />
+                <ShareButton title={story.title} path={`/story/${story.id}`} trackingContext="story_footer" />
               </div>
             </div>
           </article>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { trackFunnelEvent } from "@/app/funnel-analytics";
 import { getExistingPushSubscription, isPushSupported, registerPushServiceWorker } from "@/app/lib/push-client";
 import { NOTIFICATIONS_UPDATED_EVENT, emitNotificationsUpdated } from "@/app/lib/notification-store";
 
@@ -42,15 +43,23 @@ function LatestIcon() {
   );
 }
 
-function FollowingIcon() {
+function HomeIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-none stroke-current stroke-[1.8]">
-      <path d="M6.8 5.5h10.4a1 1 0 0 1 1 1v13l-6.2-3.4-6.2 3.4v-13a1 1 0 0 1 1-1Z" strokeLinejoin="round" />
+      <path d="M4 10.6 12 4l8 6.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6.5 9.3V20h11V9.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 20v-5h4v5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
 const mobileNavItems = [
+  {
+    href: "/beacon",
+    label: "Home",
+    icon: HomeIcon,
+    match: (pathname: string) => pathname === "/beacon",
+  },
   {
     href: "/briefing",
     label: "Briefing",
@@ -61,13 +70,7 @@ const mobileNavItems = [
     href: "/",
     label: "Latest",
     icon: LatestIcon,
-    match: (pathname: string, tab: string | null) => pathname === "/" && tab !== "following",
-  },
-  {
-    href: "/?tab=following",
-    label: "Following",
-    icon: FollowingIcon,
-    match: (pathname: string, tab: string | null) => pathname === "/" && tab === "following",
+    match: (pathname: string) => pathname === "/",
   },
   {
     href: "/notifications",
@@ -85,17 +88,8 @@ const mobileNavItems = [
 
 export default function SiteUtilities() {
   const pathname = usePathname();
-  const [currentTab, setCurrentTab] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const isAdminPage = pathname.startsWith("/admin");
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const frame = window.requestAnimationFrame(() => {
-      setCurrentTab(new URLSearchParams(window.location.search).get("tab"));
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [pathname]);
 
   useEffect(() => {
     if (isAdminPage) return;
@@ -197,13 +191,19 @@ export default function SiteUtilities() {
       >
         <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
           {mobileNavItems.map((item) => {
-            const active = item.match(pathname, currentTab);
+            const active = item.match(pathname);
             const Icon = item.icon;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 aria-label={item.label}
+                onClick={() =>
+                  trackFunnelEvent("mobile_nav_clicked", {
+                    href: item.href,
+                    label: item.label,
+                  })
+                }
                 className={`relative flex min-h-[3.35rem] flex-col items-center justify-center gap-1 rounded-[10px] text-[10px] font-semibold transition ${
                   active ? "bg-[#071622] text-[#e3cca0]" : "text-neutral-400 hover:bg-[#06131e] hover:text-white"
                 }`}

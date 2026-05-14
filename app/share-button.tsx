@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { trackFunnelEvent } from "@/app/funnel-analytics";
 
 type ShareButtonProps = {
   title: string;
   path?: string;
   className?: string;
+  trackingContext?: string;
   variant?: "default" | "soft";
 };
 
@@ -33,7 +35,7 @@ async function copyText(value: string) {
   document.body.removeChild(input);
 }
 
-export default function ShareButton({ title, path, className = "", variant = "default" }: ShareButtonProps) {
+export default function ShareButton({ title, path, className = "", trackingContext = "story_page", variant = "default" }: ShareButtonProps) {
   const [status, setStatus] = useState<"idle" | "copied" | "error">("idle");
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -87,6 +89,11 @@ export default function ShareButton({ title, path, className = "", variant = "de
     e.stopPropagation();
 
     const url = absoluteUrl(path);
+    trackFunnelEvent("share_clicked", {
+      context: trackingContext,
+      path: path ?? null,
+      native: shouldUseNativeShare(),
+    });
 
     try {
       if (shouldUseNativeShare()) {

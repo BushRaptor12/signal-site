@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { trackFunnelEvent } from "@/app/funnel-analytics";
 import { emitAccountFollowsUpdated } from "@/app/lib/account-events";
 
 type StoryReaderActionsProps = {
@@ -10,6 +11,7 @@ type StoryReaderActionsProps = {
   disableMarkSeen?: boolean;
   initialFollowing: boolean;
   storyId: string;
+  trackingContext?: string;
 };
 
 export default function StoryReaderActions({
@@ -18,6 +20,7 @@ export default function StoryReaderActions({
   disableMarkSeen = false,
   initialFollowing,
   storyId,
+  trackingContext = "story_page",
 }: StoryReaderActionsProps) {
   const [following, setFollowing] = useState(initialFollowing);
   const [pending, setPending] = useState(false);
@@ -71,6 +74,11 @@ export default function StoryReaderActions({
 
     setPending(true);
     const nextFollowing = !following;
+    trackFunnelEvent("track_story_clicked", {
+      action: nextFollowing ? "follow" : "unfollow",
+      context: trackingContext,
+      storyId,
+    });
 
     try {
       const response = await fetch(`/api/account/stories/${encodeURIComponent(storyId)}`, {
@@ -97,6 +105,12 @@ export default function StoryReaderActions({
       <Link
         href="/account/login"
         className={`inline-flex border border-[#1c3953]/60 bg-[#08131d] text-[#d7e2ef] hover:border-[#28445d] hover:bg-[#0b1824] ${baseClassName}`.trim()}
+        onClick={() =>
+          trackFunnelEvent("track_story_login_clicked", {
+            context: trackingContext,
+            storyId,
+          })
+        }
       >
         Log in to track
       </Link>

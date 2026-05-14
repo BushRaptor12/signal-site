@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { FunnelView, TrackedLink } from "@/app/funnel-analytics";
 import InstallAppPrompt from "@/app/install-app-prompt";
 import { getAccountUserId } from "@/app/lib/account.server";
 import { formatStoryDate, formatUpdatedAgo } from "@/app/lib/dates";
@@ -122,8 +123,10 @@ function StoryImage({ priority = false, story }: { priority?: boolean; story: St
 
 function LeadStoryCard({ story }: { story: StoryWithViews }) {
   return (
-    <Link
+    <TrackedLink
       href={`/story/${story.id}?from=beacon`}
+      eventName="beacon_lead_story_opened"
+      properties={{ storyId: story.id }}
       className="block rounded-[14px] border border-[#28445d]/80 bg-[#07131e] p-4 shadow-[0_18px_42px_rgba(0,0,0,0.24)] transition hover:border-[#8f7740]/65 hover:bg-[#071622] sm:p-6"
     >
       <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">
@@ -137,14 +140,16 @@ function LeadStoryCard({ story }: { story: StoryWithViews }) {
         <span>{formatStoryDate(story.date)}</span>
         <span>{updatedLabel(story)}</span>
       </div>
-    </Link>
+    </TrackedLink>
   );
 }
 
 function CompactStoryLink({ story }: { story: StoryWithViews }) {
   return (
-    <Link
+    <TrackedLink
       href={`/story/${story.id}?from=beacon`}
+      eventName="beacon_story_opened"
+      properties={{ storyId: story.id }}
       className="block rounded-[12px] border border-[#183149]/70 bg-[#07131e] p-4 transition hover:border-[#8f7740]/55 hover:bg-[#071622]"
     >
       <div className="flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.16em] text-neutral-500">
@@ -153,7 +158,7 @@ function CompactStoryLink({ story }: { story: StoryWithViews }) {
       </div>
       <h2 className="mt-2 text-lg font-semibold leading-snug text-neutral-100">{displayHeadline(story)}</h2>
       {displaySummary(story) ? <p className="mt-2 line-clamp-2 text-sm leading-6 text-neutral-400">{displaySummary(story)}</p> : null}
-    </Link>
+    </TrackedLink>
   );
 }
 
@@ -165,6 +170,15 @@ export default async function BeaconAppPage() {
 
   return (
     <main className="min-h-screen bg-transparent px-4 py-5 text-neutral-100 sm:px-6 sm:py-10">
+      <FunnelView
+        name="beacon_home_viewed"
+        properties={{
+          authenticated,
+          briefingCount: briefingStories.length,
+          latestCount: latestStories.length,
+          leadStoryId: lead?.id ?? null,
+        }}
+      />
       <div className="mx-auto max-w-5xl">
         <div className="flex justify-center pt-2 md:pt-4">
           <Link href="/" aria-label="Go to The Beacon home page" className="inline-flex justify-center">
@@ -199,9 +213,13 @@ export default async function BeaconAppPage() {
               <section>
                 <div className="mb-3 flex items-center justify-between gap-4">
                   <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">The Briefing</h2>
-                  <Link href="/briefing" className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500 transition hover:text-white">
+                  <TrackedLink
+                    href="/briefing"
+                    eventName="briefing_opened_from_app_home"
+                    className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500 transition hover:text-white"
+                  >
                     Open all
-                  </Link>
+                  </TrackedLink>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {secondaryBriefing.map((story) => (
@@ -215,9 +233,13 @@ export default async function BeaconAppPage() {
               <section>
                 <div className="mb-3 flex items-center justify-between gap-4">
                   <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Latest</h2>
-                  <Link href="/" className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500 transition hover:text-white">
+                  <TrackedLink
+                    href="/"
+                    eventName="latest_opened_from_app_home"
+                    className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500 transition hover:text-white"
+                  >
                     Full feed
-                  </Link>
+                  </TrackedLink>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {latest.map((story) => (
@@ -239,12 +261,14 @@ export default async function BeaconAppPage() {
                   ? "Open your followed stories and interests without digging through the full feed."
                   : "Create an account to follow topics and track stories from social links back into one feed."}
               </p>
-              <Link
+              <TrackedLink
                 href={authenticated ? "/?tab=following" : "/account/login"}
+                eventName={authenticated ? "following_opened_from_app_home" : "following_login_opened_from_app_home"}
+                properties={{ authenticated }}
                 className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
               >
                 {authenticated ? "Open Following" : "Log in to follow"}
-              </Link>
+              </TrackedLink>
             </section>
 
             <section className="rounded-[14px] border border-[#1c3953]/70 bg-[#081724] p-5">
@@ -253,12 +277,13 @@ export default async function BeaconAppPage() {
               <p className="mt-3 text-sm leading-6 text-neutral-400">
                 Turn on notifications for major updates without turning the feed into noise.
               </p>
-              <Link
+              <TrackedLink
                 href="/notifications"
+                eventName="alerts_opened_from_app_home"
                 className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-full border border-[#1c3953]/75 bg-[#020b14] px-5 py-2 text-sm font-semibold text-[#d7e2ef] transition hover:border-[#30516d] hover:bg-[#06131e]"
               >
                 Manage alerts
-              </Link>
+              </TrackedLink>
             </section>
 
           </aside>

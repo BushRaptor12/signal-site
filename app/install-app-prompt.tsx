@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { trackFunnelEvent } from "@/app/funnel-analytics";
 
 const INSTALL_PROMPT_DISMISSED_KEY = "beacon:installPromptDismissed:v1";
 
@@ -19,9 +20,12 @@ export default function InstallAppPrompt({ compact = false }: { compact?: boolea
     if (isStandaloneDisplay()) return;
     if (window.localStorage.getItem(INSTALL_PROMPT_DISMISSED_KEY) === "1") return;
 
-    const frame = window.requestAnimationFrame(() => setVisible(true));
+    const frame = window.requestAnimationFrame(() => {
+      setVisible(true);
+      trackFunnelEvent("install_prompt_shown", { compact });
+    });
     return () => window.cancelAnimationFrame(frame);
-  }, []);
+  }, [compact]);
 
   function dismiss() {
     try {
@@ -29,6 +33,7 @@ export default function InstallAppPrompt({ compact = false }: { compact?: boolea
     } catch {
       // Ignore storage failures; the prompt can still close for this session.
     }
+    trackFunnelEvent("install_prompt_dismissed", { compact });
     setVisible(false);
   }
 
