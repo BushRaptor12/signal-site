@@ -26,9 +26,18 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/beacon-icon-192.png",
+    icon: [
+      { url: "/beacon-icon-16.png", sizes: "16x16", type: "image/png" },
+      { url: "/beacon-icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/beacon-icon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/beacon-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/beacon-icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/beacon-icon-32.png",
+    apple: [
+      { url: "/beacon-icon-180.png", sizes: "180x180", type: "image/png" },
+      { url: "/beacon-icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
   },
   title: {
     default: SITE_NAME,

@@ -14,8 +14,44 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ["news", "magazines"],
     icons: [
       {
+        src: "/beacon-icon-48.png",
+        sizes: "48x48",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/beacon-icon-72.png",
+        sizes: "72x72",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/beacon-icon-96.png",
+        sizes: "96x96",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/beacon-icon-128.png",
+        sizes: "128x128",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/beacon-icon-144.png",
+        sizes: "144x144",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
         src: "/beacon-icon-192.png",
         sizes: "192x192",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/beacon-icon-384.png",
+        sizes: "384x384",
         type: "image/png",
         purpose: "any",
       },
