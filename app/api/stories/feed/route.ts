@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, storyMatchesSearch, STORY_CARD_SELECT, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
+import { normalize } from "@/app/lib/vocab";
 
 const MAX_LIMIT = 40;
 
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
     const limit = toPositiveInt(searchParams.get("limit"), 20, MAX_LIMIT);
     const offset = toPositiveInt(searchParams.get("offset"), 0, 10_000);
     const search = (searchParams.get("search") ?? "").trim();
-    const topic = (searchParams.get("topic") ?? "").trim().toLowerCase();
+    const topic = normalize(searchParams.get("topic") ?? "");
     const tab = (searchParams.get("tab") ?? "popular").trim();
     const topicOrder = (searchParams.get("topicOrder") ?? "new").trim();
     const topWindow = (searchParams.get("topWindow") ?? "day").trim();
@@ -80,7 +81,11 @@ export async function GET(request: NextRequest) {
       .select(STORY_CARD_SELECT)
       .eq("status", "published");
 
-    if (!search && tab === "recent") {
+    if (topic) {
+      query = query.contains("topics", [topic]);
+    }
+
+    if (!search && (tab === "recent" || (topic && topicOrder !== "top"))) {
       query = query.order("created_at", { ascending: false, nullsFirst: false });
     } else {
       query = query.order("updated_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false, nullsFirst: false });
@@ -107,7 +112,7 @@ export async function GET(request: NextRequest) {
       stories = stories.filter((story) => storyMatchesSearch(story, search));
     }
     if (topic) {
-      stories = stories.filter((story) => story.topics.map((value) => value.toLowerCase()).includes(topic));
+      stories = stories.filter((story) => story.topics.map(normalize).includes(topic));
     }
     if (topic && topicOrder === "top") {
       const cutoff = topicWindowCutoff(topWindow);
