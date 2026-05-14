@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
 import AdaptiveBriefingImage from "@/app/briefing/adaptive-briefing-image";
+import BriefingRefreshButton from "@/app/briefing/briefing-refresh-button";
 import ManualArchiveButton from "@/app/briefing/manual-archive-button";
 import { getAccountProfileByUserId, getAccountUserId, getSeenStoryIds } from "@/app/lib/account.server";
 import { listBriefingArchives } from "@/app/lib/briefing-archive";
@@ -75,7 +76,7 @@ type BriefingMetaRow = {
 
 function SeenBadge() {
   return (
-    <div className="pointer-events-none absolute bottom-4 right-5 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d]">
+    <div className="pointer-events-none absolute bottom-4 right-5 hidden items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d] sm:inline-flex">
       <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-none stroke-current stroke-[1.8]">
         <path d="M1.5 12s3.75-6 10.5-6 10.5 6 10.5 6-3.75 6-10.5 6S1.5 12 1.5 12Z" />
         <circle cx="12" cy="12" r="3.25" />
@@ -85,32 +86,64 @@ function SeenBadge() {
   );
 }
 
-function StoryMetaRow({ story }: { story: StoryWithViews }) {
+function InlineSeenPill() {
   return (
-    <div className="mt-3 text-[11px] uppercase tracking-[0.16em] text-neutral-500">
-      {formatStoryDate(story.date)}
+    <span className="inline-flex items-center gap-1 rounded-full border border-[#8f7740]/35 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#d7c08d] sm:hidden">
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3 w-3 fill-none stroke-current stroke-[1.8]">
+        <path d="M1.5 12s3.75-6 10.5-6 10.5 6 10.5 6-3.75 6-10.5 6S1.5 12 1.5 12Z" />
+        <circle cx="12" cy="12" r="3.25" />
+      </svg>
+      Seen
+    </span>
+  );
+}
+
+function StoryMetaRow({ seen = false, story }: { seen?: boolean; story: StoryWithViews }) {
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-neutral-500 sm:mt-3 sm:text-[11px] sm:tracking-[0.16em]">
+      <span>{formatStoryDate(story.date)}</span>
+      {seen ? <InlineSeenPill /> : null}
     </div>
   );
 }
 
-function BriefingList({ stories, seenStoryIds }: { stories: StoryWithViews[]; seenStoryIds: Set<string> }) {
+function BriefingList({
+  compactMobile = false,
+  showRank = false,
+  stories,
+  seenStoryIds,
+}: {
+  compactMobile?: boolean;
+  showRank?: boolean;
+  stories: StoryWithViews[];
+  seenStoryIds: Set<string>;
+}) {
   return (
-    <div className="space-y-6">
-      {stories.map((story) => {
+    <div className={compactMobile ? "space-y-3 sm:space-y-6" : "space-y-6"}>
+      {stories.map((story, index) => {
         const seen = seenStoryIds.has(story.id);
 
         return (
           <Link
             key={story.id}
             href={`/story/${story.id}?from=briefing`}
-            className="group relative flex flex-col justify-start rounded-[12px] border border-[#183149]/65 bg-[#07131e] p-4 text-left shadow-[0_12px_28px_rgba(0,0,0,0.16)] transition-colors duration-200 hover:border-[#8f7740]/45 hover:bg-[#071622] sm:p-6"
+            className="group relative flex flex-col justify-start rounded-[10px] border border-[#183149]/65 bg-[#07131e] p-3 text-left shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-colors duration-200 hover:border-[#8f7740]/45 hover:bg-[#071622] sm:rounded-[12px] sm:p-6 sm:shadow-[0_12px_28px_rgba(0,0,0,0.16)]"
           >
             <div className={seen ? "flex flex-col justify-start opacity-90" : "flex flex-col justify-start"}>
-              <div className="text-[1.35rem] font-semibold leading-tight text-neutral-100 transition-colors group-hover:text-[#d7c08d] sm:text-[1.85rem]">
-                {displayHeadline(story)}
+              <div className="flex items-start gap-3">
+                {showRank ? (
+                  <div className="mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-[#214765]/70 bg-[#020b14] text-[11px] font-semibold text-[#d7c08d] sm:hidden">
+                    {index + 2}
+                  </div>
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <div className="text-[1.08rem] font-semibold leading-snug text-neutral-100 transition-colors group-hover:text-[#d7c08d] sm:text-[1.85rem] sm:leading-tight">
+                    {displayHeadline(story)}
+                  </div>
+                  <StoryMetaRow seen={seen} story={story} />
+                </div>
               </div>
-              <StoryMetaRow story={story} />
-              {displayBriefingSummary(story) ? <p className="mt-3 text-[15px] leading-7 text-neutral-300">{displayBriefingSummary(story)}</p> : null}
+              {displayBriefingSummary(story) ? <p className="mt-2 text-sm leading-6 text-neutral-300 sm:mt-3 sm:text-[15px] sm:leading-7">{displayBriefingSummary(story)}</p> : null}
               {shouldShowStoryImageOnBriefing(story) ? <AdaptiveBriefingImage story={story} variant="briefing-card" /> : null}
             </div>
             {seen ? <SeenBadge /> : null}
@@ -158,6 +191,12 @@ export default async function BriefingPage() {
     const { lead, leftColumn, rightColumn } = buildBriefingLayout(stories);
     const leadUsesAlertStyle = lead?.beacon_lead_style === "alert";
     const leadSummaryPoints = lead ? displayLeadBriefingSummaryPoints(lead) : [];
+    const mobileRankedStories = [...leftColumn, ...rightColumn].sort((left, right) => {
+      const leftOrder = left.beacon_order ?? 999;
+      const rightOrder = right.beacon_order ?? 999;
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      return new Date(right.created_at ?? right.date).getTime() - new Date(left.created_at ?? left.date).getTime();
+    });
     const latestArchive = (await listBriefingArchives(1).catch(() => []))[0] ?? null;
     const breadcrumb = breadcrumbJsonLd([
       { name: SITE_NAME, item: "/" },
@@ -165,13 +204,13 @@ export default async function BriefingPage() {
     ]);
 
     return (
-      <main className="min-h-screen bg-transparent px-3 py-5 text-neutral-100 sm:px-5 sm:py-7 lg:p-8">
+      <main className="min-h-screen bg-transparent px-3 py-3 text-neutral-100 sm:px-5 sm:py-7 lg:p-8">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
         />
         <div className="mx-auto max-w-6xl">
-          <div className="mb-5 flex justify-center sm:mb-6">
+          <div className="mb-3 flex justify-center sm:mb-6">
             <div className="flex flex-col items-center text-center">
               <Link href="/" aria-label="Go to The Beacon home page">
                 <Image
@@ -180,31 +219,39 @@ export default async function BriefingPage() {
                   width={1920}
                   height={1080}
                   priority
-                  className="h-auto w-full max-w-[300px] sm:max-w-[420px] md:max-w-[520px]"
+                  className="h-auto w-full max-w-[188px] sm:max-w-[420px] md:max-w-[520px]"
                 />
               </Link>
-              <p className="mt-1.5 text-sm text-neutral-400 sm:mt-2 sm:text-base">One Story, Multiple Perspectives.</p>
-              <div className="mt-4 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80 sm:mt-6" />
+              <p className="mt-0.5 text-xs text-neutral-500 sm:mt-2 sm:text-base sm:text-neutral-400">One Story, Multiple Perspectives.</p>
+              <div className="mt-2 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80 sm:mt-6" />
             </div>
           </div>
 
-          <header className="mb-5 sm:mb-7">
+          <header className="mb-3 sm:mb-7">
             <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
               <BackLink href="/" />
               <div className="flex-1" />
-              <div className="flex flex-col items-start gap-3 sm:items-end">
+              <div className="flex w-full flex-row items-center justify-between gap-3 sm:w-auto sm:flex-col sm:items-end">
                 <div className="text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500 sm:text-right">
                   <span className="text-neutral-600">Updated</span>
                   <span className="ml-1 normal-case tracking-normal text-neutral-400">
                     <LocalBriefingUpdated value={latestUpdatedAt} />
                   </span>
                 </div>
+                <div className="sm:hidden">
+                  <BriefingRefreshButton />
+                </div>
                 {isAdmin ? <ManualArchiveButton /> : null}
               </div>
             </div>
           </header>
 
-          <div className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-[#d7c08d]">The Briefing</div>
+          <div className="mb-2 flex items-center justify-between gap-4 sm:mb-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d7c08d] sm:text-sm sm:tracking-[0.2em]">The Briefing</div>
+            <div className="hidden sm:block">
+              <BriefingRefreshButton />
+            </div>
+          </div>
 
           {!lead ? (
             <div className="mt-8 rounded-2xl border border-[#183149]/65 bg-[#07131e] px-5 py-8 text-center shadow-[0_16px_36px_rgba(0,0,0,0.2)] sm:px-6 sm:py-10">
@@ -217,24 +264,28 @@ export default async function BriefingPage() {
             <>
               <Link
                 href={`/story/${lead.id}?from=briefing`}
-                className={`group relative block overflow-hidden rounded-[14px] border bg-[#07131e] p-4 shadow-[0_16px_36px_rgba(0,0,0,0.18)] transition-colors duration-200 sm:p-6 lg:p-8 ${
+                className={`group relative block overflow-hidden rounded-[12px] border bg-[#07131e] p-3 shadow-[0_10px_22px_rgba(0,0,0,0.14)] transition-colors duration-200 sm:rounded-[14px] sm:p-6 sm:shadow-[0_16px_36px_rgba(0,0,0,0.18)] lg:p-8 ${
                   leadUsesAlertStyle
                     ? "border-red-500/55 hover:border-red-400 hover:bg-[#07111c]"
                     : "border-[#183149]/70 hover:border-[#8f7740]/45 hover:bg-[#071622]"
                 }`}
               >
-                <div className={`relative text-center ${seenStoryIds.has(lead.id) ? "opacity-90" : ""}`}>
+                <div className={`relative text-left sm:text-center ${seenStoryIds.has(lead.id) ? "opacity-90" : ""}`}>
+                  <div className="mb-2 flex items-center justify-between gap-3 sm:mb-0 sm:hidden">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d]">Top Story</span>
+                    {seenStoryIds.has(lead.id) ? <InlineSeenPill /> : null}
+                  </div>
                   <div
                     className={`font-semibold leading-tight transition-colors md:text-6xl lg:leading-[0.95] ${
-                      leadUsesAlertStyle ? "text-3xl text-red-500 group-hover:text-red-400 sm:text-4xl" : "text-[2rem] text-neutral-100 group-hover:text-[#d7c08d] sm:text-[2.9rem]"
+                      leadUsesAlertStyle ? "text-2xl text-red-500 group-hover:text-red-400 sm:text-4xl" : "text-[1.65rem] text-neutral-100 group-hover:text-[#d7c08d] sm:text-[2.9rem]"
                     }`}
                   >
                     {displayHeadline(lead)}
                   </div>
-                  <StoryMetaRow story={lead} />
+                  <StoryMetaRow seen={seenStoryIds.has(lead.id)} story={lead} />
 
                   {leadSummaryPoints.length > 0 ? (
-                    <div className="mx-auto mt-4 max-w-4xl space-y-3 text-base leading-7 text-neutral-300 sm:mt-5 sm:text-lg sm:leading-8">
+                    <div className="mx-auto mt-3 max-w-4xl space-y-2 text-sm leading-6 text-neutral-300 sm:mt-5 sm:space-y-3 sm:text-lg sm:leading-8">
                       {leadSummaryPoints.map((point, index) => (
                         <p key={`${lead.id}-summary-${index}`}>{point}</p>
                       ))}
@@ -245,8 +296,14 @@ export default async function BriefingPage() {
                 {seenStoryIds.has(lead.id) ? <SeenBadge /> : null}
               </Link>
 
+              {mobileRankedStories.length > 0 ? (
+                <section className="mt-4 md:hidden">
+                  <BriefingList compactMobile showRank stories={mobileRankedStories} seenStoryIds={seenStoryIds} />
+                </section>
+              ) : null}
+
               {(leftColumn.length > 0 || rightColumn.length > 0) ? (
-                <section className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-10">
+                <section className="mt-8 hidden grid-cols-1 gap-8 md:grid md:grid-cols-2 md:gap-10">
                   <BriefingList stories={leftColumn} seenStoryIds={seenStoryIds} />
                   <BriefingList stories={rightColumn} seenStoryIds={seenStoryIds} />
                 </section>
