@@ -1,5 +1,5 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
@@ -14,12 +14,21 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  manifest: "/manifest.webmanifest",
   metadataBase: getSiteUrl(),
   applicationName: SITE_NAME,
+  appleWebApp: {
+    capable: true,
+    title: SITE_NAME,
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
-    apple: "/favicon.ico",
+    apple: "/beacon-icon-192.png",
   },
   title: {
     default: SITE_NAME,
@@ -48,6 +57,14 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
     images: [DEFAULT_OG_IMAGE],
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  colorScheme: "dark",
+  themeColor: "#05111D",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

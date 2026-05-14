@@ -33,3 +33,9 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+
+@media (max-width: 767px) {
+  body {
+    padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
+  }
+}

@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
 import FollowInterestButton from "@/app/follow-interest-button";
+import InstallAppPrompt from "@/app/install-app-prompt";
 import { getAccountProfile, getAccountStoryState, getFollowedInterests, getSeenStoryIds } from "@/app/lib/account.server";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { imageObjectPosition } from "@/app/lib/image-focus";
@@ -169,7 +170,9 @@ export default async function StoryPage({
   const from = Array.isArray(rawFrom) ? rawFrom[0] : rawFrom;
 
   const backHref =
-    from === "briefing" || from === "beacon"
+    from === "beacon"
+      ? "/beacon"
+      : from === "briefing"
       ? "/briefing"
       : from === "account"
         ? "/account"
@@ -304,6 +307,32 @@ export default async function StoryPage({
               </Link>
             ) : null}
           </div>
+        </div>
+
+        <div className="mt-4 space-y-3 md:hidden">
+          <div className="rounded-[14px] border border-[#183149]/70 bg-[#07131e] p-3 shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
+            <div className="mb-3 flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+              <span>{from === "beacon" ? "Beacon app" : "Story actions"}</span>
+              <span>{formatStoryDate(story.date)}</span>
+            </div>
+            <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
+              <Link
+                href="/briefing"
+                className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+              >
+                Read Briefing
+              </Link>
+              <StoryReaderActions
+                authenticated={Boolean(accountProfile)}
+                className="min-h-10 rounded-full px-4 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-70"
+                disableMarkSeen
+                initialFollowing={Boolean(storyState?.following)}
+                storyId={story.id}
+              />
+              <ShareButton title={story.title} path={`/story/${story.id}`} variant="soft" />
+            </div>
+          </div>
+          <InstallAppPrompt compact />
         </div>
       </div>
 
@@ -442,7 +471,7 @@ export default async function StoryPage({
                 storyId={story.id}
                 views={story.views}
               />
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="hidden flex-wrap items-center gap-3 sm:flex">
                 <StoryReaderActions
                   authenticated={Boolean(accountProfile)}
                   initialFollowing={Boolean(storyState?.following)}

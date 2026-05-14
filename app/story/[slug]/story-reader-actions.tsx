@@ -6,12 +6,16 @@ import { emitAccountFollowsUpdated } from "@/app/lib/account-events";
 
 type StoryReaderActionsProps = {
   authenticated: boolean;
+  className?: string;
+  disableMarkSeen?: boolean;
   initialFollowing: boolean;
   storyId: string;
 };
 
 export default function StoryReaderActions({
   authenticated,
+  className = "",
+  disableMarkSeen = false,
   initialFollowing,
   storyId,
 }: StoryReaderActionsProps) {
@@ -23,6 +27,7 @@ export default function StoryReaderActions({
   }, [initialFollowing]);
 
   useEffect(() => {
+    if (disableMarkSeen) return;
     if (!authenticated || !storyId) return;
 
     let timer: number | null = null;
@@ -55,7 +60,11 @@ export default function StoryReaderActions({
       if (timer !== null) window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [authenticated, storyId]);
+  }, [authenticated, disableMarkSeen, storyId]);
+
+  const baseClassName =
+    className ||
+    "rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-70";
 
   async function toggleFollow() {
     if (!authenticated || pending) return;
@@ -87,7 +96,7 @@ export default function StoryReaderActions({
     return (
       <Link
         href="/account/login"
-        className="inline-flex rounded-full border border-[#1c3953]/60 bg-[#08131d] px-3.5 py-1.5 text-[11px] font-semibold text-[#d7e2ef] transition hover:border-[#28445d] hover:bg-[#0b1824]"
+        className={`inline-flex border border-[#1c3953]/60 bg-[#08131d] text-[#d7e2ef] hover:border-[#28445d] hover:bg-[#0b1824] ${baseClassName}`.trim()}
       >
         Log in to track
       </Link>
@@ -99,7 +108,7 @@ export default function StoryReaderActions({
       type="button"
       onClick={() => void toggleFollow()}
       disabled={pending}
-      className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 ${
+      className={`${baseClassName} ${
         following
           ? "border border-[#8f7740]/60 bg-[#08131d] text-neutral-100 hover:border-[#b89a55] hover:bg-[#0b1824]"
           : "border border-[#1c3953]/65 bg-[#08131d] text-[#d7e2ef] hover:border-[#28445d] hover:bg-[#0b1824]"
