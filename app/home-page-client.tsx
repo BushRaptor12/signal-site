@@ -1177,6 +1177,11 @@ export default function HomePageClient({
               followedDirectly ? "Tracked story" : null,
               primaryInterestMatch?.query ? primaryInterestMatch.query : null,
             ].filter(Boolean);
+            const metaRowClassName = isLeadCard
+              ? "mb-4 flex flex-col items-center justify-center gap-2 border-b border-[#1d3b56]/75 pb-4 text-center sm:mb-5"
+              : "mb-4 flex flex-col items-center justify-between gap-2 border-b border-[#1d3b56]/75 pb-4 text-center sm:mb-5 sm:flex-row sm:text-left";
+            const visibleSummaryPoints = (story.summary ?? []).slice(0, isLeadCard ? 3 : 2);
+
             return (
               <div key={story.id} className="mx-auto max-w-4xl">
                 <div
@@ -1191,7 +1196,7 @@ export default function HomePageClient({
                     onClick={() => persistHomeState()}
                     className="relative block"
                   >
-                    <div className="mb-4 flex flex-col items-center justify-between gap-2 border-b border-[#1d3b56]/75 pb-4 text-center sm:mb-5 sm:flex-row sm:text-left">
+                    <div className={metaRowClassName}>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] uppercase tracking-[0.14em] text-neutral-400">
                         <span>{formatStoryDate(story.date)}</span>
                       </div>
@@ -1215,7 +1220,7 @@ export default function HomePageClient({
                         </h2>
 
                         <div className={`mx-auto mt-3 space-y-2 text-[15px] leading-7 text-neutral-300 sm:mt-4 sm:space-y-2.5 ${isLeadCard ? "max-w-[42rem]" : "max-w-[40rem]"}`}>
-                          {(story.summary ?? []).map((line, index) => (
+                          {visibleSummaryPoints.map((line, index) => (
                             <p key={index}>{line}</p>
                           ))}
                         </div>

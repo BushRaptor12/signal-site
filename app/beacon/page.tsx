@@ -136,7 +136,7 @@ function LeadStoryCard({ story }: { story: StoryWithViews }) {
       <h1 className="mt-3 text-[2rem] font-semibold leading-tight text-neutral-50 sm:text-4xl">{displayHeadline(story)}</h1>
       {displaySummary(story) ? <p className="mt-4 text-base leading-7 text-neutral-300">{displaySummary(story)}</p> : null}
       <StoryImage priority story={story} />
-      <div className="mt-4 flex items-center justify-between gap-4 text-xs uppercase tracking-[0.14em] text-neutral-500">
+      <div className="mt-4 flex flex-col items-center justify-center gap-1.5 text-center text-xs uppercase tracking-[0.14em] text-neutral-500 sm:gap-2">
         <span>{formatStoryDate(story.date)}</span>
         <span>{updatedLabel(story)}</span>
       </div>
