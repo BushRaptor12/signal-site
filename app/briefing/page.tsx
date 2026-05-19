@@ -98,9 +98,21 @@ function InlineSeenPill() {
   );
 }
 
-function StoryMetaRow({ seen = false, story }: { seen?: boolean; story: StoryWithViews }) {
+function StoryMetaRow({
+  align = "start",
+  seen = false,
+  story,
+}: {
+  align?: "center" | "start";
+  seen?: boolean;
+  story: StoryWithViews;
+}) {
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-neutral-500 sm:mt-3 sm:text-[11px] sm:tracking-[0.16em]">
+    <div
+      className={`mt-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-neutral-500 sm:mt-3 sm:text-[11px] sm:tracking-[0.16em] ${
+        align === "center" ? "justify-center text-center" : "justify-start"
+      }`}
+    >
       <span>{formatStoryDate(story.date)}</span>
       {seen ? <InlineSeenPill /> : null}
     </div>
@@ -274,7 +286,7 @@ export default async function BriefingPage() {
                   >
                     {displayHeadline(lead)}
                   </div>
-                  <StoryMetaRow seen={seenStoryIds.has(lead.id)} story={lead} />
+                  <StoryMetaRow align="center" seen={seenStoryIds.has(lead.id)} story={lead} />
 
                   {leadSummaryPoints.length > 0 ? (
                     <div className="mx-auto mt-3 max-w-4xl space-y-2 text-sm leading-6 text-neutral-300 sm:mt-5 sm:space-y-3 sm:text-lg sm:leading-8">

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, storyMatchesSearch, STORY_CARD_SELECT, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
-import { normalize } from "@/app/lib/vocab";
+import { TOPICS, normalize } from "@/app/lib/vocab";
 
 const MAX_LIMIT = 40;
 
@@ -62,6 +62,11 @@ function topicWindowCutoff(windowKey: string) {
   return 0;
 }
 
+function topicQueryCandidates(topic: string) {
+  const canonical = TOPICS.find((candidate) => normalize(candidate) === topic);
+  return [...new Set([canonical, topic].filter((candidate): candidate is string => Boolean(candidate)))];
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -76,23 +81,32 @@ export async function GET(request: NextRequest) {
     const fetchLimit = search ? Math.max(limit + offset + 160, 400) : needsServerFilter ? Math.max(limit + offset + 40, 120) : limit + 1;
 
     const supabase = supabaseServer();
-    let query = supabase
-      .from("stories")
-      .select(STORY_CARD_SELECT)
-      .eq("status", "published");
+    function createFeedQuery(topicCandidate?: string) {
+      let query = supabase
+        .from("stories")
+        .select(STORY_CARD_SELECT)
+        .eq("status", "published");
 
-    if (topic) {
-      query = query.contains("topics", [topic]);
+      if (topicCandidate) {
+        query = query.contains("topics", [topicCandidate]);
+      }
+
+      if (!search && (tab === "recent" || (topic && topicOrder !== "top"))) {
+        return query.order("created_at", { ascending: false, nullsFirst: false }).limit(fetchLimit);
+      }
+
+      return query
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .limit(fetchLimit);
     }
 
-    if (!search && (tab === "recent" || (topic && topicOrder !== "top"))) {
-      query = query.order("created_at", { ascending: false, nullsFirst: false });
-    } else {
-      query = query.order("updated_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false, nullsFirst: false });
-    }
+    const feedQueries = topic
+      ? topicQueryCandidates(topic).map((candidate) => createFeedQuery(candidate))
+      : [createFeedQuery()];
 
-    const [feedResult, trackingResult] = await Promise.all([
-      query.limit(fetchLimit),
+    const [feedResults, trackingResult] = await Promise.all([
+      Promise.all(feedQueries),
       supabase
         .from("stories")
         .select(STORY_CARD_SELECT)
@@ -102,11 +116,13 @@ export async function GET(request: NextRequest) {
         .order("created_at", { ascending: false, nullsFirst: false }),
     ]);
 
-    const { data, error } = feedResult;
-    if (error) throw error;
+    const feedError = feedResults.find((result) => result.error)?.error;
+    if (feedError) throw feedError;
     if (trackingResult.error) throw trackingResult.error;
 
-    let stories = ((data ?? []) as unknown as StoryDbRow[]).map(coerceStory).filter((story) => !story.pinned);
+    const data = feedResults.flatMap((result) => result.data ?? []);
+    let stories = [...new Map(((data ?? []) as unknown as StoryDbRow[]).map(coerceStory).map((story) => [story.id, story])).values()]
+      .filter((story) => !story.pinned);
     const trackingStories = ((trackingResult.data ?? []) as unknown as StoryDbRow[]).map(coerceStory);
     if (search) {
       stories = stories.filter((story) => storyMatchesSearch(story, search));
@@ -130,7 +146,7 @@ export async function GET(request: NextRequest) {
 
     const page = stories.slice(offset, offset + limit);
     return NextResponse.json({
-      hasMore: stories.length > offset + limit || (data?.length ?? 0) >= fetchLimit,
+      hasMore: stories.length > offset + limit || data.length >= fetchLimit,
       stories: page,
       trackingStories,
     });

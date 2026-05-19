@@ -79,6 +79,140 @@ function formatStructuredList(values: string[]) {
   return values.join("\n");
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeKnowledgeText(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[’']/g, "'")
+    .toLowerCase();
+}
+
+function termMatchesText(text: string, term: string) {
+  const normalizedTerm = normalizeKnowledgeText(term).trim();
+  if (!normalizedTerm || normalizedTerm.length < 2) return false;
+
+  const boundaryStart = /^[a-z0-9]/.test(normalizedTerm) ? "\\b" : "";
+  const boundaryEnd = /[a-z0-9]$/.test(normalizedTerm) ? "\\b" : "";
+  return new RegExp(`${boundaryStart}${escapeRegExp(normalizedTerm)}${boundaryEnd}`, "i").test(text);
+}
+
+function mergeUniqueByNormalized(...groups: string[][]) {
+  const seen = new Set<string>();
+  const output: string[] = [];
+
+  for (const value of groups.flat()) {
+    const trimmed = value.trim();
+    const key = normalize(trimmed);
+    if (!trimmed || seen.has(key)) continue;
+    seen.add(key);
+    output.push(trimmed);
+  }
+
+  return output;
+}
+
+function inferEntitySelections(input: {
+  currentPrimaryEntities: string[];
+  currentSelectedEntities: string[];
+  entities: Entity[];
+  sourceNames: string[];
+  sourceTitles: string[];
+  summary: string[];
+  title: string;
+}) {
+  const headlineText = normalizeKnowledgeText(input.title);
+  const sourceText = normalizeKnowledgeText([...input.sourceNames, ...input.sourceTitles].join(" "));
+  const bodyText = normalizeKnowledgeText([...input.summary, ...input.sourceNames, ...input.sourceTitles].join(" "));
+
+  const matches = input.entities
+    .map((entity) => {
+      const terms = [entity.name, ...(entity.aliases ?? [])]
+        .map((term) => term.trim())
+        .filter((term) => term.length >= 2)
+        .sort((left, right) => right.length - left.length);
+      const matchedTerms = terms.filter((term) => termMatchesText(`${headlineText} ${bodyText}`, term));
+      if (matchedTerms.length === 0) return null;
+
+      const headlineMatch = matchedTerms.some((term) => termMatchesText(headlineText, term));
+      const sourceTitleMatch = matchedTerms.some((term) => termMatchesText(sourceText, term));
+      const nameMatch = termMatchesText(`${headlineText} ${bodyText}`, entity.name);
+      const longestTermLength = Math.max(...matchedTerms.map((term) => term.length));
+      const score =
+        (headlineMatch ? 80 : 0) +
+        (sourceTitleMatch ? 35 : 0) +
+        (nameMatch ? 25 : 0) +
+        Math.min(longestTermLength, 40);
+
+      return {
+        entity,
+        primary: headlineMatch || sourceTitleMatch || nameMatch,
+        score,
+      };
+    })
+    .filter((match): match is { entity: Entity; primary: boolean; score: number } => Boolean(match))
+    .sort((left, right) => right.score - left.score || left.entity.name.localeCompare(right.entity.name));
+
+  const inferredSelected = matches.slice(0, 10).map((match) => match.entity.name);
+  const inferredPrimary = matches
+    .filter((match) => match.primary)
+    .slice(0, 5)
+    .map((match) => match.entity.name);
+
+  return {
+    primaryEntities: mergeUniqueByNormalized(input.currentPrimaryEntities, inferredPrimary),
+    selectedEntities: mergeUniqueByNormalized(input.currentSelectedEntities, inferredSelected),
+  };
+}
+
+function inferTopicsFromDraft(input: {
+  currentTopics: string[];
+  inferredKnowledge: ReturnType<typeof inferStoryKnowledge>;
+  sourceNames: string[];
+  sourceTitles: string[];
+  summary: string[];
+  title: string;
+}) {
+  const haystack = normalizeKnowledgeText([input.title, ...input.summary, ...input.sourceNames, ...input.sourceTitles].join(" "));
+  const next = [...input.currentTopics];
+  const addTopic = (topic: (typeof TOPICS)[number]) => {
+    if (!next.map(normalize).includes(normalize(topic))) next.push(topic);
+  };
+
+  if (
+    input.inferredKnowledge.sports_teams.length > 0 ||
+    /\b(nba|nfl|mlb|nhl|wnba|ncaa|playoff|championship|coach|quarterback|pitcher|dodgers|lakers|warriors|49ers)\b/.test(haystack)
+  ) {
+    addTopic("Sports");
+  }
+  if (/\b(election|senate|congress|white house|president|governor|mayor|campaign|democrat|republican|supreme court|scotus)\b/.test(haystack)) {
+    addTopic("Politics");
+  }
+  if (/\b(stock market|stocks|federal reserve|inflation|jobs report|gdp|tariff|interest rates|treasury|economy)\b/.test(haystack)) {
+    addTopic("Economy");
+  }
+  if (/\b(earnings|company|startup|merger|acquisition|ceo|ipo|shares|business)\b/.test(haystack)) {
+    addTopic("Business");
+  }
+  if (input.inferredKnowledge.industries.some((industry) => normalize(industry).includes("artificial intelligence")) || /\b(ai|artificial intelligence|chip|semiconductor|software|app|technology)\b/.test(haystack)) {
+    addTopic("Technology");
+  }
+  if (/\b(world|global|international|ukraine|russia|china|israel|iran|gaza|europe|asia|middle east)\b/.test(haystack)) {
+    addTopic("World");
+  }
+  if (/\b(movie|music|album|tv|streaming|celebrity|hollywood|entertainment)\b/.test(haystack)) {
+    addTopic("Entertainment");
+  }
+  if (/\btrump\b/.test(haystack)) {
+    addTopic("Trump");
+  }
+
+  return next;
+}
+
 type EditorSectionProps = {
   title: string;
   description?: string;
@@ -754,6 +888,17 @@ export default function EditorPage() {
 
       setSources(refreshedSources);
 
+      const sourceNames = refreshedSources.map((source) => source.name);
+      const sourceTitles = refreshedSources.map((source) => source.title);
+      const inferredEntitySelections = inferEntitySelections({
+        currentPrimaryEntities: primaryEntities,
+        currentSelectedEntities: selectedEntities,
+        entities,
+        sourceNames,
+        sourceTitles,
+        summary,
+        title,
+      });
       const inferred = inferStoryKnowledge({
         current: {
           facets: currentFacets,
@@ -764,15 +909,26 @@ export default function EditorPage() {
           people: currentPeople,
           sports_teams: currentSportsTeams,
         },
-        entityNames: selectedEntities,
-        primaryEntities,
-        sourceNames: refreshedSources.map((source) => source.name),
-        sourceTitles: refreshedSources.map((source) => source.title),
+        entityNames: inferredEntitySelections.selectedEntities,
+        primaryEntities: inferredEntitySelections.primaryEntities,
+        sourceNames,
+        sourceTitles,
         summary,
         title,
         topics,
       });
+      const inferredTopics = inferTopicsFromDraft({
+        currentTopics: topics,
+        inferredKnowledge: inferred,
+        sourceNames,
+        sourceTitles,
+        summary,
+        title,
+      });
 
+      setSelectedEntities(inferredEntitySelections.selectedEntities);
+      setPrimaryEntities(inferredEntitySelections.primaryEntities);
+      setTopics(inferredTopics);
       setLocations(inferred.locations);
       setLocationsDraft(formatStructuredList(inferred.locations));
       setOrganizations(inferred.organizations);
@@ -788,7 +944,7 @@ export default function EditorPage() {
       setFacets(inferred.facets);
       setFacetsDraft(formatStructuredList(inferred.facets));
 
-      showNotice("Story knowledge suggestions filled from the draft and source article titles.", "success");
+      showNotice("Story metadata, topics, and entity suggestions filled from the draft and source article titles.", "success");
     } catch (knowledgeError) {
       showNotice(knowledgeError instanceof Error ? knowledgeError.message : "We couldn't auto-fill story knowledge.", "error");
     } finally {
