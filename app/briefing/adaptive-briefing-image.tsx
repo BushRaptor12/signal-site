@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 import { imageObjectPosition } from "@/app/lib/image-focus";
 import { shouldUseContainedStoryImage } from "@/app/lib/story-image-layout";
@@ -63,13 +62,14 @@ export default function AdaptiveBriefingImage({ priority = false, story, variant
     return (
       <div className="relative mt-6 overflow-hidden">
         <div className="relative aspect-[4/3] md:aspect-[16/10]">
-          <Image
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             src={story.image_url!}
             alt={alt}
-            fill
-            priority={priority}
-            sizes="(max-width: 768px) 100vw, 1152px"
-            className="object-cover"
+            decoding="async"
+            fetchPriority={priority ? "high" : "auto"}
+            loading={priority ? "eager" : "lazy"}
+            className="absolute inset-0 h-full w-full object-cover"
             style={{ objectPosition: imageObjectPosition(story) }}
             onLoad={(event) => updateAspectRatio(event.currentTarget)}
           />
@@ -81,12 +81,13 @@ export default function AdaptiveBriefingImage({ priority = false, story, variant
   return (
     <div className="mt-5 overflow-hidden">
       <div className="relative mx-auto aspect-[5/4] max-w-[22rem]">
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={story.image_url!}
           alt={alt}
-          fill
-          sizes="(max-width: 768px) 100vw, 352px"
-          className="object-cover"
+          decoding="async"
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover"
           style={{ objectPosition: imageObjectPosition(story) }}
           onLoad={(event) => updateAspectRatio(event.currentTarget)}
         />

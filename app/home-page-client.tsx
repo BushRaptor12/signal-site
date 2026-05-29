@@ -43,6 +43,7 @@ type StoryFeedResponse = {
 
 const HOME_STATE_KEY = "signal:homeState:v2";
 const MAX_SCROLL_RESTORE_ATTEMPTS = 18;
+const OVERLAY_SEARCH_BATCH_SIZE = 12;
 const STORY_BATCH_SIZE = 10;
 const BUILTIN_TAB_KEYS: TabKey[] = ["following", "popular", "recent"];
 const PRESET_TOPIC_TABS = TOPICS.map((topic) => normalize(topic)).filter(Boolean);
@@ -331,12 +332,14 @@ export default function HomePageClient({
   const [searchDraft, setSearchDraft] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [overlaySearchResults, setOverlaySearchResults] = useState<StoryWithViews[]>([]);
+  const [overlaySearchHasMore, setOverlaySearchHasMore] = useState(false);
   const [overlaySearchLoading, setOverlaySearchLoading] = useState(false);
   const [overlaySearchError, setOverlaySearchError] = useState("");
   const [feedHasMore, setFeedHasMore] = useState(() => getFeedStories(initialStories).length >= 30);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [feedError, setFeedError] = useState("");
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const feedRequestIdRef = useRef(0);
   const pendingScrollRestoreRef = useRef<{ attempts: number; scrollY: number; tabKey: TabKey } | null>(null);
 
   useEffect(() => {
@@ -350,19 +353,25 @@ export default function HomePageClient({
     if (!searchOpen) return;
 
     searchInputRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setSearchOpen(false);
     };
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [searchOpen]);
 
   useEffect(() => {
     const query = searchDraft.trim();
     if (!searchOpen || !query) {
       setOverlaySearchResults([]);
+      setOverlaySearchHasMore(false);
       setOverlaySearchLoading(false);
       setOverlaySearchError("");
       return;
@@ -371,7 +380,7 @@ export default function HomePageClient({
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       const params = new URLSearchParams({
-        limit: "8",
+        limit: String(OVERLAY_SEARCH_BATCH_SIZE),
         offset: "0",
         search: query,
         tab: "recent",
@@ -390,9 +399,11 @@ export default function HomePageClient({
         }
 
         setOverlaySearchResults(data.stories);
+        setOverlaySearchHasMore(Boolean(data.hasMore));
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setOverlaySearchResults([]);
+        setOverlaySearchHasMore(false);
         setOverlaySearchError(error instanceof Error ? error.message : "We couldn't search stories.");
       } finally {
         if (!controller.signal.aborted) setOverlaySearchLoading(false);
@@ -557,8 +568,19 @@ export default function HomePageClient({
       persistHomeState();
       const currentTab = normalize(searchParams.get("tab") ?? "");
       const nextParams = new URLSearchParams(searchParams.toString());
+      const savedState = readHomeStateMap()[nextTab];
+      const nextVisibleCount =
+        typeof savedState?.visibleCount === "number" && savedState.visibleCount > STORY_BATCH_SIZE
+          ? savedState.visibleCount
+          : STORY_BATCH_SIZE;
 
       setActiveTab(nextTab);
+      setVisibleCount(nextVisibleCount);
+      pendingScrollRestoreRef.current = {
+        attempts: 0,
+        scrollY: typeof savedState?.scrollY === "number" && savedState.scrollY > 0 ? savedState.scrollY : 0,
+        tabKey: nextTab,
+      };
 
       if (nextTab === "popular") {
         if (!currentTab) return;
@@ -623,6 +645,8 @@ export default function HomePageClient({
       const append = Boolean(options?.append);
       const params = new URLSearchParams();
       const normalizedTab = normalize(activeTab);
+      const requestId = feedRequestIdRef.current + 1;
+      feedRequestIdRef.current = requestId;
       params.set("limit", "30");
       params.set("offset", append ? String(options?.offset ?? 0) : "0");
       params.set("tab", normalizedTab === "recent" ? "recent" : "popular");
@@ -640,6 +664,7 @@ export default function HomePageClient({
         if (!response.ok || !Array.isArray(data.stories)) {
           throw new Error(data.error ?? "We couldn't load stories.");
         }
+        if (requestId !== feedRequestIdRef.current) return;
 
         setStories((current) => {
           const incoming = getFeedStories(data.stories ?? []);
@@ -652,9 +677,12 @@ export default function HomePageClient({
         }
         setFeedHasMore(Boolean(data.hasMore));
       } catch (error) {
+        if (requestId !== feedRequestIdRef.current) return;
         setFeedError(error instanceof Error ? error.message : "We couldn't load stories.");
       } finally {
-        setLoadingFeed(false);
+        if (requestId === feedRequestIdRef.current) {
+          setLoadingFeed(false);
+        }
       }
     },
     [activeTab, topicOrder, topicTopWindow]
@@ -815,6 +843,38 @@ export default function HomePageClient({
   const overlaySearchQuery = searchDraft.trim();
   const canLoadMore = visibleCount < visible.length || (activeTab !== "following" && feedHasMore);
   const activeTopicTab = isPresetTopicTab(normalize(activeTab));
+  async function handleOverlaySearchReadMore() {
+    const query = overlaySearchQuery;
+    if (!query || overlaySearchLoading || !overlaySearchHasMore) return;
+
+    const params = new URLSearchParams({
+      limit: String(OVERLAY_SEARCH_BATCH_SIZE),
+      offset: String(overlaySearchResults.length),
+      search: query,
+      tab: "recent",
+    });
+
+    setOverlaySearchLoading(true);
+    setOverlaySearchError("");
+    try {
+      const response = await fetch(`/api/stories/feed?${params.toString()}`, { cache: "no-store" });
+      const data = (await response.json().catch(() => ({}))) as StoryFeedResponse;
+      if (!response.ok || !Array.isArray(data.stories)) {
+        throw new Error(data.error ?? "We couldn't search stories.");
+      }
+
+      setOverlaySearchResults((current) => {
+        const seen = new Set(current.map((story) => story.id));
+        return [...current, ...data.stories!.filter((story) => !seen.has(story.id))];
+      });
+      setOverlaySearchHasMore(Boolean(data.hasMore));
+    } catch (error) {
+      setOverlaySearchError(error instanceof Error ? error.message : "We couldn't search stories.");
+    } finally {
+      setOverlaySearchLoading(false);
+    }
+  }
+
   function handleReadMore() {
     if (visibleCount < visible.length) {
       setVisibleCount((count) => count + STORY_BATCH_SIZE);
@@ -902,13 +962,13 @@ export default function HomePageClient({
         <div
           aria-labelledby="story-search-title"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-black/70 px-4 py-10 text-neutral-100 backdrop-blur-sm"
+          className="fixed inset-0 z-50 overflow-hidden bg-black/70 px-4 py-6 text-neutral-100 backdrop-blur-sm sm:py-10"
           role="dialog"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setSearchOpen(false);
           }}
         >
-          <div className="mx-auto mt-8 flex max-h-[calc(100vh-4rem)] max-w-3xl flex-col rounded-2xl border border-[#163754]/90 bg-[#06131e] p-4 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:mt-14 sm:p-5">
+          <div className="mx-auto flex h-full max-w-3xl flex-col rounded-2xl border border-[#163754]/90 bg-[#06131e] p-4 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:h-auto sm:max-h-[calc(100vh-5rem)] sm:p-5">
             <div className="mb-3 flex items-center justify-between gap-4">
               <h2 id="story-search-title" className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-400">
                 Search
@@ -959,46 +1019,61 @@ export default function HomePageClient({
               ) : null}
             </div>
             {overlaySearchQuery ? (
-              <div className="mt-4 min-h-0 overflow-y-auto pr-1">
+              <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1 overscroll-contain">
                 <div className="mb-2 flex items-center justify-between gap-4 text-xs uppercase tracking-[0.14em] text-neutral-500">
                   <span>{overlaySearchLoading ? "Searching" : "Results"}</span>
                   <span>{overlaySearchResults.length ? `${overlaySearchResults.length} shown` : overlaySearchError ? "Error" : "No matches"}</span>
                 </div>
                 {overlaySearchResults.length > 0 ? (
-                  <div className="space-y-2">
-                    {overlaySearchResults.map((story) => {
-                      const sourceNames = (story.sources ?? [])
-                        .slice(0, 2)
-                        .map((source) => source.name)
-                        .filter(Boolean)
-                        .join(" / ");
-                      return (
-                        <Link
-                          key={`overlay-search-${story.id}`}
-                          href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
-                          onClick={() => {
-                            persistHomeState();
-                            setSearchOpen(false);
-                          }}
-                          className="block rounded-xl border border-[#163754]/70 bg-[#020b14] px-4 py-3 transition hover:border-[#8f7740]/70 hover:bg-[#07101a]"
-                        >
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] uppercase tracking-[0.14em] text-neutral-500">
-                            <span>{formatStoryDate(story.date)}</span>
-                            {sourceNames ? (
-                              <>
-                                <span className="text-[#35556f]">/</span>
-                                <span>{sourceNames}</span>
-                              </>
+                  <>
+                    <div className="space-y-2">
+                      {overlaySearchResults.map((story) => {
+                        const sourceNames = (story.sources ?? [])
+                          .slice(0, 2)
+                          .map((source) => source.name)
+                          .filter(Boolean)
+                          .join(" / ");
+                        return (
+                          <Link
+                            key={`overlay-search-${story.id}`}
+                            href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
+                            onClick={() => {
+                              persistHomeState();
+                              setSearchOpen(false);
+                            }}
+                            className="block rounded-xl border border-[#163754]/70 bg-[#020b14] px-4 py-3 transition hover:border-[#8f7740]/70 hover:bg-[#07101a]"
+                          >
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] uppercase tracking-[0.14em] text-neutral-500">
+                              <span>{formatStoryDate(story.date)}</span>
+                              {sourceNames ? (
+                                <>
+                                  <span className="text-[#35556f]">/</span>
+                                  <span>{sourceNames}</span>
+                                </>
+                              ) : null}
+                            </div>
+                            <div className="mt-1.5 text-base font-semibold leading-snug text-neutral-100">{story.title}</div>
+                            {story.summary[0] ? (
+                              <p className="mt-1.5 line-clamp-2 text-sm leading-6 text-neutral-400">{story.summary[0]}</p>
                             ) : null}
-                          </div>
-                          <div className="mt-1.5 text-base font-semibold leading-snug text-neutral-100">{story.title}</div>
-                          {story.summary[0] ? (
-                            <p className="mt-1.5 line-clamp-2 text-sm leading-6 text-neutral-400">{story.summary[0]}</p>
-                          ) : null}
-                        </Link>
-                      );
-                    })}
-                  </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                    {overlaySearchHasMore ? (
+                      <div className="sticky bottom-0 mt-4 border-t border-[#163754]/70 bg-[#06131e]/95 py-3 backdrop-blur-sm">
+                        <button
+                          type="button"
+                          onClick={() => void handleOverlaySearchReadMore()}
+                          disabled={overlaySearchLoading}
+                          className="min-h-11 w-full rounded-xl border border-[#8f7740]/60 bg-[#07101a] px-5 py-2.5 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {overlaySearchLoading ? "Loading..." : "Read more"}
+                        </button>
+                      </div>
+                    ) : null}
+                    {overlaySearchError ? <p className="mt-3 text-sm text-red-200">{overlaySearchError}</p> : null}
+                  </>
                 ) : (
                   <div className="rounded-xl border border-[#163754]/70 bg-[#020b14] px-4 py-6 text-center text-sm text-neutral-400">
                     {overlaySearchError || (overlaySearchLoading ? "Searching stories..." : "No stories match this search yet.")}
@@ -1284,13 +1359,13 @@ export default function HomePageClient({
                                 : "mx-auto aspect-[5/4] w-full max-w-[40rem] sm:aspect-[4/3] md:aspect-[16/10]"
                              }`}
                           >
-                            <Image
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
                               src={story.image_url!}
                               alt={story.title}
-                              fill
-                              quality={90}
-                              sizes={isLeadCard ? "(max-width: 1024px) 100vw, 896px" : "(max-width: 1024px) 100vw, 640px"}
-                              className="object-cover transition duration-500 group-hover:scale-[1.015]"
+                              decoding="async"
+                              loading={isLeadCard ? "eager" : "lazy"}
+                              className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.015]"
                               style={{ objectPosition: imageObjectPosition(story) }}
                             />
                           </div>

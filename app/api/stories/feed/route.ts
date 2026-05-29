@@ -6,6 +6,15 @@ import { TOPICS, normalize } from "@/app/lib/vocab";
 
 const MAX_LIMIT = 40;
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return "We couldn't load stories.";
+}
+
 function toPositiveInt(value: string | null, fallback: number, max: number) {
   const parsed = Number(value ?? "");
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
@@ -151,7 +160,6 @@ export async function GET(request: NextRequest) {
       trackingStories,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "We couldn't load stories.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
   }
 }

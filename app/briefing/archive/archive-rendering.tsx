@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import { imageObjectPosition } from "@/app/lib/image-focus";
@@ -56,12 +55,13 @@ function ArchiveStoryImage({ lead = false, story }: { lead?: boolean; story: Bri
   return (
     <div className={lead ? "mt-6 overflow-hidden" : "mt-5 overflow-hidden"}>
       <div className={lead ? "relative aspect-[4/3] sm:aspect-[16/10]" : "relative mx-auto aspect-[5/4] max-w-[22rem]"}>
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={story.image_url!}
           alt={displayArchiveHeadline(story)}
-          fill
-          sizes={lead ? "(max-width: 768px) 100vw, 1152px" : "(max-width: 768px) 100vw, 352px"}
-          className={story.image_display === "contain" ? "object-contain" : "object-cover"}
+          decoding="async"
+          loading="lazy"
+          className={`absolute inset-0 h-full w-full ${story.image_display === "contain" ? "object-contain" : "object-cover"}`}
           style={{ objectPosition: imageObjectPosition(story) }}
         />
       </div>

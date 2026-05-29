@@ -32,8 +32,6 @@ type StoryRevision = {
 };
 
 const DISCOVERY_SOURCE_IMPORT_KEY = "beacon:admin-discovery-sources";
-const DEFAULT_EDITOR_DATE = "2026-01-01";
-
 function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -66,6 +64,18 @@ function blankSources() {
 
 function normalizeStoryIdInput(value: string) {
   return slugify(value).slice(0, 80);
+}
+
+function normalizeHttpUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : "";
+  } catch {
+    return "";
+  }
 }
 
 function normalizeStructuredList(value: string) {
@@ -249,10 +259,13 @@ export default function EditorPage() {
   const [activeStoryId, setActiveStoryId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [slugInput, setSlugInput] = useState("");
-  const [date, setDate] = useState(DEFAULT_EDITOR_DATE);
+  const [date, setDate] = useState(() => todayInputValue());
   const [status, setStatus] = useState<StoryStatus>("draft");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imagePath, setImagePath] = useState<string | null>(null);
+  const [embeddedImageUrlDraft, setEmbeddedImageUrlDraft] = useState("");
+  const [imageCredit, setImageCredit] = useState("");
+  const [imageCreditUrl, setImageCreditUrl] = useState("");
   const [imageFocusX, setImageFocusX] = useState(DEFAULT_IMAGE_FOCUS);
   const [imageFocusY, setImageFocusY] = useState(DEFAULT_IMAGE_FOCUS);
   const [imageDisplay, setImageDisplay] = useState<StoryImageDisplay>("contain");
@@ -372,6 +385,9 @@ export default function EditorPage() {
     setStatus("draft");
     setImageUrl(null);
     setImagePath(null);
+    setEmbeddedImageUrlDraft("");
+    setImageCredit("");
+    setImageCreditUrl("");
     setImageFocusX(DEFAULT_IMAGE_FOCUS);
     setImageFocusY(DEFAULT_IMAGE_FOCUS);
     setImageDisplay("contain");
@@ -421,6 +437,9 @@ export default function EditorPage() {
     setStatus(story.status);
     setImageUrl(story.image_url ?? null);
     setImagePath(story.image_path ?? null);
+    setEmbeddedImageUrlDraft(story.image_path ? "" : story.image_url ?? "");
+    setImageCredit(story.image_credit ?? "");
+    setImageCreditUrl(story.image_credit_url ?? "");
     setImageFocusX(clampImageFocus(story.image_focus_x));
     setImageFocusY(clampImageFocus(story.image_focus_y));
     setImageDisplay(story.image_display === "contain" ? "contain" : "cover");
@@ -465,11 +484,6 @@ export default function EditorPage() {
   useEffect(() => {
     void loadStories();
   }, [loadStories]);
-
-  useEffect(() => {
-    if (requestedStoryId || date !== DEFAULT_EDITOR_DATE) return;
-    setDate(todayInputValue());
-  }, [date, requestedStoryId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -559,6 +573,8 @@ export default function EditorPage() {
         imageDisplay,
         imageFocusX,
         imageFocusY,
+        imageCredit,
+        imageCreditUrl,
         imagePath,
         imageUrl,
         imageShowOnBriefing,
@@ -593,6 +609,8 @@ export default function EditorPage() {
       imageDisplay,
       imageFocusX,
       imageFocusY,
+      imageCredit,
+      imageCreditUrl,
       imagePath,
       imageUrl,
       imageShowOnBriefing,
@@ -1016,6 +1034,7 @@ export default function EditorPage() {
 
       setImagePath(json.imagePath);
       setImageUrl(json.imageUrl);
+      setEmbeddedImageUrlDraft("");
       setImageFocusX(DEFAULT_IMAGE_FOCUS);
       setImageFocusY(DEFAULT_IMAGE_FOCUS);
       setImageDisplay("contain");
@@ -1026,6 +1045,41 @@ export default function EditorPage() {
     } finally {
       setUploadingImage(false);
     }
+  }
+
+  async function embedImageFromUrl() {
+    const normalizedUrl = normalizeHttpUrl(embeddedImageUrlDraft);
+    if (!normalizedUrl) {
+      showNotice("Embedded image URL must start with http:// or https://.", "error");
+      return;
+    }
+
+    if (imagePath && imagePath !== savedImagePath) {
+      const res = await fetch("/api/admin/story-images", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ imagePath }),
+      });
+
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        showNotice(`Previous upload removal failed: ${json.error ?? res.statusText}`, "error");
+        return;
+      }
+    }
+
+    setImageUrl(normalizedUrl);
+    setImagePath(null);
+    setEmbeddedImageUrlDraft(normalizedUrl);
+    setImageFocusX(DEFAULT_IMAGE_FOCUS);
+    setImageFocusY(DEFAULT_IMAGE_FOCUS);
+    setImageDisplay("cover");
+    setImageShowOnHomepage(false);
+    setImageShowOnBriefing(false);
+    setImageShowOnStoryPage(true);
+    showNotice("Embedded image set. Add a credit, then save the story.", "success");
   }
 
   async function removeImage() {
@@ -1049,6 +1103,9 @@ export default function EditorPage() {
 
     setImageUrl(null);
     setImagePath(null);
+    setEmbeddedImageUrlDraft("");
+    setImageCredit("");
+    setImageCreditUrl("");
     setImageFocusX(DEFAULT_IMAGE_FOCUS);
     setImageFocusY(DEFAULT_IMAGE_FOCUS);
     setImageDisplay("contain");
@@ -1120,6 +1177,8 @@ export default function EditorPage() {
       date,
       image_url: imageUrl,
       image_path: imagePath,
+      image_credit: imageUrl ? imageCredit.trim() || null : null,
+      image_credit_url: imageUrl ? imageCreditUrl.trim() || null : null,
       image_focus_x: imageUrl ? imageFocusX : null,
       image_focus_y: imageUrl ? imageFocusY : null,
       image_display: imageUrl ? imageDisplay : null,
@@ -1180,6 +1239,9 @@ export default function EditorPage() {
     setImageUrl(json.story?.image_url ?? imageUrl);
     setImagePath(json.story?.image_path ?? imagePath ?? null);
     setSavedImagePath(json.story?.image_path ?? imagePath ?? null);
+    setEmbeddedImageUrlDraft(json.story?.image_path ? "" : json.story?.image_url ?? imageUrl ?? "");
+    setImageCredit(json.story?.image_credit ?? imageCredit.trim());
+    setImageCreditUrl(json.story?.image_credit_url ?? imageCreditUrl.trim());
     setLocations(cleanedLocations);
     setOrganizations(cleanedOrganizations);
     setPeople(cleanedPeople);
@@ -1731,12 +1793,11 @@ export default function EditorPage() {
                           />
                         ) : (
                           <>
-                            <Image
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
                               src={imageUrl}
                               alt="Story image preview"
-                              fill
-                              sizes="(max-width: 768px) 100vw, 720px"
-                              className="object-cover"
+                              className="absolute inset-0 h-full w-full object-cover"
                               style={{ objectPosition: imageObjectPosition({ image_focus_x: imageFocusX, image_focus_y: imageFocusY }) }}
                             />
                             <div
@@ -2094,7 +2155,7 @@ export default function EditorPage() {
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Story Image</div>
             <p className="text-sm text-neutral-500">
-              Optional. Upload straight from this browser and it will appear above the headline on the home page card.
+              Optional. Upload an image or embed an external image URL. Embedded images should include a visible credit.
             </p>
 
             <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -2125,9 +2186,63 @@ export default function EditorPage() {
               ) : null}
             </div>
 
+            <div className="mt-4 rounded-2xl border border-neutral-700 bg-neutral-950/30 p-4">
+              <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                Embedded image URL
+                <input
+                  type="url"
+                  value={embeddedImageUrlDraft}
+                  onChange={(event) => setEmbeddedImageUrlDraft(event.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                  className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm font-normal normal-case tracking-normal text-neutral-100 outline-none focus:border-neutral-400"
+                />
+              </label>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => void embedImageFromUrl()}
+                  className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
+                >
+                  Use embedded image
+                </button>
+                {imageUrl ? (
+                  <span className="text-xs text-neutral-500">
+                    Current image: {imagePath ? "uploaded" : "embedded"}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
             <p className="mt-3 text-xs text-neutral-500">
               JPG, PNG, WEBP, or GIF up to 5MB.
             </p>
+            {imageUrl ? (
+              <div className="mt-4 rounded-2xl border border-neutral-700 bg-neutral-950/30 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Image credit</div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="block text-sm text-neutral-300">
+                    Credit text
+                    <input
+                      type="text"
+                      value={imageCredit}
+                      onChange={(event) => setImageCredit(event.target.value)}
+                      placeholder="AP / Getty Images / Source name"
+                      className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-400"
+                    />
+                  </label>
+                  <label className="block text-sm text-neutral-300">
+                    Credit link
+                    <input
+                      type="url"
+                      value={imageCreditUrl}
+                      onChange={(event) => setImageCreditUrl(event.target.value)}
+                      placeholder="https://example.com/article"
+                      className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-400"
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : null}
             {imageUrl ? (
               <div className="mt-4 rounded-2xl border border-neutral-700 bg-neutral-950/30 p-4">
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Image placement</div>
@@ -2255,12 +2370,11 @@ export default function EditorPage() {
                     </>
                   ) : (
                     <>
-                      <Image
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
                         src={imageUrl}
                         alt="Story image preview"
-                        fill
-                        sizes="(max-width: 768px) 100vw, 720px"
-                        className="object-cover"
+                        className="absolute inset-0 h-full w-full object-cover"
                         style={{ objectPosition: imageObjectPosition({ image_focus_x: imageFocusX, image_focus_y: imageFocusY }) }}
                       />
                       <div
@@ -2948,8 +3062,40 @@ export default function EditorPage() {
                       }}
                     />
                   </label>
+                  <div className="space-y-2 rounded-xl border border-[#214765]/70 bg-[#020b14] p-3">
+                    <input
+                      type="url"
+                      value={embeddedImageUrlDraft}
+                      onChange={(event) => setEmbeddedImageUrlDraft(event.target.value)}
+                      placeholder="Embed image URL"
+                      className="w-full rounded-lg border border-[#28445d] bg-[#07131e] px-3 py-2 text-xs text-neutral-100 outline-none focus:border-[#8f7740]/70"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void embedImageFromUrl()}
+                      className="w-full rounded-lg border border-[#28445d] px-3 py-2 text-xs font-semibold text-neutral-300 transition hover:border-[#8f7740]/70"
+                    >
+                      Use embedded image
+                    </button>
+                  </div>
                   {imageUrl ? (
                     <>
+                      <div className="space-y-2 rounded-xl border border-[#214765]/70 bg-[#020b14] p-3">
+                        <input
+                          type="text"
+                          value={imageCredit}
+                          onChange={(event) => setImageCredit(event.target.value)}
+                          placeholder="Image credit"
+                          className="w-full rounded-lg border border-[#28445d] bg-[#07131e] px-3 py-2 text-xs text-neutral-100 outline-none focus:border-[#8f7740]/70"
+                        />
+                        <input
+                          type="url"
+                          value={imageCreditUrl}
+                          onChange={(event) => setImageCreditUrl(event.target.value)}
+                          placeholder="Credit link"
+                          className="w-full rounded-lg border border-[#28445d] bg-[#07131e] px-3 py-2 text-xs text-neutral-100 outline-none focus:border-[#8f7740]/70"
+                        />
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         {([
                           { value: "contain" as StoryImageDisplay, label: "Fit whole" },

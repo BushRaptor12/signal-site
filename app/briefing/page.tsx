@@ -74,21 +74,9 @@ type BriefingMetaRow = {
   updated_at: string | null;
 };
 
-function SeenBadge() {
+function SeenPill({ className = "" }: { className?: string }) {
   return (
-    <div className="pointer-events-none absolute bottom-4 right-5 hidden items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d] sm:inline-flex">
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-none stroke-current stroke-[1.8]">
-        <path d="M1.5 12s3.75-6 10.5-6 10.5 6 10.5 6-3.75 6-10.5 6S1.5 12 1.5 12Z" />
-        <circle cx="12" cy="12" r="3.25" />
-      </svg>
-      <span>Seen</span>
-    </div>
-  );
-}
-
-function InlineSeenPill() {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-[#8f7740]/35 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#d7c08d] sm:hidden">
+    <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#efd08e] ${className}`}>
       <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3 w-3 fill-none stroke-current stroke-[1.8]">
         <path d="M1.5 12s3.75-6 10.5-6 10.5 6 10.5 6-3.75 6-10.5 6S1.5 12 1.5 12Z" />
         <circle cx="12" cy="12" r="3.25" />
@@ -114,7 +102,7 @@ function StoryMetaRow({
       }`}
     >
       <span>{formatStoryDate(story.date)}</span>
-      {seen ? <InlineSeenPill /> : null}
+      {seen ? <SeenPill /> : null}
     </div>
   );
 }
@@ -132,6 +120,7 @@ function BriefingList({
     <div className={compactMobile ? "space-y-3 sm:space-y-6" : "space-y-6"}>
       {stories.map((story) => {
         const seen = seenStoryIds.has(story.id);
+        const hasImage = shouldShowStoryImageOnBriefing(story);
 
         return (
           <Link
@@ -149,9 +138,8 @@ function BriefingList({
                 </div>
               </div>
               {displayBriefingSummary(story) ? <p className="mt-2 text-sm leading-6 text-neutral-300 sm:mt-3 sm:text-[15px] sm:leading-7">{displayBriefingSummary(story)}</p> : null}
-              {shouldShowStoryImageOnBriefing(story) ? <AdaptiveBriefingImage story={story} variant="briefing-card" /> : null}
+              {hasImage ? <AdaptiveBriefingImage story={story} variant="briefing-card" /> : null}
             </div>
-            {seen ? <SeenBadge /> : null}
           </Link>
         );
       })}
@@ -196,6 +184,7 @@ export default async function BriefingPage() {
     const { lead, leftColumn, rightColumn } = buildBriefingLayout(stories);
     const leadUsesAlertStyle = lead?.beacon_lead_style === "alert";
     const leadSummaryPoints = lead ? displayLeadBriefingSummaryPoints(lead) : [];
+    const leadHasImage = lead ? shouldShowStoryImageOnBriefing(lead) : false;
     const mobileRankedStories = [...leftColumn, ...rightColumn].sort((left, right) => {
       const leftOrder = left.beacon_order ?? 999;
       const rightOrder = right.beacon_order ?? 999;
@@ -296,8 +285,7 @@ export default async function BriefingPage() {
                     </div>
                   ) : null}
                 </div>
-                {shouldShowStoryImageOnBriefing(lead) ? <AdaptiveBriefingImage priority story={lead} variant="briefing-lead" /> : null}
-                {seenStoryIds.has(lead.id) ? <SeenBadge /> : null}
+                {leadHasImage ? <AdaptiveBriefingImage priority story={lead} variant="briefing-lead" /> : null}
               </Link>
 
               {mobileRankedStories.length > 0 ? (

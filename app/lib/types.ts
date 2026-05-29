@@ -26,6 +26,8 @@ export type Story = {
   date: string; // YYYY-MM-DD
   image_url?: string | null;
   image_path?: string | null;
+  image_credit?: string | null;
+  image_credit_url?: string | null;
   image_focus_x?: number | null;
   image_focus_y?: number | null;
   image_display?: StoryImageDisplay | null;

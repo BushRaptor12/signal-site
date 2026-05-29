@@ -18,7 +18,7 @@ import { normalize, toTitleCase } from "@/app/lib/vocab";
 import ViewTracker from "./view-tracker";
 import ReactionBar from "./reaction-bar";
 import SourceTitle from "./source-title";
-import StoryPageImage from "./story-page-image";
+import StoryImageSummaryLayout from "./story-image-summary-layout";
 import ShareButton from "@/app/share-button";
 import StoryReaderActions from "./story-reader-actions";
 import CommentsSection from "./comments-section";
@@ -27,13 +27,13 @@ import StoryEngagementSummary from "./story-engagement-summary";
 function leanBadgeClasses(lean: "Left" | "Center" | "Right") {
   switch (lean) {
     case "Left":
-      return "border border-blue-500/40 text-blue-300";
+      return "border-blue-400/20 bg-blue-400/[0.06] text-blue-200/80";
     case "Center":
-      return "border border-neutral-600 text-neutral-300";
+      return "border-neutral-600/45 bg-neutral-500/[0.06] text-neutral-400";
     case "Right":
-      return "border border-red-500/40 text-red-300";
+      return "border-red-400/20 bg-red-400/[0.06] text-red-200/80";
     default:
-      return "border border-neutral-600 text-neutral-300";
+      return "border-neutral-600/45 bg-neutral-500/[0.06] text-neutral-400";
   }
 }
 
@@ -43,6 +43,16 @@ function storyHref(id: string, from?: string) {
 
 function shouldShowStoryImageOnStoryPage(story: StoryWithViews) {
   return Boolean(story.image_url) && Boolean(story.image_show_on_story_page);
+}
+
+function hostnameFromUrl(value: string | null | undefined) {
+  if (!value) return null;
+
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
 }
 
 function SeenBadge() {
@@ -265,6 +275,20 @@ export default async function StoryPage({
   };
 
   const storyLinks = [...relatedStories, ...otherRecentStories];
+  const showStoryPageImage = shouldShowStoryImageOnStoryPage(story);
+  const storyImageCredit =
+    story.image_credit?.trim() || (!story.image_path ? hostnameFromUrl(story.image_url) : null);
+  const storyImageCreditUrl = story.image_credit_url?.trim() || (!story.image_path ? story.image_url : null);
+  const storyImage = showStoryPageImage
+    ? {
+        alt: story.title,
+        credit: storyImageCredit,
+        creditUrl: storyImageCreditUrl,
+        display: story.image_display,
+        objectPosition: imageObjectPosition(story),
+        src: story.image_url!,
+      }
+    : null;
   const breadcrumb = breadcrumbJsonLd([
     { name: SITE_NAME, item: "/" },
     { name: "Stories", item: "/" },
@@ -361,50 +385,11 @@ export default async function StoryPage({
               </h1>
             </header>
 
-            <div
-              className={
-                shouldShowStoryImageOnStoryPage(story) && story.image_display === "contain"
-                  ? "mt-6 flex flex-col gap-6 xl:flex-row xl:items-start"
-                  : "mt-6"
-              }
-            >
-              {shouldShowStoryImageOnStoryPage(story) ? (
-                <div
-                  className={
-                    story.image_display === "contain"
-                      ? "min-w-0 w-full xl:w-auto xl:max-w-[24rem] xl:shrink-0"
-                      : "min-w-0 w-full"
-                  }
-                >
-                  <StoryPageImage
-                    alt={story.title}
-                    display={story.image_display}
-                    objectPosition={imageObjectPosition(story)}
-                    src={story.image_url!}
-                  />
-                </div>
-              ) : null}
-
-              <div
-                className={
-                  shouldShowStoryImageOnStoryPage(story) && story.image_display === "contain"
-                    ? "min-w-0 flex-1 space-y-3.5 text-[1.02rem] text-neutral-200 sm:text-[1.08rem]"
-                    : "space-y-3.5 text-[1.02rem] text-neutral-200 sm:text-[1.08rem]"
-                }
-              >
-                {story.summary.map((point, i) => (
-                  <p key={i} className="leading-7 sm:leading-8">
-                    {point}
-                  </p>
-                ))}
-
-                {updatedAt ? (
-                  <div className="pt-2 text-right text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
-                    Updated {formatUpdatedAt(updatedAt)}
-                  </div>
-                ) : null}
-              </div>
-            </div>
+            <StoryImageSummaryLayout
+              image={storyImage}
+              summary={story.summary}
+              updatedAtLabel={updatedAt ? formatUpdatedAt(updatedAt) : null}
+            />
 
             <section className="mt-6 rounded-[14px] border border-[#28445d]/70 bg-[#07131e] p-4 md:hidden">
               <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Want the full picture?</div>
@@ -468,7 +453,7 @@ export default async function StoryPage({
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-row items-center gap-3 text-center sm:flex-col sm:items-end sm:gap-2">
-                        <span className={`rounded-full px-2 py-1 text-xs ${leanBadgeClasses(src.lean)}`}>
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] ${leanBadgeClasses(src.lean)}`}>
                           {src.lean}
                         </span>
                         <div className="inline-flex min-h-8 items-center text-[13px] font-semibold text-neutral-400 transition group-hover:text-white">

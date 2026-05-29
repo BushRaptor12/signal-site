@@ -43,6 +43,8 @@ export type StoryDbRow = {
   date: string;
   image_url?: string | null;
   image_path?: string | null;
+  image_credit?: string | null;
+  image_credit_url?: string | null;
   image_focus_x?: number | string | null;
   image_focus_y?: number | string | null;
   image_display?: string | null;
@@ -190,6 +192,8 @@ export function coerceStory(row: StoryDbRow): StoryWithViews {
     date: row.date,
     image_url: toNullableString(row.image_url),
     image_path: toNullableString(row.image_path),
+    image_credit: toNullableString(row.image_credit),
+    image_credit_url: toNullableString(row.image_credit_url),
     image_focus_x: toNullableNumber(row.image_focus_x),
     image_focus_y: toNullableNumber(row.image_focus_y),
     image_display: row.image_display === "contain" ? "contain" : row.image_display === "cover" ? "cover" : null,

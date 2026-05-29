@@ -23,6 +23,13 @@ function messageFromError(e: unknown) {
   return String(e);
 }
 
+function isImageCreditColumnError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const details = error as { code?: unknown; message?: unknown };
+  const message = typeof details.message === "string" ? details.message.toLowerCase() : "";
+  return details.code === "42703" && (message.includes("image_credit") || message.includes("image_credit_url"));
+}
+
 function toNullableBriefingPosition(value: unknown): BriefingPosition | null {
   if (value === "lead" || value === "left" || value === "right") return value;
   return null;
@@ -39,6 +46,18 @@ function toBriefingLeadStyle(value: unknown): BriefingLeadStyle {
 
 function toStoryStatus(value: unknown): StoryStatus {
   return value === "draft" || value === "archived" ? value : "published";
+}
+
+function toHttpUrl(value: unknown): string | null {
+  const text = toNullableString(value);
+  if (!text) return null;
+
+  try {
+    const url = new URL(text);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function toEasternDateInput(value: Date) {
@@ -135,14 +154,25 @@ export async function POST(req: Request) {
     const supabase = supabaseServer();
     const now = new Date();
     const nowIso = now.toISOString();
-    const { data: existingData, error: existingError } = await supabase
+    const existingStorySelect =
+      "title, date, topics, tags, entities, primary_entities, related_story_ids, beacon_include, beacon_lead_style, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, image_url, image_focus_x, image_focus_y, image_display, image_show_on_homepage, image_show_on_briefing, image_show_on_story_page, content_updated_at, updated_at, created_at, urgent"
+      + ", locations, organizations, people, industries, sports_teams, offices, facets, related_interest_signals, beacon_headline, beacon_summary";
+    let existingResult: { data: unknown; error: unknown } = await supabase
       .from("stories")
-      .select(
-        "title, date, topics, tags, entities, primary_entities, related_story_ids, beacon_include, beacon_lead_style, beacon_rank, beacon_position, beacon_order, summary, sources, image_path, image_focus_x, image_focus_y, image_display, image_show_on_homepage, image_show_on_briefing, image_show_on_story_page, content_updated_at, updated_at, created_at, urgent"
-        + ", locations, organizations, people, industries, sports_teams, offices, facets, related_interest_signals, beacon_headline, beacon_summary"
-      )
+      .select(`${existingStorySelect}, image_credit, image_credit_url`)
       .eq("id", String(incoming.id))
       .maybeSingle();
+    let existingData = existingResult.data;
+    let existingError = existingResult.error;
+    if (existingError && isImageCreditColumnError(existingError)) {
+      existingResult = await supabase
+        .from("stories")
+        .select(existingStorySelect)
+        .eq("id", String(incoming.id))
+        .maybeSingle();
+      existingData = existingResult.data;
+      existingError = existingResult.error;
+    }
     if (existingError) throw existingError;
 
     const existing = existingData as {
@@ -164,6 +194,9 @@ export async function POST(req: Request) {
       facets?: unknown;
       related_interest_signals?: unknown;
       image_path?: string | null;
+      image_url?: string | null;
+      image_credit?: string | null;
+      image_credit_url?: string | null;
       image_focus_x?: number | null;
       image_focus_y?: number | null;
       image_display?: StoryImageDisplay | null;
@@ -191,6 +224,9 @@ export async function POST(req: Request) {
     const normalizedRelatedStoryIds = normalizeRelatedStoryIds(incoming.related_story_ids, String(incoming.id));
     const previousRelatedStoryIds = normalizeRelatedStoryIds(existing?.related_story_ids, String(incoming.id));
     const normalizedImagePath = toNullableString(incoming.image_path);
+    const incomingImageUrl = toNullableString(incoming.image_url);
+    const incomingImageCredit = toNullableString(incoming.image_credit);
+    const incomingImageCreditUrl = toNullableString(incoming.image_credit_url);
     let normalizedImageDisplay =
       incoming.image_display === undefined ? toNullableImageDisplay(existing?.image_display) : toNullableImageDisplay(incoming.image_display);
     const imageShowOnHomepage =
@@ -208,6 +244,12 @@ export async function POST(req: Request) {
     if (normalizedImagePath && !isStoryImagePath(normalizedImagePath)) {
       return NextResponse.json({ error: "Invalid story image path." }, { status: 400 });
     }
+    if (!normalizedImagePath && incomingImageUrl && !toHttpUrl(incomingImageUrl)) {
+      return NextResponse.json({ error: "Embedded image URL must start with http:// or https://." }, { status: 400 });
+    }
+    if (incomingImageCreditUrl && !toHttpUrl(incomingImageCreditUrl)) {
+      return NextResponse.json({ error: "Image credit link must start with http:// or https://." }, { status: 400 });
+    }
     if (normalizedImageFocusX != null && (normalizedImageFocusX < 0 || normalizedImageFocusX > 100)) {
       return NextResponse.json({ error: "image_focus_x must be between 0 and 100." }, { status: 400 });
     }
@@ -215,7 +257,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "image_focus_y must be between 0 and 100." }, { status: 400 });
     }
 
-    const normalizedImageUrl = normalizedImagePath ? storyImagePublicUrl(supabase, normalizedImagePath) : null;
+    const normalizedImageUrl = normalizedImagePath ? storyImagePublicUrl(supabase, normalizedImagePath) : toHttpUrl(incomingImageUrl);
+    const normalizedImageCredit = normalizedImageUrl ? incomingImageCredit : null;
+    const normalizedImageCreditUrl = normalizedImageUrl ? toHttpUrl(incomingImageCreditUrl) : null;
     if (!normalizedImageUrl) {
       normalizedImageDisplay = null;
       normalizedImageFocusX = null;
@@ -243,6 +287,9 @@ export async function POST(req: Request) {
       JSON.stringify(toStringArray(existing.facets)) !== JSON.stringify(toStringArray(incoming.facets)) ||
       JSON.stringify(toStringArray(existing.related_interest_signals)) !== JSON.stringify(toStringArray(incoming.related_interest_signals)) ||
       toNullableString(existing.image_path) !== normalizedImagePath ||
+      toNullableString(existing.image_url) !== normalizedImageUrl ||
+      toNullableString(existing.image_credit) !== normalizedImageCredit ||
+      toNullableString(existing.image_credit_url) !== normalizedImageCreditUrl ||
       toNullableImageDisplay(existing.image_display) !== normalizedImageDisplay ||
       Boolean(existing.image_show_on_homepage ?? true) !== imageShowOnHomepage ||
       Boolean(existing.image_show_on_briefing ?? true) !== imageShowOnBriefing ||
@@ -303,7 +350,7 @@ export async function POST(req: Request) {
       beaconOrder = null;
     }
 
-    const story = {
+    const storyWithoutImageCredits = {
       id: String(incoming.id),
       status: storyStatus,
       title: String(incoming.title),
@@ -344,9 +391,25 @@ export async function POST(req: Request) {
       updated_at: nowIso,
       content_updated_at: contentUpdatedAt,
     };
+    const story = {
+      ...storyWithoutImageCredits,
+      image_credit: normalizedImageCredit,
+      image_credit_url: normalizedImageCreditUrl,
+    };
 
+    let savedStory = story;
     const { error } = await supabase.from("stories").upsert(story, { onConflict: "id" });
-    if (error) throw error;
+    if (error) {
+      if (!isImageCreditColumnError(error)) throw error;
+
+      const { error: fallbackError } = await supabase.from("stories").upsert(storyWithoutImageCredits, { onConflict: "id" });
+      if (fallbackError) throw fallbackError;
+      savedStory = {
+        ...storyWithoutImageCredits,
+        image_credit: null,
+        image_credit_url: null,
+      };
+    }
 
     const impactedRelatedStoryIds = Array.from(new Set([...previousRelatedStoryIds, ...normalizedRelatedStoryIds]));
     if (impactedRelatedStoryIds.length > 0) {
@@ -417,7 +480,7 @@ export async function POST(req: Request) {
       action: "saved",
       actorUserId: admin.userId,
       snapshot: {
-        ...story,
+        ...savedStory,
         created_at: existing?.created_at ?? nowIso,
         updated_at: nowIso,
         views: Number(incoming.views ?? 0),
@@ -433,7 +496,7 @@ export async function POST(req: Request) {
     const shouldSendUrgentNotification = Boolean(story.urgent) && !Boolean(existing?.urgent);
     if (shouldSendUrgentNotification) {
       const pushedStory = coerceStory({
-        ...story,
+        ...savedStory,
         created_at: existing?.created_at ?? nowIso,
         updated_at: nowIso,
         content_updated_at: contentUpdatedAt,
@@ -447,7 +510,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, story });
+    return NextResponse.json({ ok: true, story: savedStory });
   } catch (e: unknown) {
     return NextResponse.json({ error: messageFromError(e) }, { status: 500 });
   }
