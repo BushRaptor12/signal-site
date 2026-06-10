@@ -41,6 +41,13 @@ type StoryFeedResponse = {
   trackingStories?: StoryWithViews[];
 };
 
+type EmptyStateAction = {
+  href?: string;
+  label: string;
+  onClick?: () => void;
+  primary?: boolean;
+};
+
 const HOME_STATE_KEY = "signal:homeState:v2";
 const MAX_SCROLL_RESTORE_ATTEMPTS = 18;
 const OVERLAY_SEARCH_BATCH_SIZE = 12;
@@ -286,7 +293,9 @@ function TrackingStoriesStrip({
             </Link>
           ))
         ) : (
-          <div className="text-sm text-neutral-500">No tracked stories yet</div>
+          <div className="text-sm leading-6 text-neutral-500">
+            Track a story from any story page and it will stay surfaced here while it develops.
+          </div>
         )}
       </div>
 
@@ -301,6 +310,67 @@ function TrackingStoriesStrip({
         ) : (
           <div className="w-[150px]" />
         )
+      ) : null}
+    </div>
+  );
+}
+
+function EmptyStateCard({
+  actions = [],
+  description,
+  eyebrow,
+  highlights = [],
+  title,
+}: {
+  actions?: EmptyStateAction[];
+  description: string;
+  eyebrow?: string;
+  highlights?: string[];
+  title: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)] sm:p-10">
+      {eyebrow ? (
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">{eyebrow}</div>
+      ) : null}
+      <h2 className={eyebrow ? "mt-3 text-xl font-semibold text-neutral-100 sm:text-2xl" : "text-xl font-semibold text-neutral-100 sm:text-2xl"}>
+        {title}
+      </h2>
+      <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-neutral-400 sm:text-base">{description}</p>
+      {highlights.length > 0 ? (
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          {highlights.map((highlight) => (
+            <span
+              key={highlight}
+              className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1.5 text-xs font-semibold text-neutral-300"
+            >
+              {highlight}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {actions.length > 0 ? (
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {actions.map((action) => {
+            const className = action.primary
+              ? "inline-flex min-h-11 rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2.5 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+              : "inline-flex min-h-11 rounded-full border border-[#163754] bg-[#020b14] px-5 py-2.5 text-sm font-semibold text-neutral-300 transition hover:border-[#30516d] hover:text-white";
+
+            if (action.href) {
+              return (
+                <Link key={action.label} href={action.href} className={className}>
+                  {action.label}
+                </Link>
+              );
+            }
+
+            return (
+              <button key={action.label} type="button" onClick={action.onClick} className={className}>
+                {action.label}
+              </button>
+            );
+          })}
+        </div>
       ) : null}
     </div>
   );
@@ -1075,8 +1145,22 @@ export default function HomePageClient({
                     {overlaySearchError ? <p className="mt-3 text-sm text-red-200">{overlaySearchError}</p> : null}
                   </>
                 ) : (
-                  <div className="rounded-xl border border-[#163754]/70 bg-[#020b14] px-4 py-6 text-center text-sm text-neutral-400">
-                    {overlaySearchError || (overlaySearchLoading ? "Searching stories..." : "No stories match this search yet.")}
+                  <div className="rounded-xl border border-[#163754]/70 bg-[#020b14] px-4 py-6 text-center">
+                    <div className="text-sm font-semibold text-neutral-200">
+                      {overlaySearchError ? "Search is unavailable" : overlaySearchLoading ? "Searching stories..." : "No matches yet"}
+                    </div>
+                    <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-neutral-500">
+                      {overlaySearchError || "Try a person, organization, topic, source, or an older story keyword. Archived stories are included in search."}
+                    </p>
+                    {!overlaySearchError && !overlaySearchLoading ? (
+                      <button
+                        type="button"
+                        onClick={() => setSearchDraft("")}
+                        className="mt-4 rounded-full border border-[#28445d] px-4 py-2 text-xs font-semibold text-neutral-300 transition hover:border-[#8f7740]/70 hover:text-white"
+                      >
+                        Clear search
+                      </button>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -1187,55 +1271,72 @@ export default function HomePageClient({
           </div>
         ) : null}
         {loadingFeed && visibleStories.length === 0 ? (
-          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)] sm:p-10">
-            <h2 className="text-xl font-semibold text-neutral-100 sm:text-2xl">Loading stories...</h2>
-            <p className="mt-3 text-neutral-400">Searching the latest coverage.</p>
-          </div>
+          <EmptyStateCard
+            description="Searching the latest coverage and restoring this feed."
+            eyebrow="Loading"
+            highlights={["Popular", "Recent", "Topics"]}
+            title="Loading stories..."
+          />
         ) : null}
         {activeTab === "following" && loadingFollowState ? (
-          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)] sm:p-10">
-            <h2 className="text-xl font-semibold text-neutral-100 sm:text-2xl">Loading stories...</h2>
-            <p className="mt-3 text-neutral-400">Pulling together the latest coverage.</p>
-          </div>
+          <EmptyStateCard
+            description="Pulling together stories that match your saved interests and tracked stories."
+            eyebrow="Following"
+            highlights={["Direct matches", "Related signals", "Tracked stories"]}
+            title="Loading your feed..."
+          />
         ) : activeTab === "following" && !accountAuthenticated ? (
-          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)] sm:p-10">
-            <h2 className="text-xl font-semibold text-neutral-100 sm:text-2xl">Log in to use Following</h2>
-            <p className="mt-3 text-neutral-400">
-              Save interests from your interests page and track specific stories from their story pages.
-            </p>
-            <Link
-              href="/account/login"
-              className="mt-6 inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
-            >
-              Log in
-            </Link>
-          </div>
+          <EmptyStateCard
+            actions={[
+              { href: "/account/login", label: "Log in", primary: true },
+              { label: "Read popular", onClick: () => setActiveTabAndUrl("popular") },
+            ]}
+            description="Following turns saved interests and tracked stories into a personalized feed. Log in to keep those signals across devices."
+            eyebrow="Following"
+            highlights={["Interests", "Tracked stories", "Story matches"]}
+            title="Log in to use Following"
+          />
         ) : activeTab === "following" && followingStories.length === 0 ? (
-          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)] sm:p-10">
-            <h2 className="text-xl font-semibold text-neutral-100 sm:text-2xl">Nothing followed yet</h2>
-            <p className="mt-3 text-neutral-400">
-              Add interests from your interests page or track a story to populate this feed.
-            </p>
-            <Link
-              href="/account/interests"
-              className="mt-6 inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
-            >
-              Manage interests
-            </Link>
-          </div>
+          <EmptyStateCard
+            actions={[
+              { href: "/account/interests", label: "Manage interests", primary: true },
+              { label: "Browse recent", onClick: () => setActiveTabAndUrl("recent") },
+            ]}
+            description="Add a topic, person, team, company, or story you want to keep watching. Stories that match those signals will appear here."
+            eyebrow="Following"
+            highlights={["Nvidia", "Federal Reserve", "Lakers", "AI policy"]}
+            title="No followed stories yet"
+          />
         ) : visible.length === 0 && !loadingFeed ? (
-          <div className="rounded-2xl border border-[#0d2438] bg-[var(--surface)] px-5 py-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)] sm:p-10">
-            <h2 className="text-xl font-semibold text-neutral-100 sm:text-2xl">No stories yet</h2>
-            <p className="mt-3 text-neutral-400">
-              {activeTab === "recent"
-                ? "Check back soon for the latest stories."
+          <EmptyStateCard
+            actions={
+              isPresetTopicTab(normalize(activeTab))
+                ? topicOrder === "top"
+                  ? [
+                      { label: "Show new stories", onClick: () => setTopicOrder("new"), primary: true },
+                      { label: "Read popular", onClick: () => setActiveTabAndUrl("popular") },
+                    ]
+                  : [
+                      { label: "Read popular", onClick: () => setActiveTabAndUrl("popular"), primary: true },
+                      { label: "Browse recent", onClick: () => setActiveTabAndUrl("recent") },
+                    ]
+                : activeTab === "recent"
+                  ? [{ label: "Read popular", onClick: () => setActiveTabAndUrl("popular"), primary: true }]
+                  : [{ label: "Browse recent", onClick: () => setActiveTabAndUrl("recent"), primary: true }]
+            }
+            description={
+              activeTab === "recent"
+                ? "There are no recent stories loaded right now. Popular stories may still have useful context."
                 : isPresetTopicTab(normalize(activeTab))
                   ? topicOrder === "new"
-                    ? `There are no ${toTitleCase(normalize(activeTab))} stories yet.`
-                    : `There are no ${toTitleCase(normalize(activeTab))} stories in ${TOPIC_TOP_WINDOW_LABELS[topicTopWindow].toLowerCase()}.`
-                  : "Check back soon for popular stories."}
-            </p>
-          </div>
+                    ? `No ${toTitleCase(normalize(activeTab))} stories are active in the feed yet. Try another tab or check search for archived context.`
+                    : `No ${toTitleCase(normalize(activeTab))} stories have enough activity in ${TOPIC_TOP_WINDOW_LABELS[topicTopWindow].toLowerCase()}. Switch to new stories or another tab.`
+                  : "Popular stories will appear here once enough reader activity is available."
+            }
+            eyebrow={isPresetTopicTab(normalize(activeTab)) ? toTitleCase(normalize(activeTab)) : toTitleCase(activeTab)}
+            highlights={isPresetTopicTab(normalize(activeTab)) ? ["Topic feed", topicOrder === "top" ? TOPIC_TOP_WINDOW_LABELS[topicTopWindow] : "Newest first"] : []}
+            title={isPresetTopicTab(normalize(activeTab)) ? "No stories in this view" : "No stories yet"}
+          />
         ) : (
           visibleStories.map((story, index) => {
             const matchedInterests = followingInterestMatchesByStoryId.get(story.id) ?? [];
@@ -1342,18 +1443,21 @@ export default function HomePageClient({
                       {shouldShowStoryImageOnHomepage(story) ? (
                         useContainedHomeImage ? (
                           <div className="flex justify-center">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={story.image_url!}
-                              alt={story.title}
-                              decoding="async"
-                              loading="lazy"
-                              className={`block max-w-full object-contain ${isLeadCard ? "max-h-[36rem]" : "max-h-[32rem]"}`}
-                            />
+                            <div className="relative max-w-full overflow-hidden rounded-[12px] border border-[#1d3b56]/75 bg-[#020b14] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_14px_34px_rgba(0,0,0,0.22)]">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={story.image_url!}
+                                alt={story.title}
+                                decoding="async"
+                                loading="lazy"
+                                className={`block max-w-full rounded-[11px] object-contain ${isLeadCard ? "max-h-[36rem]" : "max-h-[32rem]"}`}
+                              />
+                              <div className="pointer-events-none absolute inset-0 rounded-[12px] shadow-[inset_0_0_28px_rgba(2,11,20,0.28)]" />
+                            </div>
                           </div>
                         ) : (
                           <div
-                            className={`relative overflow-hidden ${
+                            className={`relative overflow-hidden rounded-[12px] border border-[#1d3b56]/75 bg-[#020b14] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_14px_34px_rgba(0,0,0,0.22)] ${
                               isLeadCard
                                 ? "aspect-[5/4] sm:aspect-[4/3] md:aspect-[16/11]"
                                 : "mx-auto aspect-[5/4] w-full max-w-[40rem] sm:aspect-[4/3] md:aspect-[16/10]"
@@ -1368,6 +1472,7 @@ export default function HomePageClient({
                               className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.015]"
                               style={{ objectPosition: imageObjectPosition(story) }}
                             />
+                            <div className="pointer-events-none absolute inset-0 rounded-[12px] shadow-[inset_0_0_30px_rgba(2,11,20,0.3)]" />
                           </div>
                         )
                       ) : null}

@@ -185,7 +185,10 @@ export function toNullableString(value: unknown): string | null {
 export function coerceStory(row: StoryDbRow): StoryWithViews {
   return {
     id: row.id,
-    status: row.status === "draft" || row.status === "archived" ? row.status : "published",
+    status:
+      row.status === "draft" || row.status === "archived" || row.status === "hidden"
+        ? row.status
+        : "published",
     title: row.title,
     summary: toStringArray(row.summary),
     sources: toSources(row.sources),

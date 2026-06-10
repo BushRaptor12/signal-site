@@ -83,7 +83,7 @@ async function loadStory(slug: string, includeUnpublished = false) {
   const supabase = supabaseServer();
   let query = supabase.from("stories").select("*").eq("id", slug);
   if (!includeUnpublished) {
-    query = query.eq("status", "published");
+    query = query.in("status", ["published", "archived"]);
   }
   const { data, error } = await query.maybeSingle();
   if (error) throw error;

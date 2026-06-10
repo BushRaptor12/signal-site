@@ -1296,8 +1296,12 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
       {loading ? (
         <div className="mt-6 rounded-2xl border border-[#183149]/60 bg-[#07131e]/76 p-6 text-sm text-neutral-400">Loading comments...</div>
       ) : comments.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-[#183149]/60 bg-[#07131e]/76 p-6 text-sm leading-7 text-neutral-400">
-          No comments yet. Start the conversation.
+        <div className="mt-6 rounded-2xl border border-[#183149]/60 bg-[#07131e]/76 p-6">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Community</div>
+          <h3 className="mt-3 text-lg font-semibold text-neutral-100">No comments yet</h3>
+          <p className="mt-2 text-sm leading-7 text-neutral-400">
+            Start the conversation with a source-backed note, question, or context readers should know.
+          </p>
         </div>
       ) : (
         <div className="mt-6 space-y-4">

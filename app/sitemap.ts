@@ -57,7 +57,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const supabase = supabaseServer();
     const [{ data, error }, archives] = await Promise.all([
-      supabase.from("stories").select("*").eq("status", "published").order("created_at", { ascending: false }),
+      supabase.from("stories").select("*").in("status", ["published", "archived"]).order("created_at", { ascending: false }),
       listBriefingArchives(100).catch(() => []),
     ]);
     if (error) throw error;
@@ -76,8 +76,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       routes.push({
         url: absoluteUrl(`/story/${story.id}`),
         lastModified: new Date(lastModifiedForStory(row)),
-        changeFrequency: story.pinned ? "hourly" : "daily",
-        priority: story.pinned ? 0.9 : 0.8,
+        changeFrequency: story.status === "archived" ? "monthly" : story.pinned ? "hourly" : "daily",
+        priority: story.status === "archived" ? 0.45 : story.pinned ? 0.9 : 0.8,
       });
     }
   } catch {

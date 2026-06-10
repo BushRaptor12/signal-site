@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     let query = supabase.from("stories").select("*").eq("id", id);
     if (!adminAccess) {
-      query = query.eq("status", "published");
+      query = query.in("status", ["published", "archived"]);
     }
 
     const { data, error } = await query.maybeSingle();

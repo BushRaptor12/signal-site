@@ -68,7 +68,7 @@ const mobileNavItems = [
   },
   {
     href: "/",
-    label: "Latest",
+    label: "Popular",
     icon: LatestIcon,
     match: (pathname: string) => pathname === "/",
   },

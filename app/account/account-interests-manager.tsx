@@ -41,6 +41,8 @@ function parseKeywordDraft(value: string) {
   return [...new Set(value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean))];
 }
 
+const STARTER_INTERESTS = ["Artificial intelligence", "Federal Reserve", "Nvidia", "Lakers"];
+
 export default function AccountInterestsManager({
   initialInterests,
   storyLinkFrom = "account-interests",
@@ -347,8 +349,27 @@ export default function AccountInterestsManager({
       {error ? <div className="mt-3 text-sm text-[#f0b7b7]">{error}</div> : null}
 
       {interests.length === 0 ? (
-        <div className="mt-5 text-sm leading-7 text-neutral-400">
-          No interests followed yet. Add a short interest to start shaping your Following feed.
+        <div className={`${PUBLIC_INSET} mt-5 p-5`}>
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Start with one signal</div>
+          <h3 className="mt-3 text-xl font-semibold text-neutral-100">No interests followed yet</h3>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-400">
+            Add a short interest and the Following feed will look for matching entities, topics, and story metadata. Specific names usually work better than broad categories.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {STARTER_INTERESTS.map((interest) => (
+              <button
+                key={interest}
+                type="button"
+                onClick={() => {
+                  setDraft(interest);
+                  setSuggestionsVisible(false);
+                }}
+                className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1.5 text-xs font-semibold text-neutral-300 transition hover:border-[#8f7740]/70 hover:text-white"
+              >
+                {interest}
+              </button>
+            ))}
+          </div>
         </div>
       ) : (
         <div className="mt-5 space-y-4">
@@ -446,8 +467,16 @@ export default function AccountInterestsManager({
                       </div>
                     </div>
 
-                    <div className={`${PUBLIC_INSET} p-4 text-sm leading-7 text-neutral-400`}>
-                      No live matches yet for this interest. Try a more specific phrase, add must-match keywords, or wait for newer stories.
+                    <div className={`${PUBLIC_INSET} p-4`}>
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">No live matches</div>
+                      <p className="mt-2 text-sm leading-7 text-neutral-400">
+                        This interest is saved, but no current stories match it yet. Add must-match keywords for obscure subjects, or keep it here and matches will appear as new stories are published.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs text-neutral-500">
+                        <span className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1.5">Try aliases</span>
+                        <span className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1.5">Use must-match keywords</span>
+                        <span className="rounded-full border border-[#163754] bg-[#020b14] px-3 py-1.5">Hide weak matches later</span>
+                      </div>
                     </div>
                   </div>
                 ) : (

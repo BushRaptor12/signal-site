@@ -86,6 +86,7 @@ export async function GET(request: NextRequest) {
     const tab = (searchParams.get("tab") ?? "popular").trim();
     const topicOrder = (searchParams.get("topicOrder") ?? "new").trim();
     const topWindow = (searchParams.get("topWindow") ?? "day").trim();
+    const publicStatuses = search ? ["published", "archived"] : ["published"];
     const needsServerFilter = Boolean(search || topic || tab === "popular" || topicOrder === "top");
     const fetchLimit = search ? Math.max(limit + offset + 160, 400) : needsServerFilter ? Math.max(limit + offset + 40, 120) : limit + 1;
 
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
       let query = supabase
         .from("stories")
         .select(STORY_CARD_SELECT)
-        .eq("status", "published");
+        .in("status", publicStatuses);
 
       if (topicCandidate) {
         query = query.contains("topics", [topicCandidate]);
@@ -131,7 +132,7 @@ export async function GET(request: NextRequest) {
 
     const data = feedResults.flatMap((result) => result.data ?? []);
     let stories = [...new Map(((data ?? []) as unknown as StoryDbRow[]).map(coerceStory).map((story) => [story.id, story])).values()]
-      .filter((story) => !story.pinned);
+      .filter((story) => search || !story.pinned);
     const trackingStories = ((trackingResult.data ?? []) as unknown as StoryDbRow[]).map(coerceStory);
     if (search) {
       stories = stories.filter((story) => storyMatchesSearch(story, search));

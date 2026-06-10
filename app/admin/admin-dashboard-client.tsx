@@ -244,6 +244,7 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
           <SummaryCard label="Comments Today" value={initialData.summary.commentsToday} />
           <SummaryCard label="Published Stories" value={initialData.summary.publishedStories} />
           <SummaryCard label="Archived Stories" value={initialData.summary.archivedStories} />
+          <SummaryCard label="Hidden Stories" value={initialData.summary.hiddenStories} />
           <SummaryCard label="Briefing Stories" value={initialData.summary.briefingStories} />
           <SummaryCard label="New Signups (7d)" value={initialData.summary.signups7d} />
         </section>

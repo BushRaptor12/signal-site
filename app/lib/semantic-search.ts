@@ -12,6 +12,7 @@ import { getRelatedInterestTerms } from "@/app/lib/interest-relations";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import { supabaseServer } from "@/app/lib/supabase.server";
 import type { Story, StoryWithViews } from "@/app/lib/types";
+import { analyzeTextWithWink } from "@/app/lib/wink-nlp.server";
 
 export const SENTENCE_TRANSFORMER_MODEL = "all-MiniLM-L6-v2";
 const SENTENCE_TRANSFORMER_REPO = "Xenova/all-MiniLM-L6-v2";
@@ -172,6 +173,9 @@ const TERM_CONCEPT_MAP = TERM_CONCEPT_IDS as Record<string, string[]>;
 const PHRASE_INTENT_CONCEPT_MAP = PHRASE_INTENT_MAP as Record<string, string[]>;
 const TERM_EXPANSION_MAP = TERM_KNOWLEDGE as Record<string, string[]>;
 const PHRASE_EXPANSION_MAP = PHRASE_KNOWLEDGE as Record<string, string[]>;
+const WINK_TOKEN_CACHE_LIMIT = 5000;
+const WINK_TOKEN_POS = new Set(["ADJ", "NOUN", "NUM", "PROPN", "VERB"]);
+const winkTokenCache = new Map<string, string[]>();
 
 function uniqueNonEmpty(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
@@ -222,13 +226,12 @@ function singularizeToken(token: string) {
   return token;
 }
 
-function tokenizeText(value: string) {
+function addTokenVariants(output: Set<string>, value: string) {
   const tokens = normalizeInterestQuery(value)
     .replace(/&/g, " and ")
     .split(/[^a-z0-9]+/)
     .map((token) => token.trim())
     .filter(Boolean);
-  const output = new Set<string>();
 
   for (const token of tokens) {
     if (STOP_WORDS.has(token)) continue;
@@ -238,6 +241,49 @@ function tokenizeText(value: string) {
     if (singular && !STOP_WORDS.has(singular)) {
       output.add(singular);
     }
+  }
+}
+
+function winkTokensForText(value: string) {
+  const normalizedValue = normalizeInterestQuery(value);
+  if (!normalizedValue) return [] as string[];
+
+  const cached = winkTokenCache.get(normalizedValue);
+  if (cached) return cached;
+
+  const terms = new Set<string>();
+  try {
+    const analysis = analyzeTextWithWink(value);
+
+    for (const token of analysis.tokens) {
+      if (!WINK_TOKEN_POS.has(token.pos)) continue;
+      addTokenVariants(terms, token.normal);
+      addTokenVariants(terms, token.lemma);
+      addTokenVariants(terms, token.value);
+    }
+
+    for (const entity of analysis.entities) {
+      addTokenVariants(terms, entity.text);
+    }
+  } catch {
+    // Keep semantic matching available if wink cannot parse an unexpected input.
+  }
+
+  const output = [...terms];
+  if (winkTokenCache.size >= WINK_TOKEN_CACHE_LIMIT) {
+    winkTokenCache.clear();
+  }
+  winkTokenCache.set(normalizedValue, output);
+
+  return output;
+}
+
+function tokenizeText(value: string) {
+  const output = new Set<string>();
+
+  addTokenVariants(output, value);
+  for (const token of winkTokensForText(value)) {
+    output.add(token);
   }
 
   return output;
@@ -613,6 +659,7 @@ function buildMatchReasons(options: {
   exactPhraseMatch: boolean;
   expandedPhraseMatches: number;
   interestRelationMatch: boolean;
+  metadataMatches: number;
   relatedInterestMatch: boolean;
   semanticSimilarity: number;
   sourceMatches: number;
@@ -643,6 +690,9 @@ function buildMatchReasons(options: {
   }
   if (options.entityMatches > 0) {
     reasons.push("Entities and story knowledge");
+  }
+  if (options.metadataMatches > 0) {
+    reasons.push("Matched metadata");
   }
   if (options.titleMatches > 0) {
     reasons.push("Headline");
@@ -816,6 +866,14 @@ function scoreInterestAgainstStory(
   const titleMatches = countSharedTerms(interestProfile.tokens, storyProfile.titleTerms);
   const topicMatches = countSharedTerms(interestProfile.tokens, storyProfile.topicTerms);
   const entityMatches = countSharedTerms(interestProfile.tokens, storyProfile.entityTerms);
+  const metadataMatches =
+    countSharedTerms(interestProfile.tokens, storyProfile.locationTerms)
+    + countSharedTerms(interestProfile.tokens, storyProfile.organizationTerms)
+    + countSharedTerms(interestProfile.tokens, storyProfile.peopleTerms)
+    + countSharedTerms(interestProfile.tokens, storyProfile.industryTerms)
+    + countSharedTerms(interestProfile.tokens, storyProfile.sportsTeamTerms)
+    + countSharedTerms(interestProfile.tokens, storyProfile.officeTerms)
+    + countSharedTerms(interestProfile.tokens, storyProfile.facetTerms);
   const summaryMatches = countSharedTerms(interestProfile.tokens, storyProfile.summaryTerms);
   const sourceMatches = countSharedTerms(interestProfile.tokens, storyProfile.sourceTerms);
   const tagMatches = countSharedTerms(interestProfile.tokens, storyProfile.tagTerms);
@@ -846,6 +904,7 @@ function scoreInterestAgainstStory(
     + Math.min(titleMatches, 3) * 0.08
     + Math.min(topicMatches, 2) * 0.1
     + Math.min(entityMatches, 3) * 0.09
+    + Math.min(metadataMatches, 4) * 0.08
     + Math.min(summaryMatches, 3) * 0.04
     + Math.min(sourceMatches, 2) * 0.03
     + Math.min(tagMatches, 2) * 0.04
@@ -873,6 +932,7 @@ function scoreInterestAgainstStory(
       || titleMatches > 0
       || topicMatches > 0
       || entityMatches > 0
+      || metadataMatches > 0
       || tagMatches > 0
       || allMatches >= (shortInterest ? 2 : 3)
     );
@@ -887,6 +947,7 @@ function scoreInterestAgainstStory(
       exactPhraseMatch
       || expandedPhraseMatches > 0
       || (topicMatches > 0 && (entityMatches > 0 || titleMatches > 0 || tagMatches > 0))
+      || (metadataMatches > 0 && (topicMatches > 0 || entityMatches > 0 || titleMatches > 0 || allMatches >= 2))
       || (allMatches >= (shortInterest ? 3 : 4))
     );
   const directMatch =
@@ -923,6 +984,7 @@ function scoreInterestAgainstStory(
       exactPhraseMatch,
       expandedPhraseMatches,
       interestRelationMatch: interestRelationPhraseMatches > 0 || interestRelationTermMatches > 0,
+      metadataMatches,
       relatedInterestMatch: relatedExactPhraseMatch || relatedInterestMatches > 0,
       semanticSimilarity,
       sourceMatches,

@@ -144,8 +144,17 @@ export default async function AccountPage() {
                   ))}
                 </div>
               ) : (
-                <div className={`mt-5 ${PUBLIC_INSET} p-5 text-sm leading-7 text-neutral-400`}>
-                  No interests followed yet. Add a few from the interests page to shape your Following feed.
+                <div className={`mt-5 ${PUBLIC_INSET} p-5`}>
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Following is ready</div>
+                  <p className="mt-2 text-sm leading-7 text-neutral-400">
+                    No interests followed yet. Add a few subjects and the app will start matching stories through entities, topics, and metadata.
+                  </p>
+                  <Link
+                    href="/account/interests"
+                    className="mt-4 inline-flex rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+                  >
+                    Add interests
+                  </Link>
                 </div>
               )}
             </div>
@@ -159,8 +168,17 @@ export default async function AccountPage() {
               </div>
 
               {account.followedStories.length === 0 ? (
-                <div className={`mt-6 ${PUBLIC_INSET} p-5 text-sm leading-7 text-neutral-400`}>
-                  You are not tracking any stories yet. Use the story page action to keep a specific story in Following.
+                <div className={`mt-6 ${PUBLIC_INSET} p-5`}>
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">No tracked stories</div>
+                  <p className="mt-2 text-sm leading-7 text-neutral-400">
+                    Use the story page action when you want a specific story to stay visible in Following, even if it does not match one of your saved interests.
+                  </p>
+                  <Link
+                    href="/"
+                    className="mt-4 inline-flex rounded-full border border-[#163754] bg-[#020b14] px-4 py-2 text-xs font-semibold text-neutral-300 transition hover:border-[#30516d] hover:text-white"
+                  >
+                    Browse stories
+                  </Link>
                 </div>
               ) : (
                 <div className="mt-6 space-y-4">

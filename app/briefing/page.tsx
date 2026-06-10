@@ -91,14 +91,21 @@ function StoryMetaRow({
   seen = false,
   story,
 }: {
-  align?: "center" | "start";
+  align?: "center" | "mobile-start-center" | "start";
   seen?: boolean;
   story: StoryWithViews;
 }) {
+  const alignmentClass =
+    align === "center"
+      ? "justify-center text-center"
+      : align === "mobile-start-center"
+        ? "justify-start text-left sm:justify-center sm:text-center"
+        : "justify-start";
+
   return (
     <div
       className={`mt-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-neutral-500 sm:mt-3 sm:text-[11px] sm:tracking-[0.16em] ${
-        align === "center" ? "justify-center text-center" : "justify-start"
+        alignmentClass
       }`}
     >
       <span>{formatStoryDate(story.date)}</span>
@@ -131,13 +138,21 @@ function BriefingList({
             <div className={seen ? "flex flex-col justify-start opacity-90" : "flex flex-col justify-start"}>
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[1.08rem] font-semibold leading-snug text-neutral-100 transition-colors group-hover:text-[#d7c08d] sm:text-[1.85rem] sm:leading-tight">
+                  <div className="truncate text-[1.08rem] font-semibold leading-snug text-neutral-100 transition-colors group-hover:text-[#d7c08d] sm:overflow-visible sm:whitespace-normal sm:text-[1.85rem] sm:leading-tight">
                     {displayHeadline(story)}
                   </div>
                   <StoryMetaRow seen={seen} story={story} />
                 </div>
               </div>
-              {displayBriefingSummary(story) ? <p className="mt-2 text-sm leading-6 text-neutral-300 sm:mt-3 sm:text-[15px] sm:leading-7">{displayBriefingSummary(story)}</p> : null}
+              {displayBriefingSummary(story) ? (
+                <p
+                  className={`text-sm text-neutral-300 sm:text-[15px] ${
+                    hasImage ? "mt-2 leading-6 sm:mt-3 sm:leading-7" : "mt-3 leading-7 sm:mt-4 sm:leading-8"
+                  }`}
+                >
+                  {displayBriefingSummary(story)}
+                </p>
+              ) : null}
               {hasImage ? <AdaptiveBriefingImage story={story} variant="briefing-card" /> : null}
             </div>
           </Link>
@@ -249,10 +264,30 @@ export default async function BriefingPage() {
 
           {!lead ? (
             <div className="mt-8 rounded-2xl border border-[#183149]/65 bg-[#07131e] px-5 py-8 text-center shadow-[0_16px_36px_rgba(0,0,0,0.2)] sm:px-6 sm:py-10">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">The Briefing</div>
               <h2 className="text-2xl font-semibold text-neutral-100 sm:text-3xl">Nothing queued yet</h2>
               <p className="mt-3 text-base text-neutral-400">
-                Mark stories in the editor with `Show this story in The Briefing` to publish them here.
+                The ranked briefing has not been assembled yet. Current stories may still be available on the home feed.
               </p>
+              <div className="mt-6 flex flex-wrap justify-center gap-3">
+                <Link
+                  href="/"
+                  className="inline-flex min-h-11 rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2.5 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+                >
+                  Browse stories
+                </Link>
+                <Link
+                  href="/briefing/archive"
+                  className="inline-flex min-h-11 rounded-full border border-[#163754] bg-[#020b14] px-5 py-2.5 text-sm font-semibold text-neutral-300 transition hover:border-[#30516d] hover:text-white"
+                >
+                  View archive
+                </Link>
+              </div>
+              {isAdmin ? (
+                <p className="mx-auto mt-5 max-w-xl text-sm leading-6 text-neutral-500">
+                  Admin note: add published stories from the briefing manager or enable briefing placement in the story editor.
+                </p>
+              ) : null}
             </div>
           ) : (
             <>
@@ -269,16 +304,22 @@ export default async function BriefingPage() {
                     <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d]">Top Story</span>
                   </div>
                   <div
-                    className={`font-semibold leading-tight transition-colors md:text-6xl lg:leading-[0.95] ${
+                    className={`truncate font-semibold leading-tight transition-colors sm:overflow-visible sm:whitespace-normal md:text-6xl lg:leading-[0.95] ${
                       leadUsesAlertStyle ? "text-2xl text-red-500 group-hover:text-red-400 sm:text-4xl" : "text-[1.65rem] text-neutral-100 group-hover:text-[#d7c08d] sm:text-[2.9rem]"
                     }`}
                   >
                     {displayHeadline(lead)}
                   </div>
-                  <StoryMetaRow align="center" seen={seenStoryIds.has(lead.id)} story={lead} />
+                  <StoryMetaRow align="mobile-start-center" seen={seenStoryIds.has(lead.id)} story={lead} />
 
                   {leadSummaryPoints.length > 0 ? (
-                    <div className="mx-auto mt-3 max-w-4xl space-y-2 text-sm leading-6 text-neutral-300 sm:mt-5 sm:space-y-3 sm:text-lg sm:leading-8">
+                    <div
+                      className={`mx-auto max-w-4xl text-sm text-neutral-300 sm:text-lg ${
+                        leadHasImage
+                          ? "mt-3 space-y-2 leading-6 sm:mt-5 sm:space-y-3 sm:leading-8"
+                          : "mt-4 space-y-3 leading-7 sm:mt-6 sm:space-y-4 sm:leading-9"
+                      }`}
+                    >
                       {leadSummaryPoints.map((point, index) => (
                         <p key={`${lead.id}-summary-${index}`}>{point}</p>
                       ))}

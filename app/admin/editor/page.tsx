@@ -7,7 +7,6 @@ import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactN
 import BackLink from "@/app/back-link";
 import { formatUpdatedAt } from "@/app/lib/dates";
 import { DEFAULT_IMAGE_FOCUS, clampImageFocus, imageObjectPosition } from "@/app/lib/image-focus";
-import { inferStoryKnowledge } from "@/app/lib/story-knowledge";
 import { STORY_IMAGE_ACCEPT } from "@/app/lib/story-images";
 import { ADMIN_INSET, ADMIN_PANEL } from "@/app/lib/surfaces";
 import type { BriefingLeadStyle, Lean, Story, StoryImageDisplay, StoryStatus, StoryWithViews } from "@/app/lib/types";
@@ -17,6 +16,17 @@ import SourceEditorSection, { type SourceEditorRow } from "./source-editor-secti
 
 type Entity = { name: string; aliases: string[] };
 type SourcePreview = { name: string; title: string; url: string };
+type StoryKnowledgeFields = Pick<
+  Story,
+  "facets" | "industries" | "locations" | "offices" | "organizations" | "people" | "sports_teams"
+>;
+type StoryKnowledgeField = keyof StoryKnowledgeFields;
+type AutofillSuggestions = {
+  knowledge: StoryKnowledgeFields;
+  primaryEntities: string[];
+  selectedEntities: string[];
+  topics: string[];
+};
 type EditorNotice = { tone: "error" | "info" | "success"; text: string } | null;
 type PendingEditorAction = { action: () => void; description: string } | null;
 type DiscoverySourceImport = {
@@ -32,6 +42,22 @@ type StoryRevision = {
 };
 
 const DISCOVERY_SOURCE_IMPORT_KEY = "beacon:admin-discovery-sources";
+const STORY_STATUS_OPTIONS: Array<{ value: StoryStatus; label: string }> = [
+  { value: "draft", label: "Draft" },
+  { value: "published", label: "Published" },
+  { value: "archived", label: "Archived" },
+  { value: "hidden", label: "Hidden" },
+];
+const AUTOFILL_KNOWLEDGE_LABELS: Record<StoryKnowledgeField, string> = {
+  facets: "Facets",
+  industries: "Industries",
+  locations: "Locations",
+  offices: "Offices",
+  organizations: "Organizations",
+  people: "People",
+  sports_teams: "Sports Teams",
+};
+
 function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -89,28 +115,14 @@ function formatStructuredList(values: string[]) {
   return values.join("\n");
 }
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function saveButtonLabel(status: StoryStatus) {
+  if (status === "published") return "Save and publish";
+  if (status === "archived") return "Save as archived";
+  if (status === "hidden") return "Save as hidden";
+  return "Save draft";
 }
 
-function normalizeKnowledgeText(value: string) {
-  return value
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[’']/g, "'")
-    .toLowerCase();
-}
-
-function termMatchesText(text: string, term: string) {
-  const normalizedTerm = normalizeKnowledgeText(term).trim();
-  if (!normalizedTerm || normalizedTerm.length < 2) return false;
-
-  const boundaryStart = /^[a-z0-9]/.test(normalizedTerm) ? "\\b" : "";
-  const boundaryEnd = /[a-z0-9]$/.test(normalizedTerm) ? "\\b" : "";
-  return new RegExp(`${boundaryStart}${escapeRegExp(normalizedTerm)}${boundaryEnd}`, "i").test(text);
-}
-
-function mergeUniqueByNormalized(...groups: string[][]) {
+function mergeUniqueValues(...groups: string[][]) {
   const seen = new Set<string>();
   const output: string[] = [];
 
@@ -125,62 +137,37 @@ function mergeUniqueByNormalized(...groups: string[][]) {
   return output;
 }
 
-function inferEntitySelections(input: {
-  currentPrimaryEntities: string[];
-  currentSelectedEntities: string[];
-  entities: Entity[];
-  sourceNames: string[];
-  sourceTitles: string[];
-  summary: string[];
-  title: string;
-}) {
-  const headlineText = normalizeKnowledgeText(input.title);
-  const sourceText = normalizeKnowledgeText([...input.sourceNames, ...input.sourceTitles].join(" "));
-  const bodyText = normalizeKnowledgeText([...input.summary, ...input.sourceNames, ...input.sourceTitles].join(" "));
+function differenceByNormalized(values: string[], existing: string[]) {
+  const existingKeys = new Set(existing.map(normalize));
+  return mergeUniqueValues(values).filter((value) => !existingKeys.has(normalize(value)));
+}
 
-  const matches = input.entities
-    .map((entity) => {
-      const terms = [entity.name, ...(entity.aliases ?? [])]
-        .map((term) => term.trim())
-        .filter((term) => term.length >= 2)
-        .sort((left, right) => right.length - left.length);
-      const matchedTerms = terms.filter((term) => termMatchesText(`${headlineText} ${bodyText}`, term));
-      if (matchedTerms.length === 0) return null;
+function removeByNormalized(values: string[], valueToRemove: string) {
+  const keyToRemove = normalize(valueToRemove);
+  return values.filter((value) => normalize(value) !== keyToRemove);
+}
 
-      const headlineMatch = matchedTerms.some((term) => termMatchesText(headlineText, term));
-      const sourceTitleMatch = matchedTerms.some((term) => termMatchesText(sourceText, term));
-      const nameMatch = termMatchesText(`${headlineText} ${bodyText}`, entity.name);
-      const longestTermLength = Math.max(...matchedTerms.map((term) => term.length));
-      const score =
-        (headlineMatch ? 80 : 0) +
-        (sourceTitleMatch ? 35 : 0) +
-        (nameMatch ? 25 : 0) +
-        Math.min(longestTermLength, 40);
+function countAutofillSuggestions(suggestions: AutofillSuggestions | null) {
+  if (!suggestions) return 0;
+  return (
+    suggestions.topics.length +
+    suggestions.selectedEntities.length +
+    suggestions.primaryEntities.length +
+    Object.values(suggestions.knowledge).reduce((total, values) => total + values.length, 0)
+  );
+}
 
-      return {
-        entity,
-        primary: headlineMatch || sourceTitleMatch || nameMatch,
-        score,
-      };
-    })
-    .filter((match): match is { entity: Entity; primary: boolean; score: number } => Boolean(match))
-    .sort((left, right) => right.score - left.score || left.entity.name.localeCompare(right.entity.name));
-
-  const inferredSelected = matches.slice(0, 10).map((match) => match.entity.name);
-  const inferredPrimary = matches
-    .filter((match) => match.primary)
-    .slice(0, 5)
-    .map((match) => match.entity.name);
-
-  return {
-    primaryEntities: mergeUniqueByNormalized(input.currentPrimaryEntities, inferredPrimary),
-    selectedEntities: mergeUniqueByNormalized(input.currentSelectedEntities, inferredSelected),
-  };
+function normalizeKnowledgeText(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[’']/g, "'")
+    .toLowerCase();
 }
 
 function inferTopicsFromDraft(input: {
   currentTopics: string[];
-  inferredKnowledge: ReturnType<typeof inferStoryKnowledge>;
+  inferredKnowledge: StoryKnowledgeFields;
   sourceNames: string[];
   sourceTitles: string[];
   summary: string[];
@@ -309,6 +296,7 @@ export default function EditorPage() {
   const [sourceDropIndex, setSourceDropIndex] = useState<number | null>(null);
   const [discoveryImportChecked, setDiscoveryImportChecked] = useState(false);
   const [pendingKnowledgeAutofill, setPendingKnowledgeAutofill] = useState(false);
+  const [autofillSuggestions, setAutofillSuggestions] = useState<AutofillSuggestions | null>(null);
   const [notice, setNotice] = useState<EditorNotice>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
   const [pendingEditorAction, setPendingEditorAction] = useState<PendingEditorAction>(null);
@@ -325,7 +313,7 @@ export default function EditorPage() {
   const loadStories = useCallback(async () => {
     try {
       const query = new URLSearchParams();
-      query.set("statuses", "draft,published,archived");
+      query.set("statuses", "draft,published,archived,hidden");
       query.set("limit", "250");
 
       const res = await fetch(`/api/stories?${query.toString()}`, { cache: "no-store" });
@@ -347,7 +335,7 @@ export default function EditorPage() {
     setLoadingStories(true);
     try {
       const query = new URLSearchParams();
-      query.set("statuses", "draft,published,archived");
+      query.set("statuses", "draft,published,archived,hidden");
       query.set("limit", "120");
       query.set("search", trimmedSearch);
 
@@ -426,6 +414,7 @@ export default function EditorPage() {
     setSources(blankSources());
     setPendingDelete(false);
     setPendingEditorAction(null);
+    setAutofillSuggestions(null);
     setPendingBaselineSync(true);
   }
 
@@ -478,6 +467,7 @@ export default function EditorPage() {
     setSources(story.sources.length > 0 ? story.sources.map(toEditorSource) : blankSources());
     setPendingDelete(false);
     setPendingEditorAction(null);
+    setAutofillSuggestions(null);
     setPendingBaselineSync(true);
   }, []);
 
@@ -653,6 +643,37 @@ export default function EditorPage() {
       { label: "Image decision", done: Boolean(imageUrl ? imageShowOnHomepage || imageShowOnBriefing || imageShowOnStoryPage : true) },
     ];
   }, [imageShowOnBriefing, imageShowOnHomepage, imageShowOnStoryPage, imageUrl, selectedEntities.length, sources, summary, title, topics.length]);
+  const remainingAutofillSuggestions = useMemo<AutofillSuggestions | null>(() => {
+    if (!autofillSuggestions) return null;
+
+    return {
+      knowledge: {
+        facets: differenceByNormalized(autofillSuggestions.knowledge.facets, normalizeStructuredList(facetsDraft)),
+        industries: differenceByNormalized(autofillSuggestions.knowledge.industries, normalizeStructuredList(industriesDraft)),
+        locations: differenceByNormalized(autofillSuggestions.knowledge.locations, normalizeStructuredList(locationsDraft)),
+        offices: differenceByNormalized(autofillSuggestions.knowledge.offices, normalizeStructuredList(officesDraft)),
+        organizations: differenceByNormalized(autofillSuggestions.knowledge.organizations, normalizeStructuredList(organizationsDraft)),
+        people: differenceByNormalized(autofillSuggestions.knowledge.people, normalizeStructuredList(peopleDraft)),
+        sports_teams: differenceByNormalized(autofillSuggestions.knowledge.sports_teams, normalizeStructuredList(sportsTeamsDraft)),
+      },
+      primaryEntities: differenceByNormalized(autofillSuggestions.primaryEntities, primaryEntities),
+      selectedEntities: differenceByNormalized(autofillSuggestions.selectedEntities, selectedEntities),
+      topics: differenceByNormalized(autofillSuggestions.topics, topics),
+    };
+  }, [
+    autofillSuggestions,
+    facetsDraft,
+    industriesDraft,
+    locationsDraft,
+    officesDraft,
+    organizationsDraft,
+    peopleDraft,
+    primaryEntities,
+    selectedEntities,
+    sportsTeamsDraft,
+    topics,
+  ]);
+  const remainingAutofillSuggestionCount = countAutofillSuggestions(remainingAutofillSuggestions);
 
   useEffect(() => {
     if (!pendingBaselineSync) return;
@@ -871,6 +892,122 @@ export default function EditorPage() {
     return json.source;
   }
 
+  function dismissAutofillSuggestion(kind: "topic" | "selectedEntity" | "primaryEntity", value: string) {
+    setAutofillSuggestions((current) => {
+      if (!current) return current;
+
+      if (kind === "topic") {
+        return { ...current, topics: removeByNormalized(current.topics, value) };
+      }
+
+      if (kind === "primaryEntity") {
+        return { ...current, primaryEntities: removeByNormalized(current.primaryEntities, value) };
+      }
+
+      return { ...current, selectedEntities: removeByNormalized(current.selectedEntities, value) };
+    });
+  }
+
+  function dismissKnowledgeSuggestion(field: StoryKnowledgeField, value: string) {
+    setAutofillSuggestions((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        knowledge: {
+          ...current.knowledge,
+          [field]: removeByNormalized(current.knowledge[field], value),
+        },
+      };
+    });
+  }
+
+  function appendStructuredSuggestion(field: StoryKnowledgeField, value: string) {
+    const apply = (
+      draft: string,
+      setDraft: (nextDraft: string) => void,
+      setList: (nextList: string[]) => void
+    ) => {
+      const next = mergeUniqueValues(normalizeStructuredList(draft), [value]);
+      setList(next);
+      setDraft(formatStructuredList(next));
+    };
+
+    switch (field) {
+      case "facets":
+        apply(facetsDraft, setFacetsDraft, setFacets);
+        break;
+      case "industries":
+        apply(industriesDraft, setIndustriesDraft, setIndustries);
+        break;
+      case "locations":
+        apply(locationsDraft, setLocationsDraft, setLocations);
+        break;
+      case "offices":
+        apply(officesDraft, setOfficesDraft, setOffices);
+        break;
+      case "organizations":
+        apply(organizationsDraft, setOrganizationsDraft, setOrganizations);
+        break;
+      case "people":
+        apply(peopleDraft, setPeopleDraft, setPeople);
+        break;
+      case "sports_teams":
+        apply(sportsTeamsDraft, setSportsTeamsDraft, setSportsTeams);
+        break;
+    }
+
+    dismissKnowledgeSuggestion(field, value);
+  }
+
+  function applyTopicSuggestion(topic: string) {
+    setTopics((current) => mergeUniqueValues(current, [topic]));
+    dismissAutofillSuggestion("topic", topic);
+  }
+
+  function applySelectedEntitySuggestion(entity: string) {
+    setSelectedEntities((current) => mergeUniqueValues(current, [entity]));
+    dismissAutofillSuggestion("selectedEntity", entity);
+  }
+
+  function applyPrimaryEntitySuggestion(entity: string) {
+    setSelectedEntities((current) => mergeUniqueValues(current, [entity]));
+    setPrimaryEntities((current) => mergeUniqueValues(current, [entity]));
+    dismissAutofillSuggestion("primaryEntity", entity);
+  }
+
+  function applyAllAutofillSuggestions() {
+    if (!remainingAutofillSuggestions) return;
+
+    const nextLocations = mergeUniqueValues(normalizeStructuredList(locationsDraft), remainingAutofillSuggestions.knowledge.locations);
+    const nextOrganizations = mergeUniqueValues(normalizeStructuredList(organizationsDraft), remainingAutofillSuggestions.knowledge.organizations);
+    const nextPeople = mergeUniqueValues(normalizeStructuredList(peopleDraft), remainingAutofillSuggestions.knowledge.people);
+    const nextIndustries = mergeUniqueValues(normalizeStructuredList(industriesDraft), remainingAutofillSuggestions.knowledge.industries);
+    const nextSportsTeams = mergeUniqueValues(normalizeStructuredList(sportsTeamsDraft), remainingAutofillSuggestions.knowledge.sports_teams);
+    const nextOffices = mergeUniqueValues(normalizeStructuredList(officesDraft), remainingAutofillSuggestions.knowledge.offices);
+    const nextFacets = mergeUniqueValues(normalizeStructuredList(facetsDraft), remainingAutofillSuggestions.knowledge.facets);
+
+    setLocations(nextLocations);
+    setLocationsDraft(formatStructuredList(nextLocations));
+    setOrganizations(nextOrganizations);
+    setOrganizationsDraft(formatStructuredList(nextOrganizations));
+    setPeople(nextPeople);
+    setPeopleDraft(formatStructuredList(nextPeople));
+    setIndustries(nextIndustries);
+    setIndustriesDraft(formatStructuredList(nextIndustries));
+    setSportsTeams(nextSportsTeams);
+    setSportsTeamsDraft(formatStructuredList(nextSportsTeams));
+    setOffices(nextOffices);
+    setOfficesDraft(formatStructuredList(nextOffices));
+    setFacets(nextFacets);
+    setFacetsDraft(formatStructuredList(nextFacets));
+    setTopics((current) => mergeUniqueValues(current, remainingAutofillSuggestions.topics));
+    setSelectedEntities((current) =>
+      mergeUniqueValues(current, remainingAutofillSuggestions.selectedEntities, remainingAutofillSuggestions.primaryEntities)
+    );
+    setPrimaryEntities((current) => mergeUniqueValues(current, remainingAutofillSuggestions.primaryEntities));
+    setAutofillSuggestions(null);
+  }
+
   async function autofillStoryKnowledge() {
     setPendingKnowledgeAutofill(true);
 
@@ -908,33 +1045,43 @@ export default function EditorPage() {
 
       const sourceNames = refreshedSources.map((source) => source.name);
       const sourceTitles = refreshedSources.map((source) => source.title);
-      const inferredEntitySelections = inferEntitySelections({
-        currentPrimaryEntities: primaryEntities,
-        currentSelectedEntities: selectedEntities,
-        entities,
-        sourceNames,
-        sourceTitles,
-        summary,
-        title,
+      const autofillResponse = await fetch("/api/admin/story-knowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          current: {
+            facets: currentFacets,
+            industries: currentIndustries,
+            locations: currentLocations,
+            offices: currentOffices,
+            organizations: currentOrganizations,
+            people: currentPeople,
+            sports_teams: currentSportsTeams,
+          },
+          currentPrimaryEntities: primaryEntities,
+          currentSelectedEntities: selectedEntities,
+          entities,
+          sources: refreshedSources.map((source) => ({ name: source.name, title: source.title })),
+          summary,
+          title,
+          topics,
+        }),
       });
-      const inferred = inferStoryKnowledge({
-        current: {
-          facets: currentFacets,
-          industries: currentIndustries,
-          locations: currentLocations,
-          offices: currentOffices,
-          organizations: currentOrganizations,
-          people: currentPeople,
-          sports_teams: currentSportsTeams,
-        },
-        entityNames: inferredEntitySelections.selectedEntities,
-        primaryEntities: inferredEntitySelections.primaryEntities,
-        sourceNames,
-        sourceTitles,
-        summary,
-        title,
-        topics,
-      });
+      const autofillJson = (await autofillResponse.json().catch(() => ({}))) as {
+        error?: string;
+        knowledge?: StoryKnowledgeFields;
+        primaryEntities?: string[];
+        selectedEntities?: string[];
+        winkSuggestions?: StoryKnowledgeFields;
+      };
+
+      if (!autofillResponse.ok || !autofillJson.knowledge) {
+        throw new Error(autofillJson.error ?? "We couldn't auto-fill story knowledge.");
+      }
+
+      const inferred = autofillJson.knowledge;
+      const inferredPrimaryEntities = Array.isArray(autofillJson.primaryEntities) ? autofillJson.primaryEntities : primaryEntities;
+      const inferredSelectedEntities = Array.isArray(autofillJson.selectedEntities) ? autofillJson.selectedEntities : selectedEntities;
       const inferredTopics = inferTopicsFromDraft({
         currentTopics: topics,
         inferredKnowledge: inferred,
@@ -943,26 +1090,34 @@ export default function EditorPage() {
         summary,
         title,
       });
+      const nextSuggestions: AutofillSuggestions = {
+        knowledge: {
+          facets: differenceByNormalized(inferred.facets, currentFacets),
+          industries: differenceByNormalized(inferred.industries, currentIndustries),
+          locations: differenceByNormalized(inferred.locations, currentLocations),
+          offices: differenceByNormalized(inferred.offices, currentOffices),
+          organizations: differenceByNormalized(inferred.organizations, currentOrganizations),
+          people: differenceByNormalized(inferred.people, currentPeople),
+          sports_teams: differenceByNormalized(inferred.sports_teams, currentSportsTeams),
+        },
+        primaryEntities: differenceByNormalized(inferredPrimaryEntities, primaryEntities),
+        selectedEntities: differenceByNormalized(inferredSelectedEntities, selectedEntities),
+        topics: differenceByNormalized(inferredTopics, topics),
+      };
+      const suggestionCount = countAutofillSuggestions(nextSuggestions);
 
-      setSelectedEntities(inferredEntitySelections.selectedEntities);
-      setPrimaryEntities(inferredEntitySelections.primaryEntities);
-      setTopics(inferredTopics);
-      setLocations(inferred.locations);
-      setLocationsDraft(formatStructuredList(inferred.locations));
-      setOrganizations(inferred.organizations);
-      setOrganizationsDraft(formatStructuredList(inferred.organizations));
-      setPeople(inferred.people);
-      setPeopleDraft(formatStructuredList(inferred.people));
-      setIndustries(inferred.industries);
-      setIndustriesDraft(formatStructuredList(inferred.industries));
-      setSportsTeams(inferred.sports_teams);
-      setSportsTeamsDraft(formatStructuredList(inferred.sports_teams));
-      setOffices(inferred.offices);
-      setOfficesDraft(formatStructuredList(inferred.offices));
-      setFacets(inferred.facets);
-      setFacetsDraft(formatStructuredList(inferred.facets));
-
-      showNotice("Story metadata, topics, and entity suggestions filled from the draft and source article titles.", "success");
+      setAutofillSuggestions(suggestionCount > 0 ? nextSuggestions : null);
+      if (suggestionCount > 0) {
+        window.setTimeout(() => {
+          document.getElementById("story-autofill-suggestions")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 50);
+      }
+      showNotice(
+        suggestionCount > 0
+          ? `${suggestionCount} story metadata suggestion${suggestionCount === 1 ? "" : "s"} ready to review.`
+          : "No new story metadata suggestions found.",
+        suggestionCount > 0 ? "success" : "info"
+      );
     } catch (knowledgeError) {
       showNotice(knowledgeError instanceof Error ? knowledgeError.message : "We couldn't auto-fill story knowledge.", "error");
     } finally {
@@ -1558,11 +1713,7 @@ export default function EditorPage() {
               <div>
                 <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Status</div>
                 <div className="mt-2 grid gap-2">
-                  {([
-                    { value: "draft" as StoryStatus, label: "Draft" },
-                    { value: "published" as StoryStatus, label: "Published" },
-                    { value: "archived" as StoryStatus, label: "Archived" },
-                  ]).map((option) => (
+                  {STORY_STATUS_OPTIONS.map((option) => (
                     <button
                       key={option.value}
                       type="button"
@@ -2060,7 +2211,7 @@ export default function EditorPage() {
                   onClick={() => void onSave()}
                   className="flex-1 rounded-xl bg-neutral-100 py-3 font-semibold text-neutral-900 transition hover:bg-white"
                 >
-                  {status === "published" ? "Save and publish" : status === "archived" ? "Save as archived" : "Save draft"}
+                  {saveButtonLabel(status)}
                 </button>
                 <Link
                   href={`/story/${storyId}`}
@@ -2127,11 +2278,7 @@ export default function EditorPage() {
             <div className="mt-4">
               <div className="block text-sm text-neutral-300 mb-2">Status</div>
               <div className="flex flex-wrap gap-2">
-                {([
-                  { value: "draft" as StoryStatus, label: "Draft" },
-                  { value: "published" as StoryStatus, label: "Published" },
-                  { value: "archived" as StoryStatus, label: "Archived" },
-                ]).map((option) => (
+                {STORY_STATUS_OPTIONS.map((option) => (
                   <button
                     key={option.value}
                     type="button"
@@ -2507,6 +2654,170 @@ export default function EditorPage() {
                 {pendingKnowledgeAutofill ? "Filling..." : "Auto-fill from draft"}
               </button>
             </div>
+            {remainingAutofillSuggestions && remainingAutofillSuggestionCount > 0 ? (
+              <div id="story-autofill-suggestions" className="mt-5 scroll-mt-24 rounded-2xl border border-[#8f7740]/40 bg-[#0c1821] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#e3cca0]">
+                      Suggested tags
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-neutral-400">
+                      Review what auto-fill found from the draft, sources, entities, and wink NLP.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={applyAllAutofillSuggestions}
+                      className="rounded-full bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-900 transition hover:bg-white"
+                    >
+                      Add all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAutofillSuggestions(null)}
+                      className="rounded-full border border-[#28445d] px-3 py-1.5 text-xs font-semibold text-neutral-300 transition hover:border-[#8f7740]/70"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-4">
+                  {remainingAutofillSuggestions.selectedEntities.length > 0 ? (
+                    <div>
+                      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                        Suggested entities
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {remainingAutofillSuggestions.selectedEntities.map((entity) => (
+                          <span
+                            key={`suggested-entity-${entity}`}
+                            className="inline-flex items-center gap-2 rounded-full border border-[#28445d] bg-[#06131e] px-3 py-1.5 text-xs text-neutral-200"
+                          >
+                            {entity}
+                            <button
+                              type="button"
+                              onClick={() => applySelectedEntitySuggestion(entity)}
+                              className="font-semibold text-[#e3cca0]"
+                            >
+                              Add
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => dismissAutofillSuggestion("selectedEntity", entity)}
+                              className="text-neutral-500 hover:text-neutral-200"
+                            >
+                              x
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {remainingAutofillSuggestions.primaryEntities.length > 0 ? (
+                    <div>
+                      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                        Suggested primary entities
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {remainingAutofillSuggestions.primaryEntities.map((entity) => (
+                          <span
+                            key={`suggested-primary-entity-${entity}`}
+                            className="inline-flex items-center gap-2 rounded-full border border-[#8f7740]/50 bg-[#06131e] px-3 py-1.5 text-xs text-neutral-200"
+                          >
+                            {entity}
+                            <button
+                              type="button"
+                              onClick={() => applyPrimaryEntitySuggestion(entity)}
+                              className="font-semibold text-[#e3cca0]"
+                            >
+                              Add primary
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => dismissAutofillSuggestion("primaryEntity", entity)}
+                              className="text-neutral-500 hover:text-neutral-200"
+                            >
+                              x
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {remainingAutofillSuggestions.topics.length > 0 ? (
+                    <div>
+                      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                        Suggested topics
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {remainingAutofillSuggestions.topics.map((topic) => (
+                          <span
+                            key={`suggested-topic-${topic}`}
+                            className="inline-flex items-center gap-2 rounded-full border border-[#28445d] bg-[#06131e] px-3 py-1.5 text-xs text-neutral-200"
+                          >
+                            {topic}
+                            <button
+                              type="button"
+                              onClick={() => applyTopicSuggestion(topic)}
+                              className="font-semibold text-[#e3cca0]"
+                            >
+                              Add
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => dismissAutofillSuggestion("topic", topic)}
+                              className="text-neutral-500 hover:text-neutral-200"
+                            >
+                              x
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {(Object.keys(AUTOFILL_KNOWLEDGE_LABELS) as StoryKnowledgeField[]).map((field) => {
+                    const values = remainingAutofillSuggestions.knowledge[field];
+                    if (values.length === 0) return null;
+
+                    return (
+                      <div key={`suggested-${field}`}>
+                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                          Suggested {AUTOFILL_KNOWLEDGE_LABELS[field]}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {values.map((value) => (
+                            <span
+                              key={`suggested-${field}-${value}`}
+                              className="inline-flex items-center gap-2 rounded-full border border-[#28445d] bg-[#06131e] px-3 py-1.5 text-xs text-neutral-200"
+                            >
+                              {value}
+                              <button
+                                type="button"
+                                onClick={() => appendStructuredSuggestion(field, value)}
+                                className="font-semibold text-[#e3cca0]"
+                              >
+                                Add
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => dismissKnowledgeSuggestion(field, value)}
+                                className="text-neutral-500 hover:text-neutral-200"
+                              >
+                                x
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div>
                 <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Locations</div>
@@ -2889,7 +3200,7 @@ export default function EditorPage() {
               <div id="editor-publish-mobile" className={`${ADMIN_PANEL} scroll-mt-24 p-5`}>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <button onClick={() => void onSave()} className="flex-1 rounded-xl bg-neutral-100 py-3 font-semibold text-neutral-900">
-                    {status === "published" ? "Save and publish" : status === "archived" ? "Save as archived" : "Save draft"}
+                    {saveButtonLabel(status)}
                   </button>
 
                   {pendingDelete ? (
@@ -2943,7 +3254,7 @@ export default function EditorPage() {
                   onClick={() => void onSave()}
                   className="w-full rounded-xl bg-neutral-100 px-4 py-3 font-semibold text-neutral-900 transition hover:bg-white"
                 >
-                  {status === "published" ? "Save and publish" : status === "archived" ? "Save as archived" : "Save draft"}
+                  {saveButtonLabel(status)}
                 </button>
                 <div>
                   <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Story slug</div>
@@ -3307,7 +3618,7 @@ export default function EditorPage() {
             onClick={() => void onSave()}
             className="min-h-11 flex-1 rounded-xl bg-neutral-100 px-4 py-3 text-sm font-semibold text-neutral-900"
           >
-            {status === "published" ? "Save and publish" : status === "archived" ? "Save archived" : "Save draft"}
+            {saveButtonLabel(status)}
           </button>
         </div>
       </div>

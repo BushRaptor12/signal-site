@@ -6,7 +6,7 @@ export type AdminAnalyticsWindow = 7 | 30 | 90;
 
 type StoryAnalyticsRow = Pick<
   StoryDbRow,
-  "comments" | "content_updated_at" | "created_at" | "id" | "status" | "title" | "topics" | "updated_at" | "views"
+  "comments" | "content_updated_at" | "created_at" | "date" | "id" | "status" | "title" | "topics" | "updated_at" | "views"
 >;
 
 type TimestampRow = {
@@ -45,6 +45,23 @@ export type AdminAnalyticsData = {
     totalStoryViews: number;
     views: number;
   };
+  storyPerformance: Array<{
+    allTimeViews: number;
+    comments: number;
+    completionRate: number;
+    engagementRate: number;
+    id: string;
+    publishedAt: string;
+    reactions: number;
+    seen: number;
+    score: number;
+    status: string;
+    title: string;
+    topics: string[];
+    totalComments: number;
+    updatedAt: string | null;
+    views: number;
+  }>;
   topicPerformance: Array<{
     comments: number;
     reactions: number;
@@ -146,7 +163,7 @@ export async function getAdminAnalyticsData(input?: { windowDays?: number | stri
     maybeRows<StoryAnalyticsRow>(
       supabase
         .from("stories")
-        .select("id, title, status, topics, views, comments, created_at, updated_at, content_updated_at")
+        .select("id, title, status, topics, views, comments, date, created_at, updated_at, content_updated_at")
         .order("created_at", { ascending: false })
         .limit(1000),
       "stories"
@@ -178,6 +195,7 @@ export async function getAdminAnalyticsData(input?: { windowDays?: number | stri
   const viewsByStoryId = countByStoryId(viewRows);
   const commentsByStoryId = countByStoryId(commentRows);
   const reactionsByStoryId = countByStoryId(reactionRows);
+  const seenByStoryId = countByStoryId(seenRows);
 
   const viewsByDay = countRowsByDay(viewRows, start, windowDays);
   const commentsByDay = countRowsByDay(commentRows, start, windowDays);
@@ -194,24 +212,45 @@ export async function getAdminAnalyticsData(input?: { windowDays?: number | stri
     views: viewsByDay.get(date) ?? 0,
   }));
 
-  const topStories = [...storyById.values()]
+  const storyPerformance = [...storyById.values()]
     .map((story) => ({
+      allTimeViews: Number(story.views ?? 0),
       comments: commentsByStoryId.get(story.id) ?? 0,
+      completionRate: 0,
+      engagementRate: 0,
       id: story.id,
+      publishedAt: story.date,
       reactions: reactionsByStoryId.get(story.id) ?? 0,
+      seen: seenByStoryId.get(story.id) ?? 0,
+      score: 0,
       status: story.status,
       title: story.title,
       topics: story.topics,
+      totalComments: Number(story.comments ?? 0),
+      updatedAt: story.content_updated_at ?? story.updated_at ?? story.created_at ?? null,
       views: viewsByStoryId.get(story.id) ?? 0,
     }))
-    .filter((story) => story.views + story.comments + story.reactions > 0)
+    .map((story) => {
+      const score = story.views + story.comments * 3 + story.reactions * 2;
+      const engagementRate =
+        story.views > 0 ? Math.round(((story.comments + story.reactions) / story.views) * 1000) / 10 : story.comments + story.reactions > 0 ? 100 : 0;
+      const completionRate = story.views > 0 ? Math.round((story.seen / story.views) * 1000) / 10 : story.seen > 0 ? 100 : 0;
+
+      return {
+        ...story,
+        completionRate,
+        engagementRate,
+        score,
+      };
+    })
+    .filter((story) => story.views + story.comments + story.reactions + story.seen > 0)
     .sort((left, right) => {
-      const leftScore = left.views + left.comments * 3 + left.reactions * 2;
-      const rightScore = right.views + right.comments * 3 + right.reactions * 2;
-      if (rightScore !== leftScore) return rightScore - leftScore;
+      if (right.score !== left.score) return right.score - left.score;
       return right.views - left.views;
     })
-    .slice(0, 12);
+    .slice(0, 30);
+
+  const topStories = storyPerformance.slice(0, 12);
 
   const topicStats = new Map<string, { comments: number; reactions: number; stories: Set<string>; views: number }>();
   for (const story of stories) {
@@ -288,6 +327,7 @@ export async function getAdminAnalyticsData(input?: { windowDays?: number | stri
       totalStoryViews: stories.reduce((sum, story) => sum + Number(story.views ?? 0), 0),
       views: viewRows.length,
     },
+    storyPerformance,
     topicPerformance,
     topStories,
     windowDays,

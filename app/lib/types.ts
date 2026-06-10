@@ -1,7 +1,7 @@
 export type Lean = "Left" | "Center" | "Right";
 export type BriefingPosition = "lead" | "left" | "right";
 export type StoryImageDisplay = "cover" | "contain";
-export type StoryStatus = "draft" | "published" | "archived";
+export type StoryStatus = "draft" | "published" | "archived" | "hidden";
 export type BriefingLeadStyle = "default" | "alert";
 
 export type Source = {

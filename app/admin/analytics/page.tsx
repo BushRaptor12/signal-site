@@ -24,6 +24,11 @@ function percent(value: number, max: number) {
   return `${Math.max(4, Math.round((value / max) * 100))}%`;
 }
 
+function formatRate(value: number) {
+  if (!Number.isFinite(value)) return "0%";
+  return `${value >= 10 ? Math.round(value) : value.toFixed(1)}%`;
+}
+
 function shortDate(value: string) {
   const date = new Date(`${value}T00:00:00Z`);
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(date);
@@ -56,8 +61,15 @@ export default async function AdminAnalyticsPage({ searchParams }: AnalyticsPage
   const maxDailyViews = Math.max(1, ...data.dailyActivity.map((day) => day.views));
   const maxTopicScore = Math.max(1, ...data.topicPerformance.map((topic) => topic.views + topic.comments * 3 + topic.reactions * 2));
   const maxStoryScore = Math.max(1, ...data.topStories.map((story) => story.views + story.comments * 3 + story.reactions * 2));
+  const maxPerformanceScore = Math.max(1, ...data.storyPerformance.map((story) => story.score));
   const maxInterestReaders = Math.max(1, ...data.interestDemand.map((interest) => interest.readers));
   const maxReactionCount = Math.max(1, ...data.reactionMix.map((reaction) => reaction.count));
+  const mostViewedStory = [...data.storyPerformance].sort((left, right) => right.views - left.views)[0] ?? null;
+  const mostDiscussedStory = [...data.storyPerformance].sort((left, right) => right.comments - left.comments)[0] ?? null;
+  const strongestEngagementStory =
+    [...data.storyPerformance]
+      .filter((story) => story.views >= 3 || story.comments + story.reactions > 0)
+      .sort((left, right) => right.engagementRate - left.engagementRate || right.score - left.score)[0] ?? null;
 
   return (
     <main className="min-h-screen bg-neutral-900 px-4 py-7 text-neutral-100 sm:px-6 lg:px-8">
@@ -97,6 +109,62 @@ export default async function AdminAnalyticsPage({ searchParams }: AnalyticsPage
           <StatCard label="New Follows" note="Interest follows started" value={data.summary.follows} />
           <StatCard label="All-Time Views" note="Current story counter total" value={data.summary.totalStoryViews} />
           <StatCard label="Published Stories" value={data.summary.publishedStories} />
+        </section>
+
+        <section className={`${ADMIN_PANEL} mt-8 p-6 sm:p-8`}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Story Signals</div>
+              <h2 className="mt-2 text-2xl font-semibold text-neutral-100">What Is Moving Right Now</h2>
+            </div>
+            <div className="text-xs uppercase tracking-[0.16em] text-neutral-500">{data.windowDays} day window</div>
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-3">
+            <div className={`${ADMIN_INSET} p-4`}>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Most viewed</div>
+              {mostViewedStory ? (
+                <>
+                  <Link href={`/story/${mostViewedStory.id}`} className="mt-2 block text-sm font-medium leading-6 text-neutral-100 transition hover:text-[#d7c08d]">
+                    {mostViewedStory.title}
+                  </Link>
+                  <div className="mt-2 text-xs uppercase tracking-[0.14em] text-neutral-500">{compactNumber(mostViewedStory.views)} views</div>
+                </>
+              ) : (
+                <div className="mt-2 text-sm text-neutral-500">No story views yet.</div>
+              )}
+            </div>
+
+            <div className={`${ADMIN_INSET} p-4`}>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Most discussed</div>
+              {mostDiscussedStory && mostDiscussedStory.comments > 0 ? (
+                <>
+                  <Link href={`/story/${mostDiscussedStory.id}`} className="mt-2 block text-sm font-medium leading-6 text-neutral-100 transition hover:text-[#d7c08d]">
+                    {mostDiscussedStory.title}
+                  </Link>
+                  <div className="mt-2 text-xs uppercase tracking-[0.14em] text-neutral-500">{mostDiscussedStory.comments} comments</div>
+                </>
+              ) : (
+                <div className="mt-2 text-sm text-neutral-500">No comments in this window.</div>
+              )}
+            </div>
+
+            <div className={`${ADMIN_INSET} p-4`}>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Highest engagement</div>
+              {strongestEngagementStory ? (
+                <>
+                  <Link href={`/story/${strongestEngagementStory.id}`} className="mt-2 block text-sm font-medium leading-6 text-neutral-100 transition hover:text-[#d7c08d]">
+                    {strongestEngagementStory.title}
+                  </Link>
+                  <div className="mt-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
+                    {formatRate(strongestEngagementStory.engagementRate)} comments/reactions per view
+                  </div>
+                </>
+              ) : (
+                <div className="mt-2 text-sm text-neutral-500">No engagement signal yet.</div>
+              )}
+            </div>
+          </div>
         </section>
 
         <section className={`${ADMIN_PANEL} mt-8 p-6 sm:p-8`}>
@@ -210,6 +278,79 @@ export default async function AdminAnalyticsPage({ searchParams }: AnalyticsPage
             </div>
           </section>
         </div>
+
+        <section className={`${ADMIN_PANEL} mt-8 p-6 sm:p-8`}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Per Story</div>
+              <h2 className="mt-2 text-2xl font-semibold text-neutral-100">Story Analytics</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-400">
+                Windowed views, comments, reactions, and seen marks by story, alongside current all-time counters.
+              </p>
+            </div>
+            <div className="text-xs uppercase tracking-[0.16em] text-neutral-500">{data.storyPerformance.length} active stories</div>
+          </div>
+
+          {data.storyPerformance.length > 0 ? (
+            <div className="mt-6 overflow-x-auto">
+              <table className="w-full min-w-[920px] border-separate border-spacing-0 text-left text-sm">
+                <thead className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+                  <tr>
+                    <th className="border-b border-neutral-800 pb-3 pr-4 font-semibold">Story</th>
+                    <th className="border-b border-neutral-800 px-3 pb-3 text-right font-semibold">Views</th>
+                    <th className="border-b border-neutral-800 px-3 pb-3 text-right font-semibold">Comments</th>
+                    <th className="border-b border-neutral-800 px-3 pb-3 text-right font-semibold">Reactions</th>
+                    <th className="border-b border-neutral-800 px-3 pb-3 text-right font-semibold">Seen</th>
+                    <th className="border-b border-neutral-800 px-3 pb-3 text-right font-semibold">Eng.</th>
+                    <th className="border-b border-neutral-800 px-3 pb-3 text-right font-semibold">All-Time</th>
+                    <th className="border-b border-neutral-800 pl-3 pb-3 font-semibold">Activity</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.storyPerformance.map((story) => (
+                    <tr key={story.id} className="group">
+                      <td className="border-b border-neutral-800/70 py-4 pr-4 align-top">
+                        <Link href={`/story/${story.id}`} className="font-medium leading-6 text-neutral-100 transition group-hover:text-[#d7c08d]">
+                          {story.title}
+                        </Link>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-neutral-500">
+                          <span>{story.status}</span>
+                          <span>/</span>
+                          <span>{shortDate(story.publishedAt)}</span>
+                          {story.topics.slice(0, 2).map((topic) => (
+                            <span key={`${story.id}-${topic}`} className="rounded-full border border-[#163754] px-2 py-0.5 normal-case tracking-normal text-neutral-400">
+                              {topic}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="border-b border-neutral-800/70 px-3 py-4 text-right align-top text-neutral-200">{compactNumber(story.views)}</td>
+                      <td className="border-b border-neutral-800/70 px-3 py-4 text-right align-top text-neutral-300">{story.comments}</td>
+                      <td className="border-b border-neutral-800/70 px-3 py-4 text-right align-top text-neutral-300">{story.reactions}</td>
+                      <td className="border-b border-neutral-800/70 px-3 py-4 text-right align-top text-neutral-300">
+                        <div>{story.seen}</div>
+                        <div className="mt-1 text-xs text-neutral-600">{formatRate(story.completionRate)}</div>
+                      </td>
+                      <td className="border-b border-neutral-800/70 px-3 py-4 text-right align-top text-neutral-300">{formatRate(story.engagementRate)}</td>
+                      <td className="border-b border-neutral-800/70 px-3 py-4 text-right align-top text-neutral-400">
+                        <div>{compactNumber(story.allTimeViews)} views</div>
+                        <div className="mt-1 text-xs text-neutral-600">{story.totalComments} comments</div>
+                      </td>
+                      <td className="border-b border-neutral-800/70 py-4 pl-3 align-top">
+                        <div className="h-2 rounded-full bg-neutral-800">
+                          <div className="h-2 rounded-full bg-[#d7c08d]" style={{ width: percent(story.score, maxPerformanceScore) }} />
+                        </div>
+                        <div className="mt-2 text-xs uppercase tracking-[0.14em] text-neutral-600">Score {compactNumber(story.score)}</div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState text="No per-story activity found for this window yet." />
+          )}
+        </section>
 
         <div className="mt-8 grid gap-8 xl:grid-cols-2">
           <section className={`${ADMIN_PANEL} p-6 sm:p-8`}>

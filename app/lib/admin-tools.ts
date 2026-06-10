@@ -120,6 +120,7 @@ export type AdminDashboardData = {
     briefingStories: number;
     commentsToday: number;
     drafts: number;
+    hiddenStories: number;
     openReports: number;
     publishedStories: number;
     signups7d: number;
@@ -572,7 +573,8 @@ export async function getAdminDashboardData(adminUserId: string): Promise<AdminD
   const stories = (storyData ?? []) as StoryLiteRow[];
   const draftCount = stories.filter((story) => story.status === "draft").length;
   const archivedCount = stories.filter((story) => story.status === "archived").length;
-  const publishedCount = stories.filter((story) => story.status !== "draft" && story.status !== "archived").length;
+  const hiddenCount = stories.filter((story) => story.status === "hidden").length;
+  const publishedCount = stories.filter((story) => story.status === "published").length;
 
   const attentionStories = stories
     .map((story) => ({
@@ -655,6 +657,7 @@ export async function getAdminDashboardData(adminUserId: string): Promise<AdminD
       briefingStories: briefingStories ?? 0,
       commentsToday: commentsToday ?? 0,
       drafts: draftCount,
+      hiddenStories: hiddenCount,
       openReports: openReports ?? 0,
       publishedStories: publishedCount,
       signups7d: signups7d ?? 0,

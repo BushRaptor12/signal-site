@@ -79,10 +79,25 @@ export default async function BriefingArchivePage() {
 
         {archives.length === 0 ? (
           <div className={`${PUBLIC_PANEL} p-5 text-center sm:p-8`}>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Archive</div>
             <h2 className="text-2xl font-semibold text-neutral-100">No archives yet</h2>
             <p className="mt-3 text-sm leading-6 text-neutral-400">
-              Once the scheduled archive job runs, previous briefings will appear here.
+              Previous briefing snapshots will appear here after the archive job captures them.
             </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <Link
+                href="/briefing"
+                className="inline-flex min-h-11 rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2.5 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
+              >
+                Open briefing
+              </Link>
+              <Link
+                href="/"
+                className="inline-flex min-h-11 rounded-full border border-[#163754] bg-[#020b14] px-5 py-2.5 text-sm font-semibold text-neutral-300 transition hover:border-[#30516d] hover:text-white"
+              >
+                Browse stories
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">

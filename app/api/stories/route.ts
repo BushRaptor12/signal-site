@@ -45,7 +45,7 @@ function toBriefingLeadStyle(value: unknown): BriefingLeadStyle {
 }
 
 function toStoryStatus(value: unknown): StoryStatus {
-  return value === "draft" || value === "archived" ? value : "published";
+  return value === "draft" || value === "archived" || value === "hidden" ? value : "published";
 }
 
 function toHttpUrl(value: unknown): string | null {
@@ -74,15 +74,15 @@ function toEasternDateInput(value: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function toStatusFilterList(rawValue: string | null, adminAccess: boolean): StoryStatus[] {
-  if (!adminAccess) return ["published"];
+function toStatusFilterList(rawValue: string | null, adminAccess: boolean, includeArchivedPublic = false): StoryStatus[] {
+  if (!adminAccess) return includeArchivedPublic ? ["published", "archived"] : ["published"];
 
   const parsed = (rawValue ?? "")
     .split(",")
     .map((value) => value.trim())
-    .filter((value): value is StoryStatus => value === "draft" || value === "published" || value === "archived");
+    .filter((value): value is StoryStatus => value === "draft" || value === "published" || value === "archived" || value === "hidden");
 
-  return parsed.length > 0 ? parsed : ["draft", "published", "archived"];
+  return parsed.length > 0 ? parsed : ["draft", "published", "archived", "hidden"];
 }
 
 function sanitizeSearchTerm(value: string | null) {
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
     const supabase = supabaseServer();
     const adminAccess = await requestHasAdminAccess(request);
     const searchTerm = sanitizeSearchTerm(request.nextUrl.searchParams.get("search"));
-    const statuses = toStatusFilterList(request.nextUrl.searchParams.get("statuses"), adminAccess);
+    const statuses = toStatusFilterList(request.nextUrl.searchParams.get("statuses"), adminAccess, Boolean(searchTerm));
     const limitRaw = Number(request.nextUrl.searchParams.get("limit") ?? "");
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 250) : null;
 

@@ -1121,7 +1121,7 @@ export default function AdminBriefingPage() {
               <div>
                 <h2 className="text-lg font-semibold text-neutral-100">Story Library</h2>
                 <p className="mt-1 text-xs leading-5 text-neutral-500">
-                  Add any published story to the briefing without opening Supabase. Draft and archived stories are excluded here.
+                  Add any published story to the briefing without opening Supabase. Draft, archived, and hidden stories are excluded here.
                 </p>
               </div>
               <div className="w-full md:max-w-sm">
