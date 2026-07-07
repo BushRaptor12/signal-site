@@ -147,7 +147,7 @@ function BriefingList({
               {displayBriefingSummary(story) ? (
                 <p
                   className={`text-sm text-neutral-300 sm:text-[15px] ${
-                    hasImage ? "mt-2 leading-6 sm:mt-3 sm:leading-7" : "mt-3 leading-7 sm:mt-4 sm:leading-8"
+                    hasImage ? "mt-2 leading-[1.45] sm:mt-3 sm:leading-[1.5]" : "mt-3 leading-[1.5] sm:mt-4 sm:leading-[1.55]"
                   }`}
                 >
                   {displayBriefingSummary(story)}
@@ -223,7 +223,7 @@ export default async function BriefingPage() {
             <div className="flex flex-col items-center text-center">
               <Link href="/" aria-label="Go to The Beacon home page">
                 <Image
-                  src="/psbeacon.png"
+                  src="/psbeacon.png?v=20260707"
                   alt="The Briefing"
                   width={1920}
                   height={1080}
@@ -316,8 +316,8 @@ export default async function BriefingPage() {
                     <div
                       className={`mx-auto max-w-4xl text-sm text-neutral-300 sm:text-lg ${
                         leadHasImage
-                          ? "mt-3 space-y-2 leading-6 sm:mt-5 sm:space-y-3 sm:leading-8"
-                          : "mt-4 space-y-3 leading-7 sm:mt-6 sm:space-y-4 sm:leading-9"
+                          ? "mt-3 space-y-2 leading-[1.45] sm:mt-5 sm:space-y-3 sm:leading-[1.5]"
+                          : "mt-4 space-y-3 leading-[1.5] sm:mt-6 sm:space-y-4 sm:leading-[1.55]"
                       }`}
                     >
                       {leadSummaryPoints.map((point, index) => (

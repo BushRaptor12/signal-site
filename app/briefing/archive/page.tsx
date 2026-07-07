@@ -57,7 +57,7 @@ export default async function BriefingArchivePage() {
           <div className="flex flex-col items-center text-center">
             <Link href="/" aria-label="Go to The Beacon home page">
               <Image
-                src="/psbeacon.png"
+                src="/psbeacon.png?v=20260707"
                 alt="The Briefing Archive"
                 width={1920}
                 height={1080}
@@ -73,7 +73,7 @@ export default async function BriefingArchivePage() {
         <header className="mb-6 flex flex-col items-start justify-between gap-3 sm:mb-8 sm:flex-row sm:items-center">
           <BackLink href="/briefing" />
           <div className="text-left sm:text-right">
-            <h1 className="text-2xl font-semibold text-neutral-100 sm:text-3xl">Briefing Archive</h1>
+            <h1 className="text-2xl font-semibold text-neutral-100 sm:text-3xl">Archive</h1>
           </div>
         </header>
 

@@ -1,60 +1,364 @@
-import { getAccountUserId, getFollowedInterestsWithMatches, getFollowedStoryIds } from "@/app/lib/account.server";
+import Image from "next/image";
+import Link from "next/link";
+import type { Metadata } from "next";
+import AdaptiveBriefingImage from "@/app/briefing/adaptive-briefing-image";
+import LocalBriefingUpdated from "@/app/briefing/local-briefing-updated";
+import ManualArchiveButton from "@/app/briefing/manual-archive-button";
+import { getAccountProfileByUserId, getAccountUserId, getSeenStoryIds } from "@/app/lib/account.server";
+import { listBriefingArchives } from "@/app/lib/briefing-archive";
+import { buildBriefingLayout } from "@/app/lib/briefing-layout";
+import { formatStoryDate } from "@/app/lib/dates";
+import { DEFAULT_OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, breadcrumbJsonLd } from "@/app/lib/seo";
 import { supabaseServer } from "@/app/lib/supabase.server";
-import { coerceStory, STORY_CARD_SELECT, type StoryDbRow } from "@/app/lib/stories";
+import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
-import HomePageClient from "./home-page-client";
+import NewsSectionNav from "./news-section-nav";
 
-async function loadInitialStories(): Promise<StoryWithViews[]> {
-  try {
-    const supabase = supabaseServer();
-    const [trackingResult, feedResult] = await Promise.all([
-      supabase
-        .from("stories")
-        .select(STORY_CARD_SELECT)
-        .eq("status", "published")
-        .eq("pinned", true)
-        .order("updated_at", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false, nullsFirst: false }),
-      supabase
-        .from("stories")
-        .select(STORY_CARD_SELECT)
-        .eq("status", "published")
-        .eq("pinned", false)
-        .order("updated_at", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false, nullsFirst: false })
-        .limit(30),
-    ]);
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-    if (trackingResult.error) {
-      throw trackingResult.error;
-    }
-    if (feedResult.error) {
-      throw feedResult.error;
-    }
+export const metadata: Metadata = {
+  title: SITE_NAME,
+  description: SITE_DESCRIPTION,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    url: "/",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    siteName: SITE_NAME,
+    images: [
+      {
+        url: DEFAULT_OG_IMAGE,
+        alt: SITE_NAME,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    images: [DEFAULT_OG_IMAGE],
+  },
+};
 
-    return ([...(trackingResult.data ?? []), ...(feedResult.data ?? [])] as unknown as StoryDbRow[]).map(coerceStory);
-  } catch {
-    return [];
-  }
+type BriefingMetaRow = {
+  updated_at: string | null;
+};
+
+function displayHeadline(story: StoryWithViews) {
+  return story.beacon_headline?.trim() || story.title;
 }
 
-function serverRenderNowMs() {
-  return Date.now();
+function displayBriefingSummary(story: StoryWithViews) {
+  return story.beacon_summary?.trim() || story.summary[0] || "";
+}
+
+function displayLeadBriefingSummaryPoints(story: StoryWithViews) {
+  const override = story.beacon_summary?.trim();
+  if (override) {
+    const overridePoints = override
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    return overridePoints.length > 0 ? overridePoints.slice(0, 2) : [override];
+  }
+
+  return story.summary.map((line) => line.trim()).filter(Boolean).slice(0, 2);
+}
+
+function shouldShowStoryImageOnBriefing(story: StoryWithViews) {
+  return Boolean(story.image_url) && (story.image_show_on_briefing ?? true);
+}
+
+function SeenPill({ className = "" }: { className?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#efd08e] ${className}`}>
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3 w-3 fill-none stroke-current stroke-[1.8]">
+        <path d="M1.5 12s3.75-6 10.5-6 10.5 6 10.5 6-3.75 6-10.5 6S1.5 12 1.5 12Z" />
+        <circle cx="12" cy="12" r="3.25" />
+      </svg>
+      Seen
+    </span>
+  );
+}
+
+function StoryMetaRow({
+  align = "start",
+  seen = false,
+  story,
+}: {
+  align?: "center" | "mobile-start-center" | "start";
+  seen?: boolean;
+  story: StoryWithViews;
+}) {
+  const alignmentClass =
+    align === "center"
+      ? "justify-center text-center"
+      : align === "mobile-start-center"
+        ? "justify-start text-left sm:justify-center sm:text-center"
+        : "justify-start";
+
+  return (
+    <div
+      className={`mt-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-neutral-500 sm:mt-3 sm:text-[11px] sm:tracking-[0.16em] ${
+        alignmentClass
+      }`}
+    >
+      <span>{formatStoryDate(story.date)}</span>
+      {seen ? <SeenPill /> : null}
+    </div>
+  );
+}
+
+function FeedButton({ compact = false }: { compact?: boolean }) {
+  return (
+    <Link
+      href="/feed"
+      className={`inline-flex items-center justify-center rounded-full border border-[#8f7740]/70 bg-[#07101a] font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724] ${
+        compact ? "min-h-9 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em]" : "min-h-10 px-4 py-2 text-sm"
+      }`}
+    >
+      View your Feed
+    </Link>
+  );
+}
+
+function BriefingList({
+  compactMobile = false,
+  stories,
+  seenStoryIds,
+}: {
+  compactMobile?: boolean;
+  stories: StoryWithViews[];
+  seenStoryIds: Set<string>;
+}) {
+  return (
+    <div className={compactMobile ? "space-y-3 sm:space-y-6" : "space-y-6"}>
+      {stories.map((story) => {
+        const seen = seenStoryIds.has(story.id);
+        const hasImage = shouldShowStoryImageOnBriefing(story);
+
+        return (
+          <Link
+            key={story.id}
+            href={`/story/${story.id}?from=home`}
+            className="group relative flex flex-col justify-start rounded-[10px] border border-[#183149]/65 bg-[#07131e] p-3 text-left shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-colors duration-200 hover:border-[#8f7740]/45 hover:bg-[#071622] sm:rounded-[12px] sm:p-6 sm:shadow-[0_12px_28px_rgba(0,0,0,0.16)]"
+          >
+            <div className={seen ? "flex flex-col justify-start opacity-90" : "flex flex-col justify-start"}>
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[1.08rem] font-semibold leading-snug text-neutral-100 transition-colors group-hover:text-[#d7c08d] sm:overflow-visible sm:whitespace-normal sm:text-[1.85rem] sm:leading-tight">
+                    {displayHeadline(story)}
+                  </div>
+                  <StoryMetaRow seen={seen} story={story} />
+                </div>
+              </div>
+              {displayBriefingSummary(story) ? (
+                <p
+                  className={`text-sm text-neutral-300 sm:text-[15px] ${
+                    hasImage ? "mt-2 leading-[1.45] sm:mt-3 sm:leading-[1.5]" : "mt-3 leading-[1.5] sm:mt-4 sm:leading-[1.55]"
+                  }`}
+                >
+                  {displayBriefingSummary(story)}
+                </p>
+              ) : null}
+              {hasImage ? <AdaptiveBriefingImage story={story} variant="briefing-card" /> : null}
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
 }
 
 export default async function HomePage() {
-  const [initialStories, userId] = await Promise.all([loadInitialStories(), getAccountUserId()]);
-  const initialFollowedStoryIds = userId ? await getFollowedStoryIds(userId).catch(() => []) : [];
-  const initialFollowedInterests = userId ? await getFollowedInterestsWithMatches(userId).catch(() => []) : [];
-  const initialNowMs = serverRenderNowMs();
+  try {
+    const supabase = supabaseServer();
+    const [{ data, error }, { data: metaData, error: metaError }] = await Promise.all([
+      supabase
+        .from("stories")
+        .select("*")
+        .eq("status", "published")
+        .eq("beacon_include", true)
+        .order("beacon_position", { ascending: true, nullsFirst: false })
+        .order("beacon_order", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false }),
+      supabase.from("briefing_meta").select("updated_at").eq("id", 1).maybeSingle(),
+    ]);
 
-  return (
-    <HomePageClient
-      initialStories={initialStories}
-      initialAccountAuthenticated={Boolean(userId)}
-      initialFollowedInterests={initialFollowedInterests}
-      initialFollowedStoryIds={initialFollowedStoryIds}
-      initialNowMs={initialNowMs}
-    />
-  );
+    if (error) throw error;
+
+    const stories = ((data ?? []) as StoryDbRow[]).map(coerceStory);
+    const userId = await getAccountUserId();
+    let seenIds: string[] = [];
+    let isAdmin = false;
+    if (userId) {
+      const [nextSeenIds, accountProfile] = await Promise.all([
+        getSeenStoryIds(userId, stories),
+        getAccountProfileByUserId(userId),
+      ]);
+      seenIds = nextSeenIds;
+      isAdmin = Boolean(accountProfile?.isAdmin);
+    }
+
+    const seenStoryIds = new Set(seenIds);
+    const latestUpdatedAt =
+      metaError && /briefing_meta/i.test(metaError.message)
+        ? null
+        : ((metaData as BriefingMetaRow | null)?.updated_at ?? null);
+    const { lead, leftColumn, rightColumn } = buildBriefingLayout(stories);
+    const leadUsesAlertStyle = lead?.beacon_lead_style === "alert";
+    const leadSummaryPoints = lead ? displayLeadBriefingSummaryPoints(lead) : [];
+    const leadHasImage = lead ? shouldShowStoryImageOnBriefing(lead) : false;
+    const mobileRankedStories = [...leftColumn, ...rightColumn].sort((left, right) => {
+      const leftOrder = left.beacon_order ?? 999;
+      const rightOrder = right.beacon_order ?? 999;
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      return new Date(right.created_at ?? right.date).getTime() - new Date(left.created_at ?? left.date).getTime();
+    });
+    const latestArchive = (await listBriefingArchives(1).catch(() => []))[0] ?? null;
+    const breadcrumb = breadcrumbJsonLd([{ name: SITE_NAME, item: "/" }]);
+
+    return (
+      <>
+        <NewsSectionNav />
+        <main className="min-h-screen bg-transparent px-3 pb-3 pt-1 text-neutral-100 sm:px-5 sm:pb-7 sm:pt-3 lg:px-8 lg:pb-8 lg:pt-4">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        />
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-3 flex justify-center sm:mb-6">
+            <div className="flex flex-col items-center text-center">
+              <Link href="/" aria-label="Go to The Beacon home page">
+                <Image
+                  src="/psbeacon.png?v=20260707"
+                  alt={SITE_NAME}
+                  width={1920}
+                  height={1080}
+                  priority
+                  className="h-auto w-full max-w-[188px] sm:max-w-[420px] md:max-w-[520px]"
+                />
+              </Link>
+              <p className="mt-0.5 text-xs text-neutral-500 sm:mt-2 sm:text-base sm:text-neutral-400">One Story, Multiple Perspectives.</p>
+              <div className="mt-2 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80 sm:mt-6" />
+            </div>
+          </div>
+
+          <header className="mb-3 sm:mb-7">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                  <span className="text-neutral-600">Updated</span>
+                  <span className="ml-1 normal-case tracking-normal text-neutral-400">
+                    <LocalBriefingUpdated value={latestUpdatedAt} />
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                {isAdmin ? <ManualArchiveButton /> : null}
+              </div>
+            </div>
+          </header>
+
+          {!lead ? (
+            <div className="mt-8 rounded-2xl border border-[#183149]/65 bg-[#07131e] px-5 py-8 text-center shadow-[0_16px_36px_rgba(0,0,0,0.2)] sm:px-6 sm:py-10">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">The Briefing</div>
+              <h1 className="mt-3 text-2xl font-semibold text-neutral-100 sm:text-3xl">Nothing queued yet</h1>
+              <p className="mx-auto mt-3 max-w-xl text-base text-neutral-400">
+                The ranked briefing has not been assembled yet. Your feed may still have current stories.
+              </p>
+              <div className="mt-6 flex justify-center">
+                <FeedButton />
+              </div>
+            </div>
+          ) : (
+            <>
+              <Link
+                href={`/story/${lead.id}?from=home`}
+                className={`group relative block overflow-hidden rounded-[12px] border bg-[#07131e] p-3 shadow-[0_10px_22px_rgba(0,0,0,0.14)] transition-colors duration-200 sm:rounded-[14px] sm:p-6 sm:shadow-[0_16px_36px_rgba(0,0,0,0.18)] lg:p-8 ${
+                  leadUsesAlertStyle
+                    ? "border-red-500/55 hover:border-red-400 hover:bg-[#07111c]"
+                    : "border-[#183149]/70 hover:border-[#8f7740]/45 hover:bg-[#071622]"
+                }`}
+              >
+                <div className={`relative text-left sm:text-center ${seenStoryIds.has(lead.id) ? "opacity-90" : ""}`}>
+                  <div className="mb-2 flex items-center justify-between gap-3 sm:mb-0 sm:hidden">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#d7c08d]">Top Story</span>
+                  </div>
+                  <div
+                    className={`truncate font-semibold leading-tight transition-colors sm:overflow-visible sm:whitespace-normal md:text-6xl lg:leading-[0.95] ${
+                      leadUsesAlertStyle ? "text-2xl text-red-500 group-hover:text-red-400 sm:text-4xl" : "text-[1.65rem] text-neutral-100 group-hover:text-[#d7c08d] sm:text-[2.9rem]"
+                    }`}
+                  >
+                    {displayHeadline(lead)}
+                  </div>
+                  <StoryMetaRow align="mobile-start-center" seen={seenStoryIds.has(lead.id)} story={lead} />
+
+                  {leadSummaryPoints.length > 0 ? (
+                    <div
+                      className={`mx-auto max-w-4xl text-sm text-neutral-300 sm:text-lg ${
+                        leadHasImage
+                          ? "mt-3 space-y-2 leading-[1.45] sm:mt-5 sm:space-y-3 sm:leading-[1.5]"
+                          : "mt-4 space-y-3 leading-[1.5] sm:mt-6 sm:space-y-4 sm:leading-[1.55]"
+                      }`}
+                    >
+                      {leadSummaryPoints.map((point, index) => (
+                        <p key={`${lead.id}-summary-${index}`}>{point}</p>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                {leadHasImage ? <AdaptiveBriefingImage priority story={lead} variant="briefing-lead" /> : null}
+              </Link>
+
+              {mobileRankedStories.length > 0 ? (
+                <section className="mt-4 md:hidden">
+                  <BriefingList compactMobile stories={mobileRankedStories} seenStoryIds={seenStoryIds} />
+                </section>
+              ) : null}
+
+              {leftColumn.length > 0 || rightColumn.length > 0 ? (
+                <section className="mt-8 hidden grid-cols-1 gap-8 md:grid md:grid-cols-2 md:gap-10">
+                  <BriefingList stories={leftColumn} seenStoryIds={seenStoryIds} />
+                  <BriefingList stories={rightColumn} seenStoryIds={seenStoryIds} />
+                </section>
+              ) : null}
+            </>
+          )}
+
+          {latestArchive ? (
+            <div className="mt-10 flex justify-center border-t border-[#163754]/50 pt-6">
+              <Link
+                href="/briefing/archive"
+                className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-600 underline decoration-[#35556f]/45 underline-offset-4 transition hover:text-neutral-300 hover:decoration-[#8f7740]/65"
+              >
+                View archive
+              </Link>
+            </div>
+          ) : null}
+        </div>
+        </main>
+      </>
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    return (
+      <main className="min-h-screen bg-transparent px-3 py-5 text-neutral-100 sm:px-5 sm:py-7 lg:p-8">
+        <div className="mx-auto max-w-4xl rounded-2xl border border-[#183149]/65 bg-[#07131e] p-5 shadow-[0_24px_60px_rgba(0,0,0,0.3)] sm:p-8">
+          <div className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">The Briefing</div>
+          <h1 className="mt-3 text-3xl font-semibold text-neutral-100">Could not load stories</h1>
+          <p className="mt-3 text-neutral-400">{message}</p>
+          <div className="mt-6">
+            <FeedButton />
+          </div>
+        </div>
+      </main>
+    );
+  }
 }

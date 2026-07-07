@@ -90,6 +90,7 @@ export default function SiteUtilities() {
   const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
   const isAdminPage = pathname.startsWith("/admin");
+  const hasTopTabNav = pathname === "/" || pathname.startsWith("/feed") || pathname.startsWith("/section");
 
   useEffect(() => {
     if (isAdminPage) return;
@@ -158,32 +159,34 @@ export default function SiteUtilities() {
 
   return (
     <>
-      <div
-        className="pointer-events-none fixed right-5 top-5 z-40 hidden md:block md:p-0"
-        style={{ paddingTop: "max(env(safe-area-inset-top), 0.75rem)" }}
-      >
-        <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-[#13314b] bg-[#020b14]/92 p-1.5 shadow-[0_18px_45px_rgba(0,0,0,0.3)] backdrop-blur-sm">
-          <Link
-            href="/notifications"
-            aria-label="Notifications"
-            className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-transparent text-neutral-300 transition hover:border-[#163754] hover:bg-[#03101b] hover:text-white"
-          >
-            <BellIcon />
-            {unreadCount > 0 ? (
-              <span className="absolute right-1.5 top-1.5 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-semibold text-white">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            ) : null}
-          </Link>
-          <Link
-            href="/account"
-            aria-label="Account"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-transparent text-neutral-300 transition hover:border-[#163754] hover:bg-[#03101b] hover:text-white"
-          >
-            <AccountIcon />
-          </Link>
+      {!hasTopTabNav ? (
+        <div
+          className="pointer-events-none fixed right-5 top-5 z-40 hidden md:block md:p-0"
+          style={{ paddingTop: "max(env(safe-area-inset-top), 0.75rem)" }}
+        >
+          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-[#13314b] bg-[#020b14]/92 p-1.5 shadow-[0_18px_45px_rgba(0,0,0,0.3)] backdrop-blur-sm">
+            <Link
+              href="/notifications"
+              aria-label="Notifications"
+              className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-transparent text-neutral-300 transition hover:border-[#163754] hover:bg-[#03101b] hover:text-white"
+            >
+              <BellIcon />
+              {unreadCount > 0 ? (
+                <span className="absolute right-1.5 top-1.5 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-semibold text-white">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              ) : null}
+            </Link>
+            <Link
+              href="/account"
+              aria-label="Account"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-transparent text-neutral-300 transition hover:border-[#163754] hover:bg-[#03101b] hover:text-white"
+            >
+              <AccountIcon />
+            </Link>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <nav
         aria-label="Primary"

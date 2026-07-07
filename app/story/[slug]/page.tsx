@@ -269,7 +269,7 @@ export default async function StoryPage({
       name: SITE_NAME,
       logo: {
         "@type": "ImageObject",
-        url: absoluteUrl("/small logo.png"),
+        url: absoluteUrl("/psbeacon.png?v=20260707"),
       },
     },
   };
@@ -319,10 +319,10 @@ export default async function StoryPage({
           <div className="justify-self-center text-center">
             <Link href="/" aria-label="Go to The Beacon home page" className="inline-block">
               <Image
-                src="/small logo.png"
-                alt="Signal logo"
-                width={600}
-                height={140}
+                src="/psbeacon.png?v=20260707"
+                alt={SITE_NAME}
+                width={1920}
+                height={1080}
                 priority
                 className="h-auto w-[122px] sm:w-[156px] md:w-[184px]"
               />

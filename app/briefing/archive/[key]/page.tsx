@@ -21,7 +21,7 @@ export async function generateMetadata({
 
   if (!archive) {
     return {
-      title: "Briefing Archive",
+      title: "The Beacon Archive",
       robots: {
         index: false,
         follow: true,
@@ -93,7 +93,7 @@ export default async function BriefingArchiveDetailPage({
           <div className="flex flex-col items-center text-center">
             <Link href="/" aria-label="Go to The Beacon home page">
               <Image
-                src="/psbeacon.png"
+                src="/psbeacon.png?v=20260707"
                 alt={title}
                 width={1920}
                 height={1080}

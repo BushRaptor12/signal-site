@@ -15,10 +15,10 @@ export default function PageBrandHeader({ backHref }: PageBrandHeaderProps) {
       <div className="justify-self-center text-center">
         <Link href="/" aria-label="Go to The Beacon home page" className="inline-block">
           <Image
-            src="/small logo.png"
+            src="/psbeacon.png?v=20260707"
             alt="The Beacon"
-            width={600}
-            height={140}
+            width={1920}
+            height={1080}
             priority
             className="h-auto w-[122px] sm:w-[144px] md:w-[168px]"
           />

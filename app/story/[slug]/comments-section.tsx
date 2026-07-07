@@ -1300,7 +1300,7 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Community</div>
           <h3 className="mt-3 text-lg font-semibold text-neutral-100">No comments yet</h3>
           <p className="mt-2 text-sm leading-7 text-neutral-400">
-            Start the conversation with a source-backed note, question, or context readers should know.
+            Start the conversation with an opinion, question, or more context readers should know.
           </p>
         </div>
       ) : (

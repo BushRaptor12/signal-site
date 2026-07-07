@@ -1650,10 +1650,10 @@ export default function EditorPage() {
           <div className="justify-self-center text-center">
             <Link href="/" aria-label="Go to The Beacon home page" className="inline-block">
               <Image
-                src="/small logo.png"
-                alt="Signal logo"
-                width={600}
-                height={140}
+                src="/psbeacon.png?v=20260707"
+                alt="The Beacon"
+                width={1920}
+                height={1080}
                 priority
                 className="h-auto w-[122px] sm:w-[156px] md:w-[184px]"
               />

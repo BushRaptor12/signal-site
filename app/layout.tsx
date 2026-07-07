@@ -91,7 +91,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       url: siteUrl,
       logo: {
         "@type": "ImageObject",
-        url: new URL("/small logo.png", siteUrl).toString(),
+        url: new URL("/psbeacon.png?v=20260707", siteUrl).toString(),
       },
     },
   };

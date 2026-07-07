@@ -3,7 +3,7 @@ import type { StoryWithViews } from "@/app/lib/types";
 
 export const SITE_NAME = "The Beacon";
 export const SITE_DESCRIPTION = "Multi-source news with clear perspective, concise summaries, and source-by-source coverage.";
-export const DEFAULT_OG_IMAGE = "/psbeacon.png";
+export const DEFAULT_OG_IMAGE = "/psbeacon.png?v=20260707";
 
 function normalizeOrigin(value: string) {
   const trimmed = value.trim();

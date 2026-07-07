@@ -42,8 +42,8 @@ self.addEventListener("push", (event) => {
       await self.registration.showNotification(title, {
         body,
         data: { href },
-        badge: "/small logo.png",
-        icon: "/small logo.png",
+        badge: "/psbeacon.png?v=20260707",
+        icon: "/psbeacon.png?v=20260707",
         tag: notificationId,
       });
     })()
