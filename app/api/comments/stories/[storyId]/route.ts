@@ -16,8 +16,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const sort = parseCommentSort(request.nextUrl.searchParams.get("sort"));
+    const rawBefore = request.nextUrl.searchParams.get("before");
+    const beforeDate = rawBefore ? new Date(rawBefore) : null;
+    if (beforeDate && Number.isNaN(beforeDate.getTime())) {
+      return NextResponse.json({ error: "Invalid comment cutoff." }, { status: 400 });
+    }
     const userId = getAccountUserIdFromCookieHeader(request.headers.get("cookie"));
-    const [result, settings] = await Promise.all([listStoryComments(storyId, sort, userId), getCommunitySettings()]);
+    const [result, settings] = await Promise.all([listStoryComments(storyId, sort, userId, beforeDate?.toISOString()), getCommunitySettings()]);
     return NextResponse.json({ comments: result.comments, communitySettings: settings, sort, totalCount: result.totalCount });
   } catch (error) {
     return NextResponse.json({ error: errorMessage(error, "We couldn't load comments.") }, { status: 500 });

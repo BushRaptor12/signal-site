@@ -78,10 +78,14 @@ async function loadSectionStories(tab: string) {
     query = query.contains("topics", [tab]);
   }
 
-  const { data, error } = await query
-    .order("updated_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false, nullsFirst: false })
-    .limit(SECTION_STORY_LIMIT);
+  const orderedQuery = tab === "popular"
+    ? query
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+    : query
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .order("updated_at", { ascending: false, nullsFirst: false });
+  const { data, error } = await orderedQuery.limit(SECTION_STORY_LIMIT);
 
   if (error) {
     throw error;
@@ -133,6 +137,8 @@ export default async function SectionPage({ params }: SectionPageProps) {
 
   const stories = await loadSectionStories(normalizedTab);
   const label = newsSectionLabel(normalizedTab);
+  const isTopicSection = normalizedTab !== "popular" && normalizedTab !== "latest";
+  const referenceNowMs = Date.now();
 
   return (
     <>
@@ -166,7 +172,11 @@ export default async function SectionPage({ params }: SectionPageProps) {
               <p className="mx-auto mt-3 max-w-xl text-base text-neutral-400">Try another section or return to the briefing.</p>
             </section>
           ) : (
-            <SectionStories stories={stories} />
+            <SectionStories
+              stories={stories}
+              preferRecentLeadImage={isTopicSection}
+              referenceNowMs={referenceNowMs}
+            />
           )}
         </div>
       </main>

@@ -3,6 +3,7 @@ import { guessSourceLabel } from "@/app/lib/source-lean";
 
 export type SourceEditorRow = {
   badge: string;
+  paywalled: boolean;
   name: string;
   title: string;
   url: string;

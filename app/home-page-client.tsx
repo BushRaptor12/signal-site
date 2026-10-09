@@ -261,16 +261,12 @@ function shouldShowStoryImageOnHomepage(story: StoryWithViews) {
 }
 
 function TrackingStoriesStrip({
-  accountAuthenticated,
   activeTab,
   onNavigate,
-  showManageLink = false,
   stories,
 }: {
-  accountAuthenticated: boolean;
   activeTab: TabKey;
   onNavigate: () => void;
-  showManageLink?: boolean;
   stories: StoryWithViews[];
 }) {
   return (
@@ -299,18 +295,6 @@ function TrackingStoriesStrip({
         )}
       </div>
 
-      {showManageLink ? (
-        accountAuthenticated ? (
-          <Link
-            href="/account/interests"
-            className="inline-flex min-h-11 shrink-0 rounded-full border border-[#8f7740]/70 bg-[#07101a] px-5 py-2.5 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
-          >
-            Manage interests
-          </Link>
-        ) : (
-          <div className="w-[150px]" />
-        )
-      ) : null}
     </div>
   );
 }
@@ -1001,9 +985,13 @@ export default function HomePageClient({
   }, [activeTab, visible, visibleCount]);
 
   return (
-    <main className="min-h-screen bg-transparent px-3 py-5 text-neutral-100 sm:px-5 sm:py-7 lg:p-8">
+    <main className={`min-h-screen bg-transparent text-neutral-100 ${
+      activeTab === "following"
+        ? "px-3 pb-3 pt-1 sm:px-5 sm:pb-7 sm:pt-3 lg:px-8 lg:pb-8 lg:pt-4"
+        : "px-3 py-5 sm:px-5 sm:py-7 lg:p-8"
+    }`}>
       <h1 className="sr-only">The Beacon</h1>
-      <div className="mx-auto mb-5 max-w-5xl sm:mb-6">
+      <div className={`mx-auto ${activeTab === "following" ? "mb-3 max-w-6xl sm:mb-4" : "mb-5 max-w-5xl sm:mb-6"}`}>
         <div className="flex flex-col items-center text-center">
           <Link href="/" aria-label="Go to The Beacon home page">
             <Image
@@ -1012,21 +1000,39 @@ export default function HomePageClient({
               width={1920}
               height={1080}
               priority
-              className="h-auto w-full max-w-[300px] sm:max-w-[420px] md:max-w-[520px]"
+              className={`h-auto w-full ${activeTab === "following" ? "max-w-[188px] sm:max-w-[420px] md:max-w-[520px]" : "max-w-[300px] sm:max-w-[420px] md:max-w-[520px]"}`}
             />
           </Link>
-          <p className="mt-1.5 text-sm text-neutral-400 sm:mt-2 sm:text-base">One Story, Multiple Perspectives.</p>
+          <p className={activeTab === "following" ? "mt-0.5 text-xs text-neutral-500 sm:mt-2 sm:text-base sm:text-neutral-400" : "mt-1.5 text-sm text-neutral-400 sm:mt-2 sm:text-base"}>
+            One Story, Multiple Perspectives.
+          </p>
         </div>
-        <div className="mt-4 h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80 sm:mt-6" />
-        <div className="mt-4 flex justify-center sm:mt-5">
+        <div className={`h-px w-full bg-gradient-to-r from-transparent via-[#163754] to-transparent opacity-80 ${activeTab === "following" ? "mt-2 sm:mt-6" : "mt-4 sm:mt-6"}`} />
+        {activeTab !== "following" ? (
+          <>
+            <div className="mt-4 flex justify-center sm:mt-5">
+              <Link
+                href="/briefing"
+                className="inline-flex min-h-12 w-full justify-center rounded-2xl border border-[#8f7740]/50 bg-[#06131e] px-6 py-3.5 text-base font-semibold text-neutral-100 shadow-[0_12px_28px_rgba(0,0,0,0.18)] transition hover:border-[#b89a55]/75 hover:bg-[#07101a] hover:text-white sm:min-w-[260px] sm:w-auto sm:px-8 sm:py-4"
+              >
+                Read The Briefing
+              </Link>
+            </div>
+          </>
+        ) : null}
+      </div>
+
+      {activeTab === "following" ? (
+        <div className="mx-auto mb-3 flex max-w-6xl justify-end sm:mb-4">
           <Link
-            href="/briefing"
-            className="inline-flex min-h-12 w-full justify-center rounded-2xl border border-[#8f7740]/50 bg-[#06131e] px-6 py-3.5 text-base font-semibold text-neutral-100 shadow-[0_12px_28px_rgba(0,0,0,0.18)] transition hover:border-[#b89a55]/75 hover:bg-[#07101a] hover:text-white sm:min-w-[260px] sm:w-auto sm:px-8 sm:py-4"
+            href="/account/interests"
+            onClick={persistHomeState}
+            className="inline-flex min-h-9 items-center rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
           >
-            Read The Briefing
+            Manage interests
           </Link>
         </div>
-      </div>
+      ) : null}
 
       {searchOpen ? (
         <div
@@ -1169,7 +1175,7 @@ export default function HomePageClient({
         </div>
       ) : null}
 
-      <div className="mx-auto mb-5 max-w-5xl sm:mb-6">
+      {activeTab !== "following" ? <div className="mx-auto mb-5 max-w-5xl sm:mb-6">
         <div className="border-b border-[#163754]/70">
           <div className="flex items-center gap-3">
             <div className="-mx-3 flex min-w-0 flex-1 items-center gap-5 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:mx-0 sm:gap-6 sm:px-0 [&::-webkit-scrollbar]:hidden">
@@ -1209,20 +1215,11 @@ export default function HomePageClient({
             </button>
           </div>
         </div>
-      </div>
+      </div> : null}
 
-      <div className="mx-auto mb-7 max-w-5xl sm:mb-8">
-        {activeTab === "following" ? (
+      {activeTab !== "following" ? <div className="mx-auto mb-7 max-w-5xl sm:mb-8">
+        {activeTab === "popular" || activeTab === "recent" ? trackingStories.length > 0 ? (
           <TrackingStoriesStrip
-            accountAuthenticated={accountAuthenticated}
-            activeTab={activeTab}
-            onNavigate={persistHomeState}
-            showManageLink
-            stories={trackingStories}
-          />
-        ) : activeTab === "popular" || activeTab === "recent" ? trackingStories.length > 0 ? (
-          <TrackingStoriesStrip
-            accountAuthenticated={accountAuthenticated}
             activeTab={activeTab}
             onNavigate={persistHomeState}
             stories={trackingStories}
@@ -1262,7 +1259,7 @@ export default function HomePageClient({
             </div>
           </div>
         ) : null}
-      </div>
+      </div> : null}
 
       <div className="mx-auto max-w-5xl space-y-4 sm:space-y-6">
         {feedError ? (
@@ -1299,7 +1296,6 @@ export default function HomePageClient({
         ) : activeTab === "following" && followingStories.length === 0 ? (
           <EmptyStateCard
             actions={[
-              { href: "/account/interests", label: "Manage interests", primary: true },
               { label: "Browse recent", onClick: () => setActiveTabAndUrl("recent") },
             ]}
             description="Add a topic, person, team, company, or story you want to keep watching. Stories that match those signals will appear here."

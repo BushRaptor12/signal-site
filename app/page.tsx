@@ -88,10 +88,12 @@ function SeenPill({ className = "" }: { className?: string }) {
 
 function StoryMetaRow({
   align = "start",
+  compact = false,
   seen = false,
   story,
 }: {
-  align?: "center" | "mobile-start-center" | "start";
+  align?: "center" | "mobile-start-center" | "start" | "end";
+  compact?: boolean;
   seen?: boolean;
   story: StoryWithViews;
 }) {
@@ -100,11 +102,13 @@ function StoryMetaRow({
       ? "justify-center text-center"
       : align === "mobile-start-center"
         ? "justify-start text-left sm:justify-center sm:text-center"
-        : "justify-start";
+        : align === "end"
+          ? "justify-end text-right"
+          : "justify-start";
 
   return (
     <div
-      className={`mt-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-neutral-500 sm:mt-3 sm:text-[11px] sm:tracking-[0.16em] ${
+      className={`${compact ? "mt-1 sm:mt-1" : "mt-2 sm:mt-3"} flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-neutral-500 sm:text-[11px] sm:tracking-[0.16em] ${
         alignmentClass
       }`}
     >
@@ -154,19 +158,19 @@ function BriefingList({
                   <div className="truncate text-[1.08rem] font-semibold leading-snug text-neutral-100 transition-colors group-hover:text-[#d7c08d] sm:overflow-visible sm:whitespace-normal sm:text-[1.85rem] sm:leading-tight">
                     {displayHeadline(story)}
                   </div>
-                  <StoryMetaRow seen={seen} story={story} />
                 </div>
               </div>
               {displayBriefingSummary(story) ? (
                 <p
                   className={`text-sm text-neutral-300 sm:text-[15px] ${
-                    hasImage ? "mt-2 leading-[1.45] sm:mt-3 sm:leading-[1.5]" : "mt-3 leading-[1.5] sm:mt-4 sm:leading-[1.55]"
+                    hasImage ? "mt-1 leading-[1.45] sm:mt-2 sm:leading-[1.5]" : "mt-2 leading-[1.5] sm:mt-3 sm:leading-[1.55]"
                   }`}
                 >
                   {displayBriefingSummary(story)}
                 </p>
               ) : null}
               {hasImage ? <AdaptiveBriefingImage story={story} variant="briefing-card" /> : null}
+              <StoryMetaRow align="end" compact={!hasImage} seen={seen} story={story} />
             </div>
           </Link>
         );

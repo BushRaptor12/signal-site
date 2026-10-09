@@ -132,6 +132,7 @@ export function toSources(value: unknown): Source[] {
 
     sources.push({
       badge: toNullableString(row.badge),
+      paywalled: row.paywalled === true,
       name: String(row.name),
       url: String(row.url),
       lean: row.lean,

@@ -152,6 +152,7 @@ export async function POST(req: Request) {
     }
 
     const supabase = supabaseServer();
+    const revisionType = (incoming as Partial<StoryWithViews> & { revisionType?: string }).revisionType === "correction" ? "correction" : "update";
     const now = new Date();
     const nowIso = now.toISOString();
     const existingStorySelect =
@@ -477,7 +478,7 @@ export async function POST(req: Request) {
     }
 
     await recordStoryRevision({
-      action: "saved",
+      action: revisionType,
       actorUserId: admin.userId,
       snapshot: {
         ...savedStory,

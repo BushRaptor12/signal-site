@@ -27,6 +27,7 @@ type AutofillSuggestions = {
   selectedEntities: string[];
   topics: string[];
 };
+type SummaryDraft = { points: string[]; targetCount: number; targetWords: number; usedStyleExamples: number };
 type EditorNotice = { tone: "error" | "info" | "success"; text: string } | null;
 type PendingEditorAction = { action: () => void; description: string } | null;
 type DiscoverySourceImport = {
@@ -34,12 +35,14 @@ type DiscoverySourceImport = {
   storyTitle?: string;
 };
 type StoryRevision = {
-  action: "deleted" | "restored" | "saved";
+  action: "correction" | "deleted" | "restored" | "saved" | "update";
   createdAt: string;
   id: string;
   story: StoryWithViews;
   storyId: string;
 };
+type RevisionIntent = "update" | "correction";
+type HistoricalCorrection = { createdAt: string; revisionId: string };
 
 const DISCOVERY_SOURCE_IMPORT_KEY = "beacon:admin-discovery-sources";
 const STORY_STATUS_OPTIONS: Array<{ value: StoryStatus; label: string }> = [
@@ -63,7 +66,7 @@ function todayInputValue() {
 }
 
 function createSourceRow(): SourceEditorRow {
-  return { badge: "", name: "", title: "", url: "", lean: "Center", leanMode: "auto" };
+  return { badge: "", paywalled: false, name: "", title: "", url: "", lean: "Center", leanMode: "auto" };
 }
 
 function getAutoLean(name: string, url: string): Lean {
@@ -75,6 +78,7 @@ function toEditorSource(source: Story["sources"][number]): SourceEditorRow {
   return {
     ...source,
     badge: source.badge ?? "",
+    paywalled: source.paywalled === true,
     title: source.title ?? "",
     leanMode: detectedLean === source.lean ? "auto" : "manual",
   };
@@ -268,6 +272,8 @@ export default function EditorPage() {
   const [beaconHeadline, setBeaconHeadline] = useState("");
   const [beaconSummary, setBeaconSummary] = useState("");
   const [summary, setSummary] = useState<string[]>(blankSummary());
+  const [summaryDraft, setSummaryDraft] = useState<SummaryDraft | null>(null);
+  const [summaryDraftLoading, setSummaryDraftLoading] = useState(false);
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
   const [primaryEntities, setPrimaryEntities] = useState<string[]>([]);
@@ -303,12 +309,51 @@ export default function EditorPage() {
   const [revisions, setRevisions] = useState<StoryRevision[]>([]);
   const [loadingRevisions, setLoadingRevisions] = useState(false);
   const [busyRevisionId, setBusyRevisionId] = useState<string | null>(null);
+  const [revisionIntent, setRevisionIntent] = useState<RevisionIntent>("update");
+  const [historicalCorrection, setHistoricalCorrection] = useState<HistoricalCorrection | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState("");
   const [pendingBaselineSync, setPendingBaselineSync] = useState(true);
   const requestedStoryId = searchParams.get("story");
 
   const generatedId = title ? normalizeStoryIdInput(title) : "";
   const storyId = activeStoryId ?? normalizeStoryIdInput(slugInput || generatedId || "new-story");
+  const currentSaveLabel = historicalCorrection ? "Save correction to this date" : saveButtonLabel(status);
+
+  const revisionTimeline = useMemo(() => {
+    const byDay = new Map<string, StoryRevision>();
+    let priorSummary = "";
+    let priorSources = "";
+    for (const revision of [...revisions].reverse()) {
+      if (revision.action === "deleted") continue;
+      const dateParts = new Intl.DateTimeFormat("en-US", {
+        day: "2-digit",
+        month: "2-digit",
+        timeZone: "America/New_York",
+        year: "numeric",
+      }).formatToParts(new Date(revision.createdAt));
+      const value = (type: string) => dateParts.find((part) => part.type === type)?.value ?? "";
+      const day = `${value("year")}-${value("month")}-${value("day")}`;
+      const nextSummary = JSON.stringify(revision.story.summary);
+      const nextSources = JSON.stringify(revision.story.sources);
+      if (nextSummary !== priorSummary || nextSources !== priorSources) byDay.set(day, revision);
+      priorSummary = nextSummary;
+      priorSources = nextSources;
+    }
+    const datedEntries = [...byDay.entries()].map(([day, revision]) => ({ day, revision }));
+    const deletedEntries = revisions
+      .filter((revision) => revision.action === "deleted")
+      .map((revision) => {
+        const dateParts = new Intl.DateTimeFormat("en-US", {
+          day: "2-digit",
+          month: "2-digit",
+          timeZone: "America/New_York",
+          year: "numeric",
+        }).formatToParts(new Date(revision.createdAt));
+        const value = (type: string) => dateParts.find((part) => part.type === type)?.value ?? "";
+        return { day: `${value("year")}-${value("month")}-${value("day")}`, revision };
+      });
+    return [...datedEntries, ...deletedEntries].sort((left, right) => right.revision.createdAt.localeCompare(left.revision.createdAt));
+  }, [revisions]);
 
   const loadStories = useCallback(async () => {
     try {
@@ -367,6 +412,7 @@ export default function EditorPage() {
 
   function resetForm() {
     setActiveStoryId(null);
+    setHistoricalCorrection(null);
     setTitle("");
     setSlugInput("");
     setDate(todayInputValue());
@@ -390,6 +436,7 @@ export default function EditorPage() {
     setBeaconHeadline("");
     setBeaconSummary("");
     setSummary(blankSummary());
+    setSummaryDraft(null);
     setTopics([]);
     setSelectedEntities([]);
     setPrimaryEntities([]);
@@ -420,6 +467,7 @@ export default function EditorPage() {
 
   const loadStoryIntoForm = useCallback((story: StoryWithViews) => {
     setActiveStoryId(story.id);
+    setHistoricalCorrection(null);
     setTitle(story.title);
     setSlugInput(story.id);
     setDate(story.date);
@@ -443,6 +491,7 @@ export default function EditorPage() {
     setBeaconHeadline(story.beacon_headline ?? "");
     setBeaconSummary(story.beacon_summary ?? "");
     setSummary([...story.summary, "", "", ""].slice(0, Math.max(3, story.summary.length)));
+    setSummaryDraft(null);
     setTopics(story.topics);
     setSelectedEntities(story.entities.map((entity) => entity.name));
     setPrimaryEntities(story.primary_entities);
@@ -713,6 +762,16 @@ export default function EditorPage() {
     setSummary((prev) => {
       const next = [...prev];
       next[index] = value;
+      return next;
+    });
+  }
+
+  function moveSummaryPoint(index: number, direction: "up" | "down") {
+    setSummary((current) => {
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= current.length) return current;
+      const next = [...current];
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
       return next;
     });
   }
@@ -1125,6 +1184,34 @@ export default function EditorPage() {
     }
   }
 
+  async function draftStorySummary() {
+    const sourceRows = sources.filter((source) => source.url.trim());
+    if (!sourceRows.length) {
+      showNotice("Add at least one source link before drafting the summary.", "error");
+      return;
+    }
+
+    setSummaryDraftLoading(true);
+    setSummaryDraft(null);
+    try {
+      const response = await fetch("/api/admin/story-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storyId: activeStoryId, title, sources: sourceRows }),
+      });
+      const result = (await response.json().catch(() => ({}))) as SummaryDraft & { error?: string };
+      if (!response.ok || !Array.isArray(result.points)) {
+        throw new Error(result.error ?? "We couldn't draft summary points from these sources.");
+      }
+      setSummaryDraft(result);
+      showNotice(`Drafted ${result.points.length} points from the linked sources. Review them before applying.`, "success");
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "We couldn't draft a summary from these sources.", "error");
+    } finally {
+      setSummaryDraftLoading(false);
+    }
+  }
+
   function setSourceLeanMode(index: number, leanMode: "auto" | "manual") {
     setSources((prev) => {
       const next = [...prev];
@@ -1292,6 +1379,7 @@ export default function EditorPage() {
     const cleanedSources = sources
       .map((source) => ({
         badge: (source.badge ?? "").trim() || null,
+        paywalled: source.paywalled === true,
         name: source.name.trim(),
         title: source.title.trim() || null,
         url: source.url.trim(),
@@ -1372,12 +1460,32 @@ export default function EditorPage() {
       comments: 0,
     };
 
+    if (historicalCorrection) {
+      const response = await fetch("/api/admin/story-revisions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "correct", revisionId: historicalCorrection.revisionId, story }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        showNotice(`Historical correction failed: ${data.error ?? response.statusText}`, "error");
+        return;
+      }
+
+      await loadRevisions(story.id);
+      setHistoricalCorrection(null);
+      setRevisionIntent("update");
+      setPendingBaselineSync(true);
+      showNotice(`Corrected the historical version from ${formatUpdatedAt(historicalCorrection.createdAt)}. The latest story was not changed.`, "success");
+      return;
+    }
+
     const res = await fetch("/api/stories", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(story),
+      body: JSON.stringify({ ...story, revisionType: revisionIntent }),
     });
 
     const json = (await res.json().catch(() => ({}))) as { error?: string; story?: Story };
@@ -1407,6 +1515,7 @@ export default function EditorPage() {
     setRelatedInterestSignals(cleanedRelatedInterestSignals);
     setPendingDelete(false);
     setPendingBaselineSync(true);
+    setRevisionIntent("update");
     showNotice(`Saved ${story.status === "published" ? "published" : story.status} story: ${story.id}`, "success");
   }
 
@@ -1510,6 +1619,38 @@ export default function EditorPage() {
       setBusyRevisionId(null);
     }
   }
+
+  function editHistoricalRevision(revision: StoryRevision) {
+    requestEditorTransition(() => {
+      loadStoryIntoForm(revision.story);
+      setHistoricalCorrection({ createdAt: revision.createdAt, revisionId: revision.id });
+      setRevisionIntent("correction");
+      setNotice({
+        tone: "info",
+        text: `Editing the ${formatUpdatedAt(revision.createdAt)} version. Saving will correct that historical date without changing the latest story.`,
+      });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, `edit the version from ${formatUpdatedAt(revision.createdAt)}`);
+  }
+
+  function cancelHistoricalCorrection() {
+    if (!activeStoryId) return;
+    const storyToReload = activeStoryId;
+    requestEditorTransition(() => {
+      void (async () => {
+        const response = await fetch(`/api/stories/${encodeURIComponent(storyToReload)}`, { cache: "no-store" });
+        const data = (await response.json().catch(() => ({}))) as StoryWithViews | { error?: string };
+        if (!response.ok || !("id" in data)) {
+          showNotice(("error" in data && data.error) || "We couldn't reload the latest story.", "error");
+          return;
+        }
+        loadStoryIntoForm(data);
+        setRevisionIntent("update");
+        showNotice("Canceled the historical correction. Latest story loaded.", "info");
+      })();
+    }, "discard the historical correction and return to the latest story");
+  }
+
   return (
     <main className="min-h-screen bg-transparent px-3 pb-24 pt-5 text-neutral-100 sm:px-5 sm:py-7 lg:p-8">
       <div className="mx-auto max-w-6xl">
@@ -1990,15 +2131,73 @@ export default function EditorPage() {
                       : "space-y-3.5 text-[1.02rem] text-neutral-200 sm:text-[1.08rem]"
                   }
                 >
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Story summary</div>
+                    <button
+                      type="button"
+                      onClick={() => void draftStorySummary()}
+                      disabled={summaryDraftLoading}
+                      className="rounded-full border border-[#8f7740]/60 px-3 py-1.5 text-[11px] font-semibold text-[#e3cca0] transition hover:bg-[#8f7740]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {summaryDraftLoading ? "Drafting from sources…" : "Draft summary from sources"}
+                    </button>
+                  </div>
+                  {summaryDraft ? (
+                    <div className="mb-4 rounded-xl border border-[#8f7740]/45 bg-[#101a20] p-4">
+                      <div className="text-xs leading-5 text-neutral-400">
+                        Source based draft{summaryDraft.usedStyleExamples > 0 ? ` · shaped by ${summaryDraft.usedStyleExamples} prior summary points` : ""}. Check every point against the linked articles before applying.
+                      </div>
+                      <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-neutral-200">
+                        {summaryDraft.points.map((point, index) => <li key={`${index}-${point}`}>{point}</li>)}
+                      </ol>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSummary([...summaryDraft.points, ...Array(Math.max(0, 3 - summaryDraft.points.length)).fill("")]);
+                            setSummaryDraft(null);
+                            showNotice("Summary draft added to the editor. Review and save your changes.", "success");
+                          }}
+                          className="rounded-full bg-[#d7c08d] px-3 py-1.5 text-[11px] font-semibold text-[#101820] transition hover:bg-[#ead7a8]"
+                        >
+                          Use this draft
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSummaryDraft(null)}
+                          className="rounded-full border border-[#28445d] px-3 py-1.5 text-[11px] font-semibold text-neutral-400 transition hover:text-neutral-100"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                   {summary.map((point, index) => (
-                    <textarea
-                      key={index}
-                      value={point}
-                      onChange={(event) => updateSummary(index, event.target.value)}
-                      rows={2}
-                      className="block w-full resize-y rounded-xl border border-transparent bg-transparent px-0 py-1 leading-7 text-neutral-200 outline-none transition placeholder:text-neutral-600 focus:border-[#28445d] focus:bg-[#06131e] focus:px-4 sm:leading-8"
-                      placeholder={`Click to add summary point ${index + 1}...`}
-                    />
+                    <div key={index} className="flex items-start gap-2">
+                      <textarea
+                        value={point}
+                        onChange={(event) => updateSummary(index, event.target.value)}
+                        rows={2}
+                        className="block min-w-0 flex-1 resize-y rounded-xl border border-transparent bg-transparent px-0 py-1 leading-7 text-neutral-200 outline-none transition placeholder:text-neutral-600 focus:border-[#28445d] focus:bg-[#06131e] focus:px-4 sm:leading-8"
+                        placeholder={`Click to add summary point ${index + 1}...`}
+                      />
+                      <div className="flex shrink-0 flex-col gap-1 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => moveSummaryPoint(index, "up")}
+                          disabled={index === 0}
+                          aria-label={`Move summary point ${index + 1} up`}
+                          className="rounded-md border border-[#28445d] px-2 py-1 text-[10px] font-semibold uppercase text-neutral-400 hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-30"
+                        >↑</button>
+                        <button
+                          type="button"
+                          onClick={() => moveSummaryPoint(index, "down")}
+                          disabled={index === summary.length - 1}
+                          aria-label={`Move summary point ${index + 1} down`}
+                          className="rounded-md border border-[#28445d] px-2 py-1 text-[10px] font-semibold uppercase text-neutral-400 hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-30"
+                        >↓</button>
+                      </div>
+                    </div>
                   ))}
                   <button
                     type="button"
@@ -2093,10 +2292,20 @@ export default function EditorPage() {
                         }`}
                       >
                       <div className="mb-3 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.16em] text-neutral-500">
-                        <span>Source {index + 1}</span>
-                        <span className="cursor-grab select-none rounded-full border border-[#28445d] px-3 py-1 text-neutral-400 active:cursor-grabbing">
-                          Drag
-                        </span>
+                        <div className="flex items-center gap-4">
+                          <span>Source {index + 1}</span>
+                          <label className="inline-flex cursor-pointer items-center gap-2 normal-case tracking-normal text-neutral-300">
+                            <input
+                              type="checkbox"
+                              checked={source.paywalled}
+                              onChange={(event) => updateSource(index, { paywalled: event.target.checked })}
+                              className="h-4 w-4 accent-[#d7c08d]"
+                              aria-label={`Mark ${source.name || `source ${index + 1}`} as paywalled`}
+                            />
+                            Paywall
+                          </label>
+                        </div>
+                        <span className="cursor-grab select-none rounded-full border border-[#28445d] px-3 py-1 text-neutral-400 active:cursor-grabbing">Drag</span>
                       </div>
                       <input
                         value={source.name}
@@ -2205,13 +2414,38 @@ export default function EditorPage() {
                 </button>
               </section>
 
-              <div className="mt-8 flex flex-col gap-3 border-t border-[#1a3349]/70 pt-5 sm:flex-row">
+              <div className="mt-8 border-t border-[#1a3349]/70 pt-5">
+                {historicalCorrection ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/25 bg-amber-300/[0.05] px-4 py-3 text-sm text-amber-100/90">
+                    <span>Correcting the version from {formatUpdatedAt(historicalCorrection.createdAt)}. The latest story will stay unchanged.</span>
+                    <button type="button" onClick={cancelHistoricalCorrection} className="text-xs font-semibold text-neutral-300 underline decoration-neutral-600 underline-offset-4 hover:text-white">
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400" htmlFor="revision-intent">
+                  This save is a
+                </label>
+                <select
+                  id="revision-intent"
+                  value={revisionIntent}
+                  onChange={(event) => setRevisionIntent(event.target.value as RevisionIntent)}
+                  className="mt-2 w-full rounded-xl border border-[#28445d] bg-[#07131e] px-4 py-3 text-sm text-neutral-100 outline-none focus:border-[#8f7740]/70"
+                >
+                  <option value="update">Developing update — new information about the story</option>
+                  <option value="correction">Correction — fixes information already published</option>
+                </select>
+                  </>
+                )}
+              </div>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => void onSave()}
                   className="flex-1 rounded-xl bg-neutral-100 py-3 font-semibold text-neutral-900 transition hover:bg-white"
                 >
-                  {saveButtonLabel(status)}
+                  {currentSaveLabel}
                 </button>
                 <Link
                   href={`/story/${storyId}`}
@@ -3117,13 +3351,28 @@ export default function EditorPage() {
             <div className="text-sm font-semibold text-neutral-300 mb-3 uppercase">Summary</div>
             <div className="space-y-3">
               {summary.map((line, index) => (
-                <input
-                  key={index}
-                  value={line}
-                  onChange={(e) => updateSummary(index, e.target.value)}
-                  className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg"
-                  placeholder={`Summary line ${index + 1}`}
-                />
+                <div key={index} className="flex items-center gap-2">
+                  <input
+                    value={line}
+                    onChange={(e) => updateSummary(index, e.target.value)}
+                    className="min-w-0 flex-1 px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg"
+                    placeholder={`Summary line ${index + 1}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => moveSummaryPoint(index, "up")}
+                    disabled={index === 0}
+                    aria-label={`Move summary line ${index + 1} up`}
+                    className="rounded-md border border-neutral-700 px-2.5 py-2 text-sm text-neutral-300 hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-30"
+                  >↑</button>
+                  <button
+                    type="button"
+                    onClick={() => moveSummaryPoint(index, "down")}
+                    disabled={index === summary.length - 1}
+                    aria-label={`Move summary line ${index + 1} down`}
+                    className="rounded-md border border-neutral-700 px-2.5 py-2 text-sm text-neutral-300 hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-30"
+                  >↓</button>
+                </div>
               ))}
             </div>
           </div>
@@ -3150,15 +3399,15 @@ export default function EditorPage() {
 
               <EditorSection
                 id="editor-revisions"
-                title="Revision History"
-                description="Restore an earlier saved version if you need to roll something back."
+                title="Story Timeline and Revision History"
+                description="Open a historical version to correct that date in the public timeline, or restore it as the current story."
               >
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <div className="text-sm font-semibold text-neutral-300 uppercase">Revision History</div>
+                <div className="text-sm font-semibold text-neutral-300 uppercase">Story Timeline</div>
                 <p className="mt-2 text-sm text-neutral-500">
-                  Every save and delete writes a snapshot. Restore a previous version directly into the editor when you need to back out a change.
+                  Select a date to edit its saved summary and sources. Saving a historical correction changes that date only; restoring makes that version current.
                 </p>
               </div>
               <div className="text-xs uppercase tracking-[0.18em] text-neutral-500">
@@ -3174,22 +3423,38 @@ export default function EditorPage() {
               ) : revisions.length === 0 ? (
                 <div className="text-sm text-neutral-500">No revisions yet.</div>
               ) : (
-                revisions.map((revision) => (
-                  <div key={revision.id} className={`flex flex-wrap items-center justify-between gap-4 ${ADMIN_INSET} p-4`}>
-                    <div>
-                      <div className="text-sm text-neutral-100">{revision.story.title}</div>
-                      <div className="mt-1 text-xs uppercase tracking-[0.16em] text-neutral-500">
-                        {revision.action} • {formatUpdatedAt(revision.createdAt)}
+                revisionTimeline.map(({ day, revision }) => (
+                  <div key={`${day}-${revision.id}`} className={`flex flex-wrap items-center justify-between gap-4 ${ADMIN_INSET} p-4`}>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-sm font-semibold text-neutral-100">{formatUpdatedAt(revision.createdAt)}</div>
+                        <span className="rounded-full border border-neutral-700 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-400">
+                          {revision.action}
+                        </span>
+                        {historicalCorrection?.revisionId === revision.id ? <span className="text-xs font-semibold text-amber-200">Editing this date</span> : null}
                       </div>
+                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-neutral-400">{revision.story.summary[0] ?? revision.story.title}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => void restoreRevision(revision.id)}
-                      disabled={busyRevisionId === revision.id}
-                      className="rounded-full border border-[#8f7740]/60 px-4 py-2 text-xs font-semibold text-[#e3cca0] transition hover:bg-[#8f7740]/10 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {busyRevisionId === revision.id ? "Restoring..." : "Restore"}
-                    </button>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      {revision.action !== "deleted" ? (
+                        <button
+                          type="button"
+                          onClick={() => editHistoricalRevision(revision)}
+                          disabled={busyRevisionId === revision.id}
+                          className="rounded-full border border-blue-300/30 px-3.5 py-2 text-xs font-semibold text-blue-100 transition hover:bg-blue-300/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Correct this date
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => void restoreRevision(revision.id)}
+                        disabled={busyRevisionId === revision.id}
+                        className="rounded-full border border-[#8f7740]/60 px-3.5 py-2 text-xs font-semibold text-[#e3cca0] transition hover:bg-[#8f7740]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {busyRevisionId === revision.id ? "Restoring..." : "Restore"}
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -3198,9 +3463,30 @@ export default function EditorPage() {
               </EditorSection>
 
               <div id="editor-publish-mobile" className={`${ADMIN_PANEL} scroll-mt-24 p-5`}>
+                {historicalCorrection ? (
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/25 bg-amber-300/[0.05] px-4 py-3 text-sm text-amber-100/90">
+                    <span>Correcting the version from {formatUpdatedAt(historicalCorrection.createdAt)}. Latest story stays unchanged.</span>
+                    <button type="button" onClick={cancelHistoricalCorrection} className="text-xs font-semibold text-neutral-300 underline decoration-neutral-600 underline-offset-4 hover:text-white">
+                      Cancel
+                    </button>
+                  </div>
+                ) : <>
+                <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400" htmlFor="revision-intent-mobile">
+                  This save is a
+                </label>
+                <select
+                  id="revision-intent-mobile"
+                  value={revisionIntent}
+                  onChange={(event) => setRevisionIntent(event.target.value as RevisionIntent)}
+                  className="mt-2 mb-3 w-full rounded-xl border border-[#28445d] bg-[#07131e] px-4 py-3 text-sm text-neutral-100 outline-none focus:border-[#8f7740]/70"
+                >
+                  <option value="update">Developing update — new information about the story</option>
+                  <option value="correction">Correction — fixes information already published</option>
+                </select>
+                </>}
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <button onClick={() => void onSave()} className="flex-1 rounded-xl bg-neutral-100 py-3 font-semibold text-neutral-900">
-                    {saveButtonLabel(status)}
+                    {currentSaveLabel}
                   </button>
 
                   {pendingDelete ? (
@@ -3254,7 +3540,7 @@ export default function EditorPage() {
                   onClick={() => void onSave()}
                   className="w-full rounded-xl bg-neutral-100 px-4 py-3 font-semibold text-neutral-900 transition hover:bg-white"
                 >
-                  {saveButtonLabel(status)}
+                    {currentSaveLabel}
                 </button>
                 <div>
                   <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">Story slug</div>
@@ -3618,7 +3904,7 @@ export default function EditorPage() {
             onClick={() => void onSave()}
             className="min-h-11 flex-1 rounded-xl bg-neutral-100 px-4 py-3 text-sm font-semibold text-neutral-900"
           >
-            {saveButtonLabel(status)}
+            {currentSaveLabel}
           </button>
         </div>
       </div>

@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { imageObjectPosition } from "@/app/lib/image-focus";
 import type { StoryWithViews } from "@/app/lib/types";
 
 const STORY_BATCH_SIZE = 10;
 const INITIAL_LAYOUT_STORY_POOL = 20;
+const RECENT_LEAD_IMAGE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const LEAD_IMAGE_MAX_LAG_MS = 48 * 60 * 60 * 1000;
+const SIDE_RAIL_TARGET_HEIGHT_PX = 49 * 16;
+const LEAD_COLUMN_CARD_ESTIMATE_PX = 190;
 const SIDE_RAIL_UNITS = 6;
 const SIDE_IMAGE_UNITS = 2;
 const SIDE_RAIL_TALL_IMAGE_MAX_RATIO = 0.95;
@@ -25,6 +29,13 @@ type SideRailResult = {
 
 function hasHomepageImage(story: StoryWithViews) {
   return Boolean(story.image_url) && story.image_show_on_homepage !== false;
+}
+
+function publishedAtMs(story: StoryWithViews) {
+  const created = new Date(story.created_at ?? "").getTime();
+  if (Number.isFinite(created) && created > 0) return created;
+  const dateOnly = new Date(story.date ?? "").getTime();
+  return Number.isFinite(dateOnly) ? dateOnly : 0;
 }
 
 function storyDateLabel(story: StoryWithViews) {
@@ -104,18 +115,30 @@ function StoryImage({
   );
 }
 
-function LeadStory({ story }: { story: StoryWithViews }) {
+function LeadStory({
+  fillHeight = false,
+  story,
+  registerNode,
+}: {
+  story: StoryWithViews;
+  registerNode: (node: HTMLAnchorElement | null) => void;
+  fillHeight?: boolean;
+}) {
   const date = storyDateLabel(story);
+  const hasImage = hasHomepageImage(story);
+  const summaryPoints = story.summary.filter(Boolean).slice(0, hasImage ? 1 : 3);
 
   return (
-    <Link href={`/story/${story.id}?from=section`} className="group flex self-start flex-col rounded-[14px] border border-[#183149]/70 bg-[#07131e] p-4 shadow-[0_16px_36px_rgba(0,0,0,0.18)] transition hover:border-[#8f7740]/45 hover:bg-[#071622] sm:p-6 lg:h-full">
+    <Link ref={registerNode} href={`/story/${story.id}?from=section`} className={`group flex w-full self-start flex-col rounded-[14px] border border-[#183149]/70 bg-[#07131e] p-4 shadow-[0_16px_36px_rgba(0,0,0,0.18)] transition hover:border-[#8f7740]/45 hover:bg-[#071622] sm:p-6 ${fillHeight ? "lg:h-full" : ""}`}>
       <div>
         <StoryImage priority story={story} />
-        <h1 className={hasHomepageImage(story) ? "mt-5 text-3xl font-semibold leading-tight text-neutral-100 transition group-hover:text-[#d7c08d] sm:text-4xl" : "text-3xl font-semibold leading-tight text-neutral-100 transition group-hover:text-[#d7c08d] sm:text-4xl"}>
+        <h1 className={hasImage ? "mt-5 text-3xl font-semibold leading-tight text-neutral-100 transition group-hover:text-[#d7c08d] sm:text-4xl" : "text-3xl font-semibold leading-tight text-neutral-100 transition group-hover:text-[#d7c08d] sm:text-4xl"}>
           {story.title}
         </h1>
-        {story.summary[0] ? (
-          <p className="mt-4 text-base leading-[1.55] text-neutral-300 sm:text-lg">{story.summary[0]}</p>
+        {summaryPoints.length > 0 ? (
+          <div className="mt-4 space-y-3 text-base leading-[1.55] text-neutral-300 sm:text-lg">
+            {summaryPoints.map((point, index) => <p key={`${story.id}-lead-summary-${index}`}>{point}</p>)}
+          </div>
         ) : null}
       </div>
       {date ? <div className="mt-auto pt-5 text-xs font-medium text-neutral-500">{date}</div> : null}
@@ -324,11 +347,11 @@ function SecondaryStoryItem({ story }: { story: StoryWithViews }) {
   );
 }
 
-function SecondaryStoryList({ stories }: { stories: StoryWithViews[] }) {
+function SecondaryStoryList({ stories, singleColumn = false }: { stories: StoryWithViews[]; singleColumn?: boolean }) {
   if (stories.length === 0) return null;
 
   return (
-    <section className="grid gap-3 md:grid-cols-2">
+    <section className={`grid gap-3 ${singleColumn ? "" : "md:grid-cols-2"}`}>
       {stories.map((story) => (
         <SecondaryStoryItem key={story.id} story={story} />
       ))}
@@ -357,14 +380,61 @@ function TextStoryGroup({ stories }: { stories: StoryWithViews[] }) {
   );
 }
 
-export default function SectionStories({ stories }: { stories: StoryWithViews[] }) {
+export default function SectionStories({
+  stories,
+  preferRecentLeadImage = false,
+  referenceNowMs,
+}: {
+  stories: StoryWithViews[];
+  preferRecentLeadImage?: boolean;
+  referenceNowMs: number;
+}) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_LAYOUT_STORY_POOL);
+  const [leadHeight, setLeadHeight] = useState(0);
+  const leadNodeRef = useRef<HTMLAnchorElement | null>(null);
   const layoutStories = useMemo(() => stories.slice(0, visibleCount), [stories, visibleCount]);
-  const visualLead = layoutStories.find(hasHomepageImage) ?? layoutStories[0] ?? null;
+  const newestStory = layoutStories[0] ?? null;
+  const leadImageCutoff = Math.max(
+    referenceNowMs - RECENT_LEAD_IMAGE_WINDOW_MS,
+    (newestStory ? publishedAtMs(newestStory) : 0) - LEAD_IMAGE_MAX_LAG_MS
+  );
+  const visualLead = preferRecentLeadImage
+    ? layoutStories.find(
+        (story) => hasHomepageImage(story) && publishedAtMs(story) >= leadImageCutoff
+      ) ?? layoutStories[0] ?? null
+    : layoutStories.find(hasHomepageImage) ?? layoutStories[0] ?? null;
+  const registerLeadNode = useCallback((node: HTMLAnchorElement | null) => {
+    leadNodeRef.current = node;
+  }, []);
+  useEffect(() => {
+    const node = leadNodeRef.current;
+    if (!node) {
+      setLeadHeight(0);
+      return;
+    }
+
+    const measure = () => setLeadHeight(Math.ceil(node.getBoundingClientRect().height));
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [visualLead?.id, visibleCount]);
+
   const rest = layoutStories.filter((story) => story.id !== visualLead?.id);
-  const textStories = rest.filter((story) => !hasHomepageImage(story));
-  const imageStories = rest.filter(hasHomepageImage);
+  const leadColumnCount = !preferRecentLeadImage
+    ? 0
+    : leadHeight > 0
+      ? Math.min(4, Math.max(0, Math.ceil((SIDE_RAIL_TARGET_HEIGHT_PX - leadHeight - 12) / LEAD_COLUMN_CARD_ESTIMATE_PX)))
+      : Math.min(4, rest.length);
+  const leadColumnStories = rest.slice(0, leadColumnCount);
+  const leadColumnStoryIds = new Set(leadColumnStories.map((story) => story.id));
+  const railStories = rest.filter((story) => !leadColumnStoryIds.has(story.id));
+  const textStories = railStories.filter((story) => !hasHomepageImage(story));
+  const imageStories = railStories.filter(hasHomepageImage);
   const sideRail = buildSideRailItems(textStories, imageStories);
+  const hasSideRail = sideRail.items.length > 0;
   const remainingImageStories = imageStories.slice(sideRail.usedImageCount);
   const remainingTextCandidates = textStories.slice(sideRail.usedTextCount);
   const belowGrid = buildBelowGridStories(remainingImageStories, remainingTextCandidates);
@@ -375,8 +445,15 @@ export default function SectionStories({ stories }: { stories: StoryWithViews[] 
 
   return (
       <div className="grid gap-6">
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.85fr)]">
-          <LeadStory story={visualLead} />
+        <div className={`grid items-start gap-6 ${hasSideRail ? "lg:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.85fr)]" : ""}`}>
+          {leadColumnStories.length > 0 ? (
+            <div className="grid content-start gap-3">
+              <LeadStory fillHeight={false} registerNode={registerLeadNode} story={visualLead} />
+              <SecondaryStoryList singleColumn stories={leadColumnStories} />
+            </div>
+          ) : (
+            <LeadStory fillHeight={!preferRecentLeadImage} registerNode={registerLeadNode} story={visualLead} />
+          )}
           <SideRail items={sideRail.items} />
         </div>
 

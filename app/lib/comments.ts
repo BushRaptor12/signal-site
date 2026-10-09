@@ -599,15 +599,17 @@ export function normalizeCommentBody(body: string) {
   return sanitized;
 }
 
-export async function listStoryComments(storyId: string, sort: CommentSort, viewerUserId?: string | null): Promise<StoryCommentsResult> {
+export async function listStoryComments(storyId: string, sort: CommentSort, viewerUserId?: string | null, before?: string | null): Promise<StoryCommentsResult> {
   await ensureStoryExists(storyId);
 
   const supabase = supabaseServer();
-  const { data: commentData, error: commentError } = await supabase
+  let query = supabase
     .from("user_comments")
     .select("id, user_id, story_id, body, parent_comment_id, root_comment_id, depth, created_at, updated_at, deleted_at, deleted_by")
     .eq("story_id", storyId)
     .order("created_at", { ascending: true });
+  if (before) query = query.lte("created_at", before);
+  const { data: commentData, error: commentError } = await query;
 
   if (commentError) {
     throw new Error(messageFromDatabaseError(commentError, "We couldn't load comments."));

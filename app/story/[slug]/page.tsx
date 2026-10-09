@@ -6,36 +6,23 @@ import FollowInterestButton from "@/app/follow-interest-button";
 import { FunnelView, TrackedLink } from "@/app/funnel-analytics";
 import InstallAppPrompt from "@/app/install-app-prompt";
 import { getAccountProfile, getAccountStoryState, getFollowedInterests, getSeenStoryIds } from "@/app/lib/account.server";
-import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
+import { formatStoryDate } from "@/app/lib/dates";
 import { imageObjectPosition } from "@/app/lib/image-focus";
 import { SITE_NAME, absoluteUrl, breadcrumbJsonLd, buildStoryMetadata, storyDescription, storyKeywords, storyModifiedTime, storyPublishedTime } from "@/app/lib/seo";
 import { PUBLIC_INSET_ELEVATED, PUBLIC_PAGE } from "@/app/lib/surfaces";
 import { supabaseServer } from "@/app/lib/supabase.server";
-import { isPaywalledSource } from "@/app/lib/source-access";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
 import { normalize, toTitleCase } from "@/app/lib/vocab";
 import ViewTracker from "./view-tracker";
 import ReactionBar from "./reaction-bar";
-import SourceTitle from "./source-title";
-import StoryImageSummaryLayout from "./story-image-summary-layout";
+import StorySources from "./story-sources";
+import StoryHistoryTimeline from "./story-history-timeline";
 import ShareButton from "@/app/share-button";
 import StoryReaderActions from "./story-reader-actions";
 import CommentsSection from "./comments-section";
 import StoryEngagementSummary from "./story-engagement-summary";
-
-function leanBadgeClasses(lean: "Left" | "Center" | "Right") {
-  switch (lean) {
-    case "Left":
-      return "border-blue-400/20 bg-blue-400/[0.06] text-blue-200/80";
-    case "Center":
-      return "border-neutral-600/45 bg-neutral-500/[0.06] text-neutral-400";
-    case "Right":
-      return "border-red-400/20 bg-red-400/[0.06] text-red-200/80";
-    default:
-      return "border-neutral-600/45 bg-neutral-500/[0.06] text-neutral-400";
-  }
-}
+import { listPublicStoryTimeline } from "@/app/lib/story-revisions";
 
 function storyHref(id: string, from?: string) {
   return from ? `/story/${id}?from=${encodeURIComponent(from)}` : `/story/${id}`;
@@ -63,18 +50,6 @@ function SeenBadge() {
         <circle cx="12" cy="12" r="3.25" />
       </svg>
       <span>Seen</span>
-    </span>
-  );
-}
-
-function PaywallBadge() {
-  return (
-    <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#d7c08d]">
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3 w-3 fill-none stroke-current stroke-[2]">
-        <rect x="5" y="10" width="14" height="10" rx="2" />
-        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-      </svg>
-      <span>PayWall</span>
     </span>
   );
 }
@@ -195,12 +170,14 @@ export default async function StoryPage({
   let relatedStories: StoryWithViews[] = [];
   let otherRecentStories: StoryWithViews[] = [];
   let seenStoryIds = new Set<string>();
+  let storyTimeline: Awaited<ReturnType<typeof listPublicStoryTimeline>> = [];
   const accountProfile = await getAccountProfile();
   const isAdmin = Boolean(accountProfile?.isAdmin);
 
   try {
     story = await loadStory(slug, isAdmin);
     if (story) {
+      storyTimeline = await listPublicStoryTimeline(story.id).catch(() => []);
       relatedStories = (await loadManualRelatedStories(story, isAdmin)).slice(0, 5);
       const recentCandidates = await loadRecentStories(
         story,
@@ -385,10 +362,12 @@ export default async function StoryPage({
               </h1>
             </header>
 
-            <StoryImageSummaryLayout
+            <StoryHistoryTimeline
               image={storyImage}
-              summary={story.summary}
-              updatedAtLabel={updatedAt ? formatUpdatedAt(updatedAt) : null}
+              latestSummary={story.summary}
+              latestUpdatedAt={updatedAt}
+              revisions={storyTimeline}
+              storyTitle={story.title}
             />
 
             <section className="mt-6 rounded-[14px] border border-[#28445d]/70 bg-[#07131e] p-4 md:hidden">
@@ -417,55 +396,7 @@ export default async function StoryPage({
               </div>
             </section>
 
-            <section className="mt-8 border-t border-[#1a3349]/60 pt-5">
-              <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Sources</div>
-              <div className="space-y-3">
-                {story.sources.map((src, i) => (
-                  <a
-                    key={i}
-                    href={src.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group block rounded-[14px] border border-[#214765]/70 bg-[#0a1926] p-4 transition hover:-translate-y-0.5 hover:border-[#30516d] hover:bg-[#0c1d2b] sm:p-5"
-                  >
-                    <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <div className="min-w-0 text-[1.08rem] font-semibold text-neutral-50">{src.name}</div>
-                          {isPaywalledSource(src.name, src.url) ? <PaywallBadge /> : null}
-                          {src.badge ? (
-                            <span className="shrink-0 rounded-full border border-[#8f7740]/55 bg-[#8f7740]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e3cca0]">
-                              {src.badge}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="mt-3">
-                          {src.title ? (
-                            <SourceTitle
-                              title={src.title}
-                              className="block text-[15px] leading-6 text-neutral-300 transition group-hover:text-neutral-100"
-                            />
-                          ) : (
-                            <div className="text-[15px] leading-6 text-neutral-400 transition group-hover:text-neutral-300">
-                              Open source
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 flex-row items-center gap-3 text-center sm:flex-col sm:items-end sm:gap-2">
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] ${leanBadgeClasses(src.lean)}`}>
-                          {src.lean}
-                        </span>
-                        <div className="inline-flex min-h-8 items-center text-[13px] font-semibold text-neutral-400 transition group-hover:text-white">
-                          Read
-                          <span className="ml-1.5" aria-hidden="true">-&gt;</span>
-                        </div>
-                      </div>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </section>
+            <StorySources latestSources={story.sources} />
 
             {(story.topics[0] || story.primary_entities[0]) ? (
               <div className="mt-8 flex flex-wrap items-center gap-2 border-t border-[#1a3349]/60 pt-4">

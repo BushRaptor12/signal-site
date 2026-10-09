@@ -66,6 +66,7 @@ type CommentCardProps = {
   editDraft: string;
   expandedReplyIds: Record<string, boolean>;
   isAdmin: boolean;
+  historical: boolean;
   onDelete: (comment: StoryComment, mode: "purge" | "soft") => Promise<void>;
   onEditCancel: () => void;
   onEditDraftChange: (value: string) => void;
@@ -339,6 +340,7 @@ function CommentCard({
   editingCommentId,
   editDraft,
   expandedReplyIds,
+  historical,
   isAdmin,
   onDelete,
   onEditCancel,
@@ -413,7 +415,7 @@ function CommentCard({
             </div>
           </div>
 
-          {!comment.deleted && !collapsed ? (
+          {!historical && !comment.deleted && !collapsed ? (
             <div className="flex items-start gap-4">
               <button
                 type="button"
@@ -484,7 +486,7 @@ function CommentCard({
           </div>
         )}
 
-        {!comment.deleted && !collapsed ? (
+        {!historical && !comment.deleted && !collapsed ? (
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {comment.canEdit && !communitySettings.commentsReadOnly ? (
               <button
@@ -555,6 +557,14 @@ function CommentCard({
           </div>
         ) : null}
 
+        {historical && !comment.deleted && !collapsed && comment.children.length > 0 ? (
+          <div className="mt-4">
+            <button type="button" onClick={() => onToggleReplies(comment.id)} className="text-sm font-medium text-[#d9bf82] transition hover:text-[#edd7a8]">
+              {repliesExpanded ? "Hide Replies" : `View Replies (${comment.totalReplies})`}
+            </button>
+          </div>
+        ) : null}
+
         {comment.deleted && !collapsed && comment.children.length > 0 ? (
           <div className="mt-4">
             <button
@@ -567,7 +577,7 @@ function CommentCard({
           </div>
         ) : null}
 
-        {showingReplyBox && !collapsed ? (
+        {showingReplyBox && !collapsed && !historical ? (
           <div className="mt-5 rounded-2xl border border-[#183149]/60 bg-[#08131d]/80 p-4">
             <textarea
               value={replyDraft}
@@ -612,6 +622,7 @@ function CommentCard({
               editingCommentId={editingCommentId}
               editDraft={editDraft}
               expandedReplyIds={expandedReplyIds}
+              historical={historical}
               isAdmin={isAdmin}
               onDelete={onDelete}
               onEditCancel={onEditCancel}
@@ -661,6 +672,7 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
   const [loading, setLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [historicalAsOf, setHistoricalAsOf] = useState<string | null>(null);
   const [authDialogAction, setAuthDialogAction] = useState<string | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
   const loadRequestRef = useRef(0);
@@ -678,7 +690,9 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
     }
 
     try {
-      const response = await fetch(`/api/comments/stories/${encodeURIComponent(storyId)}?sort=${encodeURIComponent(nextSort)}`, {
+      const query = new URLSearchParams({ sort: nextSort });
+      if (historicalAsOf) query.set("before", historicalAsOf);
+      const response = await fetch(`/api/comments/stories/${encodeURIComponent(storyId)}?${query.toString()}`, {
         cache: "no-store",
       });
       const data = (await response.json().catch(() => ({}))) as StoryCommentsResponse;
@@ -727,7 +741,16 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
         setLoading(false);
       }
     }
-  }, [storyId]);
+  }, [historicalAsOf, storyId]);
+
+  useEffect(() => {
+    const handleHistoryDate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ before?: string | null }>;
+      setHistoricalAsOf(customEvent.detail?.before ?? null);
+    };
+    window.addEventListener("story-history-as-of", handleHistoryDate);
+    return () => window.removeEventListener("story-history-as-of", handleHistoryDate);
+  }, []);
 
   useEffect(() => {
     setSort("top");
@@ -777,7 +800,7 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
   }, [storyId]);
 
   useEffect(() => {
-    if (!commentsRequested || !communitySettings.allowCommentRealtime) {
+    if (!commentsRequested || historicalAsOf || !communitySettings.allowCommentRealtime) {
       pendingRealtimeRefreshRef.current = false;
       return;
     }
@@ -866,7 +889,7 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [busyAction, commentsRequested, communitySettings.allowCommentRealtime, editingCommentId, loadComments, loading, replyParentId, reportingComment, sort, storyId]);
+  }, [busyAction, commentsRequested, communitySettings.allowCommentRealtime, editingCommentId, historicalAsOf, loadComments, loading, replyParentId, reportingComment, sort, storyId]);
 
   useEffect(() => {
     if (loading || comments.length === 0 || typeof window === "undefined") {
@@ -1264,7 +1287,11 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
       ) : (
         <>
 
-      <div className="mt-5 rounded-[20px] border border-[#183149]/60 bg-[#07131e]/76 p-4">
+      {historicalAsOf ? (
+        <div className="mt-5 rounded-[20px] border border-[#183149]/60 bg-[#07131e]/76 p-4 text-sm text-neutral-400">
+          Historical comments · read-only
+        </div>
+      ) : <div className="mt-5 rounded-[20px] border border-[#183149]/60 bg-[#07131e]/76 p-4">
         <textarea
           value={composerDraft}
           onChange={(event) => setComposerDraft(event.target.value)}
@@ -1289,7 +1316,7 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
             {busyAction === "post" ? "Posting..." : "Post"}
           </button>
         </div>
-      </div>
+      </div>}
 
       {error ? <div className="mt-5 text-sm text-[#f0b7b7]">{error}</div> : null}
 
@@ -1298,9 +1325,11 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
       ) : comments.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-[#183149]/60 bg-[#07131e]/76 p-6">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Community</div>
-          <h3 className="mt-3 text-lg font-semibold text-neutral-100">No comments yet</h3>
+          <h3 className="mt-3 text-lg font-semibold text-neutral-100">{historicalAsOf ? "No comments by this date" : "No comments yet"}</h3>
           <p className="mt-2 text-sm leading-7 text-neutral-400">
-            Start the conversation with an opinion, question, or more context readers should know.
+            {historicalAsOf
+              ? "No comments had been posted by the end of this day."
+              : "Start the conversation with an opinion, question, or more context readers should know."}
           </p>
         </div>
       ) : (
@@ -1318,6 +1347,7 @@ export default function CommentsSection({ authenticated, currentUserId, embedded
               editingCommentId={editingCommentId}
               editDraft={editDraft}
               expandedReplyIds={expandedReplyIds}
+              historical={Boolean(historicalAsOf)}
               isAdmin={isAdmin}
               onDelete={handleDelete}
               onEditCancel={() => {

@@ -6,6 +6,7 @@ export type BriefingLeadStyle = "default" | "alert";
 
 export type Source = {
   badge?: string | null;
+  paywalled?: boolean;
   name: string;
   url: string;
   lean: Lean;

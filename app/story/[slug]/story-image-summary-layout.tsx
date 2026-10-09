@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { StoryImageDisplay } from "@/app/lib/types";
 import StoryPageImage from "./story-page-image";
 
@@ -15,11 +16,13 @@ type StoryImageSummaryLayoutProps = {
   } | null;
   summary: string[];
   updatedAtLabel?: string | null;
+  statusLabel?: string | null;
+  historyAction?: ReactNode;
 };
 
 const DESKTOP_SIDE_BY_SIDE_QUERY = "(min-width: 1280px)";
 
-export default function StoryImageSummaryLayout({ image, summary, updatedAtLabel }: StoryImageSummaryLayoutProps) {
+export default function StoryImageSummaryLayout({ image, summary, updatedAtLabel, statusLabel, historyAction }: StoryImageSummaryLayoutProps) {
   const containedImage = Boolean(image && image.display === "contain");
   const imageWrapRef = useRef<HTMLDivElement | null>(null);
   const measureWrapRef = useRef<HTMLDivElement | null>(null);
@@ -137,9 +140,10 @@ export default function StoryImageSummaryLayout({ image, summary, updatedAtLabel
           </p>
         ))}
 
-        {updatedAtLabel ? (
-          <div className="pt-2 text-right text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
-            Updated {updatedAtLabel}
+        {updatedAtLabel || statusLabel || historyAction ? (
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+            <span>{statusLabel ?? (updatedAtLabel ? `Updated ${updatedAtLabel}` : "")}</span>
+            {historyAction}
           </div>
         ) : null}
       </div>

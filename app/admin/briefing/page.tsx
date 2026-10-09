@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEventHandler } from "react";
 import AdaptiveBriefingImage from "@/app/briefing/adaptive-briefing-image";
 import { formatStoryDate } from "@/app/lib/dates";
 import { buildBriefingLayout, serializeBriefingLayout, type BriefingLayout } from "@/app/lib/briefing-layout";
@@ -27,6 +27,7 @@ type BriefingColumn = "left" | "right";
 type BriefingTarget = "lead" | BriefingColumn;
 type DropTarget = { kind: "lead" } | { kind: "column"; column: BriefingColumn; index: number };
 type DragSource = { storyId: string; column: BriefingColumn; index: number };
+type PointerDrag = { pointerId: number; source: DragSource; startX: number; startY: number; started: boolean };
 
 function displayHeadline(story: StoryWithViews) {
   return story.beacon_headline?.trim() || story.title;
@@ -139,7 +140,6 @@ function PublicLeadCard({
           {displayHeadline(story)}
         </div>
         <StoryMetaRow story={story} />
-
         {summaryPoints.length > 0 ? (
           <div className="mx-auto mt-5 max-w-4xl space-y-3 text-lg leading-8 text-neutral-300">
             {summaryPoints.map((point, index) => (
@@ -156,26 +156,39 @@ function PublicLeadCard({
 function PublicCard({
   story,
   registerNode,
-  draggable,
-  onDragStart,
-  onDragEnd,
+  onHandlePointerDown,
+  onHandlePointerMove,
+  onHandlePointerUp,
 }: {
   story: StoryWithViews;
   registerNode?: (node: HTMLDivElement | null) => void;
-  draggable?: boolean;
-  onDragStart?: React.DragEventHandler<HTMLDivElement>;
-  onDragEnd?: React.DragEventHandler<HTMLDivElement>;
+  onHandlePointerDown: PointerEventHandler<HTMLButtonElement>;
+  onHandlePointerMove: PointerEventHandler<HTMLButtonElement>;
+  onHandlePointerUp: PointerEventHandler<HTMLButtonElement>;
 }) {
   return (
     <div
       ref={registerNode}
       data-story-id={story.id}
-      draggable={draggable}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      className={draggable ? "cursor-grab active:cursor-grabbing" : undefined}
+      className="relative"
     >
-      <article className="relative flex flex-col justify-start rounded-[12px] border border-[#183149]/65 bg-[#07131e] p-6 text-left shadow-[0_16px_34px_rgba(0,0,0,0.2)]">
+      <button
+        type="button"
+        aria-label={`Drag ${displayHeadline(story)} to reposition it`}
+        title="Drag to reposition"
+        onPointerDown={onHandlePointerDown}
+        onPointerMove={onHandlePointerMove}
+        onPointerUp={onHandlePointerUp}
+        onPointerCancel={onHandlePointerUp}
+        className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 touch-none cursor-grab items-center justify-center rounded-lg border border-[#28445d] bg-[#07131e]/90 text-neutral-500 shadow-sm transition hover:border-[#8f7740]/60 hover:text-[#e3cca0] active:cursor-grabbing"
+      >
+        <svg aria-hidden="true" viewBox="0 0 20 20" className="h-5 w-5 fill-current">
+          <circle cx="7" cy="5" r="1.2" /><circle cx="13" cy="5" r="1.2" />
+          <circle cx="7" cy="10" r="1.2" /><circle cx="13" cy="10" r="1.2" />
+          <circle cx="7" cy="15" r="1.2" /><circle cx="13" cy="15" r="1.2" />
+        </svg>
+      </button>
+      <article className="flex flex-col justify-start rounded-[12px] border border-[#183149]/65 bg-[#07131e] p-6 text-left shadow-[0_16px_34px_rgba(0,0,0,0.2)]">
         <div className="flex flex-col justify-start">
           <div className="text-[1.85rem] font-semibold leading-tight text-neutral-100">
             {displayHeadline(story)}
@@ -190,6 +203,7 @@ function PublicCard({
 }
 
 function DropSlot({
+  target,
   active,
   visible,
   label,
@@ -197,6 +211,7 @@ function DropSlot({
   onDragOver,
   onDrop,
 }: {
+  target: DropTarget;
   active: boolean;
   visible: boolean;
   label: string;
@@ -208,6 +223,9 @@ function DropSlot({
 
   return (
     <div
+      data-briefing-drop-target={target.kind}
+      data-briefing-column={target.kind === "column" ? target.column : undefined}
+      data-briefing-index={target.kind === "column" ? target.index : undefined}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDrop={onDrop}
@@ -236,6 +254,9 @@ export default function AdminBriefingPage() {
   const [dateTo, setDateTo] = useState("");
   const [dragSource, setDragSource] = useState<DragSource | null>(null);
   const [dragTarget, setDragTarget] = useState<DropTarget | null>(null);
+  const pointerDragRef = useRef<PointerDrag | null>(null);
+  const dragSourceRef = useRef<DragSource | null>(null);
+  const dragTargetRef = useRef<DropTarget | null>(null);
   const [storyHeights, setStoryHeights] = useState<Record<string, number>>({});
   const canvasNodesRef = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -401,8 +422,21 @@ export default function AdminBriefingPage() {
   }
 
   function clearDragState() {
+    pointerDragRef.current = null;
+    dragSourceRef.current = null;
+    dragTargetRef.current = null;
     setDragSource(null);
     setDragTarget(null);
+  }
+
+  function dropTargetAtPoint(clientX: number, clientY: number): DropTarget | null {
+    const node = document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>("[data-briefing-drop-target]");
+    if (!node) return null;
+    if (node.dataset.briefingDropTarget === "lead") return { kind: "lead" };
+    const column = node.dataset.briefingColumn;
+    const index = Number(node.dataset.briefingIndex);
+    if ((column !== "left" && column !== "right") || !Number.isInteger(index)) return null;
+    return { kind: "column", column, index };
   }
 
   function updateBriefingLayout(mutator: (layout: BriefingLayout) => BriefingLayout) {
@@ -527,17 +561,15 @@ export default function AdminBriefingPage() {
     });
   }
 
-  function moveDraggedStory(target: DropTarget) {
-    if (!dragSource) return;
-
+  function moveDraggedStoryFrom(source: DragSource, target: DropTarget) {
     updateBriefingLayout((layout) => {
-      const sourceList = dragSource.column === "left" ? layout.leftColumn : layout.rightColumn;
-      const [story] = sourceList.splice(dragSource.index, 1);
+      const sourceList = source.column === "left" ? layout.leftColumn : layout.rightColumn;
+      const [story] = sourceList.splice(source.index, 1);
       if (!story) return layout;
 
       if (target.kind === "lead") {
         if (layout.lead) {
-          sourceList.splice(dragSource.index, 0, layout.lead);
+          sourceList.splice(source.index, 0, layout.lead);
         }
         layout.lead = story;
         return layout;
@@ -545,13 +577,61 @@ export default function AdminBriefingPage() {
 
       const targetList = target.column === "left" ? layout.leftColumn : layout.rightColumn;
       let insertIndex = Math.max(0, Math.min(target.index, targetList.length));
-      if (dragSource.column === target.column && dragSource.index < insertIndex) {
+      if (source.column === target.column && source.index < insertIndex) {
         insertIndex -= 1;
       }
       targetList.splice(insertIndex, 0, story);
       return layout;
     });
     clearDragState();
+  }
+
+  function moveDraggedStory(target: DropTarget) {
+    const source = dragSourceRef.current ?? dragSource;
+    if (source) moveDraggedStoryFrom(source, target);
+  }
+
+  function beginPointerDrag(source: DragSource, event: React.PointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    pointerDragRef.current = {
+      pointerId: event.pointerId,
+      source,
+      startX: event.clientX,
+      startY: event.clientY,
+      started: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function updatePointerDrag(event: React.PointerEvent<HTMLButtonElement>) {
+    const pointerDrag = pointerDragRef.current;
+    if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
+    if (!pointerDrag.started && Math.hypot(event.clientX - pointerDrag.startX, event.clientY - pointerDrag.startY) >= 5) {
+      pointerDrag.started = true;
+      dragSourceRef.current = pointerDrag.source;
+      setDragSource(pointerDrag.source);
+      setDragTarget(null);
+    }
+    if (!pointerDrag.started) return;
+    const target = dropTargetAtPoint(event.clientX, event.clientY);
+    dragTargetRef.current = target;
+    setDragTarget(target);
+  }
+
+  function finishPointerDrag(event: React.PointerEvent<HTMLButtonElement>) {
+    const pointerDrag = pointerDragRef.current;
+    if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
+    if (event.type !== "pointercancel" && pointerDrag.started) {
+      const target = dropTargetAtPoint(event.clientX, event.clientY) ?? dragTargetRef.current;
+      if (target) moveDraggedStoryFrom(pointerDrag.source, target);
+      else clearDragState();
+    } else {
+      clearDragState();
+    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   }
 
   function addStoryToBriefing(storyId: string, target: BriefingTarget) {
@@ -782,6 +862,7 @@ export default function AdminBriefingPage() {
               <div className="-mx-6 mt-6 px-6">
                 {briefingLayout.lead ? (
                   <div
+                    data-briefing-drop-target="lead"
                     onDragEnter={() => setDragTarget({ kind: "lead" })}
                     onDragOver={(event) => {
                       if (!dragSource) return;
@@ -807,6 +888,7 @@ export default function AdminBriefingPage() {
                     return (
                       <div key={column.key} className="space-y-4">
                         <DropSlot
+                          target={{ kind: "column", column: column.key, index: 0 }}
                           active={sameDropTarget(dragTarget, { kind: "column", column: column.key, index: 0 })}
                           visible={Boolean(dragSource)}
                           label={`Drop at top of ${column.label.toLowerCase()}`}
@@ -827,16 +909,12 @@ export default function AdminBriefingPage() {
                             <PublicCard
                               story={story}
                               registerNode={registerCanvasNode(story.id)}
-                              draggable
-                              onDragStart={(event) => {
-                                setDragSource({ storyId: story.id, column: column.key, index: rowIndex });
-                                setDragTarget(null);
-                                event.dataTransfer.effectAllowed = "move";
-                                event.dataTransfer.setData("text/plain", story.id);
-                              }}
-                              onDragEnd={() => clearDragState()}
+                              onHandlePointerDown={(event) => beginPointerDrag({ storyId: story.id, column: column.key, index: rowIndex }, event)}
+                              onHandlePointerMove={updatePointerDrag}
+                              onHandlePointerUp={finishPointerDrag}
                             />
                             <DropSlot
+                              target={{ kind: "column", column: column.key, index: rowIndex + 1 }}
                               active={sameDropTarget(dragTarget, { kind: "column", column: column.key, index: rowIndex + 1 })}
                               visible={Boolean(dragSource)}
                               label={`Drop below ${displayHeadline(story)}`}

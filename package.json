@@ -30,5 +30,12 @@
     "supabase": "^2.89.1",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "allowScripts": {
+    "sharp@0.32.6": true,
+    "sharp@0.34.5": true,
+    "protobufjs@6.11.6": true,
+    "supabase@2.89.1": true,
+    "unrs-resolver@1.11.1": true
   }
 }
