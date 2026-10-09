@@ -1026,7 +1026,7 @@ export default function HomePageClient({
         <div className="mx-auto mb-3 flex max-w-6xl justify-end sm:mb-4">
           <Link
             href="/account/interests"
-            onClick={persistHomeState}
+            onClick={() => persistHomeState()}
             className="inline-flex min-h-9 items-center rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
           >
             Manage interests
