@@ -145,7 +145,7 @@ function buildOverlaySvg(headline: string, date: string, iconDataUrl: string, ou
   const lineHeight = Math.round(fontSize * 1.14);
   const firstBaseline = Math.round(1015 - ((lines.length - 1) * lineHeight) / 2);
   const headlineSvg = lines
-    .map((line, index) => `<text x="66" y="${firstBaseline + index * lineHeight}" text-anchor="start" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="700" letter-spacing="-.5">${escapeXml(line)}</text>`)
+    .map((line, index) => `<text x="66" y="${firstBaseline + index * lineHeight}" text-anchor="start" fill="#fff" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="700" letter-spacing="-.5">${escapeXml(line)}</text>`)
     .join("");
   const dateText = escapeXml(formatPostDate(date));
 
@@ -155,13 +155,13 @@ function buildOverlaySvg(headline: string, date: string, iconDataUrl: string, ou
       <linearGradient id="bottom-shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#061321" stop-opacity="0"/><stop offset=".24" stop-color="#061321" stop-opacity=".74"/><stop offset="1" stop-color="#061321" stop-opacity=".98"/></linearGradient>
     </defs>
     <rect x="0" y="0" width="1200" height="180" fill="url(#top-shade)" />
-    <text x="66" y="74" fill="#f0d18a" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="600" letter-spacing="1">${dateText}</text>
+    <text x="66" y="74" fill="#f0d18a" font-family="Inter, Arial, Helvetica, sans-serif" font-size="30" font-weight="600" letter-spacing="1">${dateText}</text>
     <rect x="66" y="96" width="72" height="3" rx="1.5" fill="#d4ae64" />
     <image href="${iconDataUrl}" x="1040" y="34" width="116" height="116" opacity=".82" preserveAspectRatio="xMidYMid meet" />
     <rect x="0" y="735" width="1200" height="465" fill="url(#bottom-shade)" />
     ${headlineSvg}
     <path d="M66 1115H1134" stroke="#d4ae64" stroke-opacity=".6" stroke-width="1" />
-    <text x="66" y="1164" fill="#f4f0e5" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="500" letter-spacing=".4">readthebeacon.news</text>
+    <text x="66" y="1164" fill="#f4f0e5" font-family="Inter, Arial, Helvetica, sans-serif" font-size="27" font-weight="500" letter-spacing=".4">readthebeacon.news</text>
   </svg>`);
 }
 
