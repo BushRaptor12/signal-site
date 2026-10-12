@@ -57,7 +57,7 @@ export default function NewsSectionNav({ activeTab }: { activeTab?: string }) {
   }, []);
 
   return (
-    <nav className="border-b border-[#163754]/70 bg-[#05111D]/95 px-3 py-1 text-neutral-100 sm:px-5 lg:px-8">
+    <nav className="relative border-b border-[#163754]/70 bg-[#05111D]/95 px-3 py-1 text-neutral-100 sm:px-5 lg:px-8">
       <div className="relative mx-auto max-w-6xl">
         <div className="-mx-2 flex items-center gap-4 overflow-x-auto px-2 pr-32 [scrollbar-width:none] sm:justify-center sm:gap-5 sm:px-32 [&::-webkit-scrollbar]:hidden">
           <Link
@@ -94,28 +94,28 @@ export default function NewsSectionNav({ activeTab }: { activeTab?: string }) {
             </Link>
           ))}
         </div>
-        <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1.5">
-          <SiteSearch />
-          <Link
-            href="/notifications"
-            aria-label="Notifications"
-            className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-transparent text-neutral-300 transition hover:border-[#163754] hover:bg-[#03101b] hover:text-white"
-          >
-            <BellIcon />
-            {unreadCount > 0 ? (
-              <span className="absolute right-0.5 top-0.5 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            ) : null}
-          </Link>
-          <Link
-            href="/account"
-            aria-label="Account"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-transparent text-neutral-300 transition hover:border-[#163754] hover:bg-[#03101b] hover:text-white"
-          >
-            <AccountIcon />
-          </Link>
-        </div>
+      </div>
+      <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1.5 sm:right-5 lg:right-8">
+        <SiteSearch />
+        <Link
+          href="/notifications"
+          aria-label="Notifications"
+          className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-transparent text-neutral-300 transition hover:border-[#163754] hover:bg-[#03101b] hover:text-white"
+        >
+          <BellIcon />
+          {unreadCount > 0 ? (
+            <span className="absolute right-0.5 top-0.5 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          ) : null}
+        </Link>
+        <Link
+          href="/account"
+          aria-label="Account"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-transparent text-neutral-300 transition hover:border-[#163754] hover:bg-[#03101b] hover:text-white"
+        >
+          <AccountIcon />
+        </Link>
       </div>
     </nav>
   );

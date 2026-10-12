@@ -154,6 +154,7 @@ function buildOverlaySvg(headline: string, date: string, iconDataUrl: string, ou
       <linearGradient id="bottom-shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#061321" stop-opacity="0"/><stop offset=".24" stop-color="#061321" stop-opacity=".74"/><stop offset="1" stop-color="#061321" stop-opacity=".98"/></linearGradient>
     </defs>
     <rect x="0" y="0" width="1200" height="180" fill="url(#top-shade)" />
+    <rect x="48" y="27" width="390" height="66" rx="14" fill="#061321" fill-opacity=".9" stroke="#d4ae64" stroke-opacity=".38" stroke-width="1.5" />
     <text x="66" y="74" fill="#f0d18a" font-family="Inter, Arial, Helvetica, sans-serif" font-size="30" font-weight="600" letter-spacing="1">${dateText}</text>
     <rect x="66" y="96" width="72" height="3" rx="1.5" fill="#d4ae64" />
     <image href="${iconDataUrl}" x="1040" y="34" width="116" height="116" opacity=".82" preserveAspectRatio="xMidYMid meet" />
