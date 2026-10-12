@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { formatStoryDate } from "@/app/lib/dates";
 import type { StoryWithViews } from "@/app/lib/types";
 
@@ -140,7 +141,7 @@ export default function SiteSearch() {
       >
         <SearchIcon className="h-4 w-4" />
       </button>
-      {open ? (
+      {open && typeof document !== "undefined" ? createPortal((
         <div
           aria-labelledby="site-search-title"
           aria-modal="true"
@@ -240,7 +241,7 @@ export default function SiteSearch() {
             ) : null}
           </div>
         </div>
-      ) : null}
+      ), document.body) : null}
     </>
   );
 }

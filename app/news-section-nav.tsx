@@ -95,7 +95,7 @@ export default function NewsSectionNav({ activeTab }: { activeTab?: string }) {
           ))}
         </div>
       </div>
-      <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1.5 sm:right-5 lg:right-8">
+      <div className="absolute right-3 top-1/2 z-20 flex -translate-y-1/2 items-center gap-1.5 sm:right-5 lg:right-8">
         <SiteSearch />
         <Link
           href="/notifications"

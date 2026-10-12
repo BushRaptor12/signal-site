@@ -150,18 +150,14 @@ function buildOverlaySvg(headline: string, date: string, iconDataUrl: string, ou
 
   return Buffer.from(`<svg width="${outputSize}" height="${outputSize}" viewBox="0 0 ${POST_IMAGE_SIZE} ${POST_IMAGE_SIZE}" xmlns="http://www.w3.org/2000/svg">
     <defs>
-      <linearGradient id="top-shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#061321" stop-opacity=".52"/><stop offset="1" stop-color="#061321" stop-opacity="0"/></linearGradient>
       <linearGradient id="bottom-shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#061321" stop-opacity="0"/><stop offset=".24" stop-color="#061321" stop-opacity=".74"/><stop offset="1" stop-color="#061321" stop-opacity=".98"/></linearGradient>
     </defs>
-    <rect x="0" y="0" width="1200" height="180" fill="url(#top-shade)" />
-    <rect x="48" y="27" width="390" height="66" rx="14" fill="#061321" fill-opacity=".9" stroke="#d4ae64" stroke-opacity=".38" stroke-width="1.5" />
-    <text x="66" y="74" fill="#f0d18a" font-family="Inter, Arial, Helvetica, sans-serif" font-size="30" font-weight="600" letter-spacing="1">${dateText}</text>
-    <rect x="66" y="96" width="72" height="3" rx="1.5" fill="#d4ae64" />
     <image href="${iconDataUrl}" x="1040" y="34" width="116" height="116" opacity=".82" preserveAspectRatio="xMidYMid meet" />
     <rect x="0" y="735" width="1200" height="465" fill="url(#bottom-shade)" />
     ${headlineSvg}
     <path d="M66 1115H1134" stroke="#d4ae64" stroke-opacity=".6" stroke-width="1" />
     <text x="66" y="1164" fill="#f4f0e5" font-family="Inter, Arial, Helvetica, sans-serif" font-size="27" font-weight="500" letter-spacing=".4">readthebeacon.news</text>
+    <text x="1134" y="1164" text-anchor="end" fill="#f0d18a" font-family="Inter, Arial, Helvetica, sans-serif" font-size="27" font-weight="600" letter-spacing=".4">${dateText}</text>
   </svg>`);
 }
 
