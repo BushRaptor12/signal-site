@@ -16,6 +16,9 @@ const nextConfig: NextConfig = {
     ],
   },
   serverExternalPackages: ["onnxruntime-node"],
+  outputFileTracingIncludes: {
+    "/api/admin/facebook/*": ["./public/beacon-icon-192.png"],
+  },
 };
 
 export default nextConfig;

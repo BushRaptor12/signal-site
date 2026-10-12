@@ -205,6 +205,9 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
             <Link href="/admin/editor" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
               Story editor
             </Link>
+            <Link href="/admin/facebook" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
+              Facebook publisher
+            </Link>
             <Link href="/admin/entities" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
               Entities
             </Link>
