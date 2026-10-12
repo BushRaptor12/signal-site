@@ -50,7 +50,6 @@ type EmptyStateAction = {
 
 const HOME_STATE_KEY = "signal:homeState:v2";
 const MAX_SCROLL_RESTORE_ATTEMPTS = 18;
-const OVERLAY_SEARCH_BATCH_SIZE = 12;
 const STORY_BATCH_SIZE = 10;
 const BUILTIN_TAB_KEYS: TabKey[] = ["following", "popular", "recent"];
 const PRESET_TOPIC_TABS = TOPICS.map((topic) => normalize(topic)).filter(Boolean);
@@ -383,16 +382,9 @@ export default function HomePageClient({
   const [loadingFollowState, setLoadingFollowState] = useState(false);
   const [topicOrder, setTopicOrder] = useState<TopicOrderKey>("new");
   const [topicTopWindow, setTopicTopWindow] = useState<TopicTopWindowKey>("day");
-  const [searchDraft, setSearchDraft] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [overlaySearchResults, setOverlaySearchResults] = useState<StoryWithViews[]>([]);
-  const [overlaySearchHasMore, setOverlaySearchHasMore] = useState(false);
-  const [overlaySearchLoading, setOverlaySearchLoading] = useState(false);
-  const [overlaySearchError, setOverlaySearchError] = useState("");
   const [feedHasMore, setFeedHasMore] = useState(() => getFeedStories(initialStories).length >= 30);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [feedError, setFeedError] = useState("");
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const feedRequestIdRef = useRef(0);
   const pendingScrollRestoreRef = useRef<{ attempts: number; scrollY: number; tabKey: TabKey } | null>(null);
 
@@ -402,73 +394,6 @@ export default function HomePageClient({
     setTrackingStories(getTrackingStories(initialStories));
     setFeedHasMore(feedStories.length >= 30);
   }, [initialStories]);
-
-  useEffect(() => {
-    if (!searchOpen) return;
-
-    searchInputRef.current?.focus();
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSearchOpen(false);
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [searchOpen]);
-
-  useEffect(() => {
-    const query = searchDraft.trim();
-    if (!searchOpen || !query) {
-      setOverlaySearchResults([]);
-      setOverlaySearchHasMore(false);
-      setOverlaySearchLoading(false);
-      setOverlaySearchError("");
-      return;
-    }
-
-    const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
-      const params = new URLSearchParams({
-        limit: String(OVERLAY_SEARCH_BATCH_SIZE),
-        offset: "0",
-        search: query,
-        tab: "recent",
-      });
-
-      setOverlaySearchLoading(true);
-      setOverlaySearchError("");
-      try {
-        const response = await fetch(`/api/stories/feed?${params.toString()}`, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        const data = (await response.json().catch(() => ({}))) as StoryFeedResponse;
-        if (!response.ok || !Array.isArray(data.stories)) {
-          throw new Error(data.error ?? "We couldn't search stories.");
-        }
-
-        setOverlaySearchResults(data.stories);
-        setOverlaySearchHasMore(Boolean(data.hasMore));
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setOverlaySearchResults([]);
-        setOverlaySearchHasMore(false);
-        setOverlaySearchError(error instanceof Error ? error.message : "We couldn't search stories.");
-      } finally {
-        if (!controller.signal.aborted) setOverlaySearchLoading(false);
-      }
-    }, 180);
-
-    return () => {
-      controller.abort();
-      window.clearTimeout(timer);
-    };
-  }, [searchDraft, searchOpen]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -894,41 +819,8 @@ export default function HomePageClient({
     return [...recentStories].sort((a, b) => compareByPopularity(a, b, renderNowMs));
   }, [activeTab, followingStories, recentStories, renderNowMs, topicOrder, topicStoriesByTab, topicTopWindow]);
   const visibleStories = useMemo(() => visible.slice(0, visibleCount), [visible, visibleCount]);
-  const overlaySearchQuery = searchDraft.trim();
   const canLoadMore = visibleCount < visible.length || (activeTab !== "following" && feedHasMore);
   const activeTopicTab = isPresetTopicTab(normalize(activeTab));
-  async function handleOverlaySearchReadMore() {
-    const query = overlaySearchQuery;
-    if (!query || overlaySearchLoading || !overlaySearchHasMore) return;
-
-    const params = new URLSearchParams({
-      limit: String(OVERLAY_SEARCH_BATCH_SIZE),
-      offset: String(overlaySearchResults.length),
-      search: query,
-      tab: "recent",
-    });
-
-    setOverlaySearchLoading(true);
-    setOverlaySearchError("");
-    try {
-      const response = await fetch(`/api/stories/feed?${params.toString()}`, { cache: "no-store" });
-      const data = (await response.json().catch(() => ({}))) as StoryFeedResponse;
-      if (!response.ok || !Array.isArray(data.stories)) {
-        throw new Error(data.error ?? "We couldn't search stories.");
-      }
-
-      setOverlaySearchResults((current) => {
-        const seen = new Set(current.map((story) => story.id));
-        return [...current, ...data.stories!.filter((story) => !seen.has(story.id))];
-      });
-      setOverlaySearchHasMore(Boolean(data.hasMore));
-    } catch (error) {
-      setOverlaySearchError(error instanceof Error ? error.message : "We couldn't search stories.");
-    } finally {
-      setOverlaySearchLoading(false);
-    }
-  }
-
   function handleReadMore() {
     if (visibleCount < visible.length) {
       setVisibleCount((count) => count + STORY_BATCH_SIZE);
@@ -1034,147 +926,6 @@ export default function HomePageClient({
         </div>
       ) : null}
 
-      {searchOpen ? (
-        <div
-          aria-labelledby="story-search-title"
-          aria-modal="true"
-          className="fixed inset-0 z-50 overflow-hidden bg-black/70 px-4 py-6 text-neutral-100 backdrop-blur-sm sm:py-10"
-          role="dialog"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setSearchOpen(false);
-          }}
-        >
-          <div className="mx-auto flex h-full max-w-3xl flex-col rounded-2xl border border-[#163754]/90 bg-[#06131e] p-4 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:h-auto sm:max-h-[calc(100vh-5rem)] sm:p-5">
-            <div className="mb-3 flex items-center justify-between gap-4">
-              <h2 id="story-search-title" className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-400">
-                Search
-              </h2>
-              <button
-                type="button"
-                aria-label="Close search"
-                onClick={() => setSearchOpen(false)}
-                className="inline-flex size-10 items-center justify-center rounded-full border border-[#163754]/80 bg-[#020b14] text-neutral-300 transition hover:border-[#8f7740]/70 hover:text-white"
-              >
-                <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none">
-                  <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
-            <label className="sr-only" htmlFor="story-search">
-              Search stories
-            </label>
-            <div className="flex items-center gap-3 rounded-2xl border border-[#214765] bg-[#020b14] px-4 py-3 focus-within:border-[#8f7740]/80">
-              <svg aria-hidden="true" className="size-5 shrink-0 text-neutral-500" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M10.75 18.5a7.75 7.75 0 1 1 0-15.5 7.75 7.75 0 0 1 0 15.5ZM16.25 16.25 21 21"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-              <input
-                ref={searchInputRef}
-                id="story-search"
-                type="search"
-                value={searchDraft}
-                onChange={(event) => setSearchDraft(event.target.value)}
-                placeholder="Search stories, sources, topics, or people"
-                className="min-w-0 flex-1 bg-transparent text-lg font-semibold text-neutral-100 outline-none placeholder:text-neutral-500 sm:text-2xl"
-              />
-              {searchDraft ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchDraft("");
-                    searchInputRef.current?.focus();
-                  }}
-                  className="rounded-full border border-[#163754]/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-400 transition hover:border-[#8f7740]/70 hover:text-white"
-                >
-                  Clear
-                </button>
-              ) : null}
-            </div>
-            {overlaySearchQuery ? (
-              <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1 overscroll-contain">
-                <div className="mb-2 flex items-center justify-between gap-4 text-xs uppercase tracking-[0.14em] text-neutral-500">
-                  <span>{overlaySearchLoading ? "Searching" : "Results"}</span>
-                  <span>{overlaySearchResults.length ? `${overlaySearchResults.length} shown` : overlaySearchError ? "Error" : "No matches"}</span>
-                </div>
-                {overlaySearchResults.length > 0 ? (
-                  <>
-                    <div className="space-y-2">
-                      {overlaySearchResults.map((story) => {
-                        const sourceNames = (story.sources ?? [])
-                          .slice(0, 2)
-                          .map((source) => source.name)
-                          .filter(Boolean)
-                          .join(" / ");
-                        return (
-                          <Link
-                            key={`overlay-search-${story.id}`}
-                            href={`/story/${story.id}?from=${encodeURIComponent(activeTab)}`}
-                            onClick={() => {
-                              persistHomeState();
-                              setSearchOpen(false);
-                            }}
-                            className="block rounded-xl border border-[#163754]/70 bg-[#020b14] px-4 py-3 transition hover:border-[#8f7740]/70 hover:bg-[#07101a]"
-                          >
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] uppercase tracking-[0.14em] text-neutral-500">
-                              <span>{formatStoryDate(story.date)}</span>
-                              {sourceNames ? (
-                                <>
-                                  <span className="text-[#35556f]">/</span>
-                                  <span>{sourceNames}</span>
-                                </>
-                              ) : null}
-                            </div>
-                            <div className="mt-1.5 text-base font-semibold leading-snug text-neutral-100">{story.title}</div>
-                            {story.summary[0] ? (
-                              <p className="mt-1.5 line-clamp-2 text-sm leading-6 text-neutral-400">{story.summary[0]}</p>
-                            ) : null}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                    {overlaySearchHasMore ? (
-                      <div className="sticky bottom-0 mt-4 border-t border-[#163754]/70 bg-[#06131e]/95 py-3 backdrop-blur-sm">
-                        <button
-                          type="button"
-                          onClick={() => void handleOverlaySearchReadMore()}
-                          disabled={overlaySearchLoading}
-                          className="min-h-11 w-full rounded-xl border border-[#8f7740]/60 bg-[#07101a] px-5 py-2.5 text-sm font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {overlaySearchLoading ? "Loading..." : "Read more"}
-                        </button>
-                      </div>
-                    ) : null}
-                    {overlaySearchError ? <p className="mt-3 text-sm text-red-200">{overlaySearchError}</p> : null}
-                  </>
-                ) : (
-                  <div className="rounded-xl border border-[#163754]/70 bg-[#020b14] px-4 py-6 text-center">
-                    <div className="text-sm font-semibold text-neutral-200">
-                      {overlaySearchError ? "Search is unavailable" : overlaySearchLoading ? "Searching stories..." : "No matches yet"}
-                    </div>
-                    <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-neutral-500">
-                      {overlaySearchError || "Try a person, organization, topic, source, or an older story keyword. Archived stories are included in search."}
-                    </p>
-                    {!overlaySearchError && !overlaySearchLoading ? (
-                      <button
-                        type="button"
-                        onClick={() => setSearchDraft("")}
-                        className="mt-4 rounded-full border border-[#28445d] px-4 py-2 text-xs font-semibold text-neutral-300 transition hover:border-[#8f7740]/70 hover:text-white"
-                      >
-                        Clear search
-                      </button>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
       {activeTab !== "following" ? <div className="mx-auto mb-5 max-w-5xl sm:mb-6">
         <div className="border-b border-[#163754]/70">
           <div className="flex items-center gap-3">
@@ -1194,25 +945,6 @@ export default function HomePageClient({
                 </button>
               ))}
             </div>
-            <button
-              type="button"
-              aria-label="Search stories"
-              onClick={() => setSearchOpen(true)}
-              className={`inline-flex size-10 shrink-0 -translate-y-1.5 items-center justify-center rounded-full border bg-[#020b14] transition hover:text-white ${
-                searchDraft.trim()
-                  ? "border-[#8f7740]/80 text-[#e3cca0]"
-                  : "border-[#163754]/80 text-neutral-300 hover:border-[#8f7740]/70"
-              }`}
-            >
-              <svg aria-hidden="true" className="size-4" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M10.75 18.5a7.75 7.75 0 1 1 0-15.5 7.75 7.75 0 0 1 0 15.5ZM16.25 16.25 21 21"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
           </div>
         </div>
       </div> : null}

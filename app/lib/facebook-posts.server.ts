@@ -2,7 +2,6 @@ import { lookup } from "node:dns/promises";
 import { readFile } from "node:fs/promises";
 import { isIP } from "node:net";
 import path from "node:path";
-import sharp from "sharp";
 import { clampImageFocus, DEFAULT_IMAGE_FOCUS } from "@/app/lib/image-focus";
 
 const POST_IMAGE_SIZE = 1200;
@@ -174,6 +173,10 @@ export async function renderFacebookPostImage(input: {
   imageBuffer?: Buffer | null;
   imageUrl?: string | null;
 }) {
+  // Sharp's SVG text renderer uses Fontconfig. Point it at the bundled Inter
+  // font before Sharp is loaded so this also works in serverless deployments.
+  process.env.FONTCONFIG_PATH ??= path.join(process.cwd(), "fontconfig");
+  const sharp = (await import("sharp")).default;
   const source = input.imageBuffer ?? (input.imageUrl ? await fetchStoryImage(input.imageUrl) : null);
   if (!source) throw new Error("Choose or upload an image for this Facebook post.");
   const normalized = await sharp(source).rotate().toBuffer({ resolveWithObject: true });

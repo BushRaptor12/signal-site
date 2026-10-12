@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { NEWS_SECTION_TABS, newsSectionHref, newsSectionLabel } from "@/app/lib/news-sections";
 import { NOTIFICATIONS_UPDATED_EVENT } from "@/app/lib/notification-store";
+import SiteSearch from "@/app/site-search";
 
 function BellIcon() {
   return (
@@ -58,7 +59,7 @@ export default function NewsSectionNav({ activeTab }: { activeTab?: string }) {
   return (
     <nav className="border-b border-[#163754]/70 bg-[#05111D]/95 px-3 py-1 text-neutral-100 sm:px-5 lg:px-8">
       <div className="relative mx-auto max-w-6xl">
-        <div className="-mx-2 flex items-center gap-4 overflow-x-auto px-2 pr-24 [scrollbar-width:none] sm:justify-center sm:gap-5 sm:px-24 [&::-webkit-scrollbar]:hidden">
+        <div className="-mx-2 flex items-center gap-4 overflow-x-auto px-2 pr-32 [scrollbar-width:none] sm:justify-center sm:gap-5 sm:px-32 [&::-webkit-scrollbar]:hidden">
           <Link
             href="/"
             className={`shrink-0 border-b-[3px] px-1 pb-2 pt-1 text-sm font-semibold transition ${
@@ -93,7 +94,8 @@ export default function NewsSectionNav({ activeTab }: { activeTab?: string }) {
             </Link>
           ))}
         </div>
-        <div className="absolute right-0 top-1/2 hidden -translate-y-1/2 items-center gap-1.5 md:flex">
+        <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1.5">
+          <SiteSearch />
           <Link
             href="/notifications"
             aria-label="Notifications"
