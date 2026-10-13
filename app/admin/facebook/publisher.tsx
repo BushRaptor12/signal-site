@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import BackLink from "@/app/back-link";
 import { clampImageFocus, DEFAULT_IMAGE_FOCUS } from "@/app/lib/image-focus";
 import { STORY_IMAGE_ACCEPT, STORY_IMAGE_MAX_BYTES } from "@/app/lib/story-images";
 import type { StoryWithViews } from "@/app/lib/types";
@@ -191,7 +190,6 @@ export default function FacebookPublisher() {
   return (
     <main className="min-h-screen bg-neutral-900 p-5 text-neutral-100 sm:p-8">
       <div className="mx-auto max-w-7xl">
-        <BackLink href="/admin" label="Admin control center" />
         <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="text-sm font-semibold uppercase tracking-[0.22em] text-neutral-500">Admin · Social</div>
@@ -200,9 +198,6 @@ export default function FacebookPublisher() {
               Choose a published story, review the Beacon graphic, then download a high-resolution PNG to post wherever you like.
             </p>
           </div>
-          <Link href="/admin/editor" className="w-fit rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
-            Open story editor
-          </Link>
         </div>
 
         {notice ? (

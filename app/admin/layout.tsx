@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import AdminNavigation from "@/app/admin/admin-navigation";
 import { getAccountProfile } from "@/app/lib/account.server";
 
 export const metadata: Metadata = {
@@ -26,5 +27,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/account");
   }
 
-  return children;
+  return (
+    <>
+      <AdminNavigation />
+      {children}
+    </>
+  );
 }

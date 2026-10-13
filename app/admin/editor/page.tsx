@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
-import BackLink from "@/app/back-link";
 import { formatUpdatedAt } from "@/app/lib/dates";
 import { DEFAULT_IMAGE_FOCUS, clampImageFocus, imageObjectPosition } from "@/app/lib/image-focus";
 import { STORY_IMAGE_ACCEPT } from "@/app/lib/story-images";
@@ -1660,25 +1659,12 @@ export default function EditorPage() {
             <div className="mt-1 text-lg font-semibold text-neutral-100">Story Editor</div>
           </div>
           <div className="flex flex-wrap items-center gap-4">
-            <Link href="/admin" className="text-xs text-neutral-400 hover:text-neutral-200">
-              Control center
-            </Link>
             <button
               onClick={() => requestEditorTransition(resetForm, "start a new story")}
               className="text-xs text-neutral-400 hover:text-neutral-200"
             >
               New story
             </button>
-            <Link href="/admin/briefing" className="text-xs text-neutral-400 hover:text-neutral-200">
-              Manage briefing order
-            </Link>
-            <Link href="/admin/discovery" className="text-xs text-neutral-400 hover:text-neutral-200">
-              RSS discovery
-            </Link>
-            <Link href="/admin/moderation" className="text-xs text-neutral-400 hover:text-neutral-200">
-              Moderation
-            </Link>
-            <BackLink href="/" />
           </div>
         </div>
 
@@ -1787,7 +1773,6 @@ export default function EditorPage() {
 
       <div className="mx-auto mt-6 max-w-3xl sm:mt-8">
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 sm:grid-cols-[1fr_auto_1fr] sm:gap-4">
-          <BackLink href="/admin" className="justify-self-start" />
           <div className="justify-self-center text-center">
             <Link href="/" aria-label="Go to The Beacon home page" className="inline-block">
               <Image

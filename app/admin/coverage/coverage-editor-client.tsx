@@ -21,6 +21,11 @@ type CoverageApiResponse = {
 
 type InsertTarget = "hero" | "latest" | `section:${string}`;
 
+function defaultStoryTarget(hub: CoverageHubStored | undefined): InsertTarget {
+  if (!hub?.heroStoryId) return "hero";
+  return hub.sections[0] ? `section:${hub.sections[0].id}` : "latest";
+}
+
 function uniqueStrings(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
@@ -68,6 +73,9 @@ function cloneHub(hub: CoverageHubStored): CoverageHubStored {
     sections: hub.sections.map((section) => ({ ...section, storyIds: [...section.storyIds] })),
     picks: hub.picks.map((pick) => ({ ...pick })),
     notes: hub.notes ? [...hub.notes] : [],
+    electionOverrides: hub.electionOverrides
+      ? { ...hub.electionOverrides, senateRaces: hub.electionOverrides.senateRaces?.map((race) => ({ ...race })) ?? [] }
+      : undefined,
   };
 }
 
@@ -82,10 +90,9 @@ function createBlankHub(slug: string, title: string): CoverageHubStored {
     heroStoryId: "",
     latestStoryIds: [],
     sections: [],
-    picksTitle: "Pick Tracker",
-    picksDescription: "",
     picks: [],
     notes: [],
+    electionOverrides: {},
     updatedAt: null,
     updatedBy: null,
   };
@@ -94,14 +101,15 @@ function createBlankHub(slug: string, title: string): CoverageHubStored {
 export default function CoverageEditorClient({ initialHubs, initialStories }: CoverageEditorClientProps) {
   const [hubs, setHubs] = useState<CoverageHubStored[]>(initialHubs);
   const [stories] = useState<StoryWithViews[]>(initialStories);
-  const [selectedSlug, setSelectedSlug] = useState(initialHubs[0]?.slug ?? "");
-  const [draft, setDraft] = useState<CoverageHubStored | null>(initialHubs[0] ? cloneHub(initialHubs[0]) : null);
+  const initialHub = initialHubs.find((hub) => hub.slug === "midterm-elections-2026") ?? initialHubs[0];
+  const [selectedSlug, setSelectedSlug] = useState(initialHub?.slug ?? "");
+  const [draft, setDraft] = useState<CoverageHubStored | null>(initialHub ? cloneHub(initialHub) : null);
   const [search, setSearch] = useState("");
-  const [insertTarget, setInsertTarget] = useState<InsertTarget>("latest");
+  const [insertTarget, setInsertTarget] = useState<InsertTarget>(() => defaultStoryTarget(initialHub));
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [picksDraft, setPicksDraft] = useState(initialHubs[0] ? formatPicks(initialHubs[0].picks) : "");
+  const [picksDraft, setPicksDraft] = useState(initialHub ? formatPicks(initialHub.picks) : "");
   const [newHubSlug, setNewHubSlug] = useState("");
   const [newHubTitle, setNewHubTitle] = useState("");
 
@@ -140,6 +148,41 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
     setError("");
   }
 
+  function updateElectionOdd(key: "houseDemocrat" | "houseRepublican" | "senateDemocrat" | "senateRepublican", value: string) {
+    const probability = value.trim() === "" ? undefined : Number(value);
+    updateDraft({
+      electionOverrides: {
+        ...draft?.electionOverrides,
+        [key]: probability !== undefined && Number.isFinite(probability) ? probability : undefined,
+      },
+    });
+  }
+
+  function updateElectionRace(index: number, patch: Partial<{ race: string; outcome: string; probability: number }>) {
+    const races = [...(draft?.electionOverrides?.senateRaces ?? [])];
+    const currentRace = races[index] ?? { race: "", outcome: "", probability: 50 };
+    races[index] = { ...currentRace, ...patch };
+    updateDraft({ electionOverrides: { ...draft?.electionOverrides, senateRaces: races } });
+  }
+
+  function addElectionRace() {
+    updateDraft({
+      electionOverrides: {
+        ...draft?.electionOverrides,
+        senateRaces: [...(draft?.electionOverrides?.senateRaces ?? []), { race: "", outcome: "", probability: 50 }],
+      },
+    });
+  }
+
+  function removeElectionRace(index: number) {
+    updateDraft({
+      electionOverrides: {
+        ...draft?.electionOverrides,
+        senateRaces: (draft?.electionOverrides?.senateRaces ?? []).filter((_, raceIndex) => raceIndex !== index),
+      },
+    });
+  }
+
   function confirmNavigation() {
     return !isDirty || window.confirm("You have unsaved coverage hub changes. Continue without saving?");
   }
@@ -151,6 +194,7 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
     setSelectedSlug(slug);
     setDraft(cloneHub(nextHub));
     setPicksDraft(formatPicks(nextHub.picks));
+    setInsertTarget(defaultStoryTarget(nextHub));
     setStatus("");
     setError("");
   }
@@ -175,6 +219,7 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
     setSelectedSlug(slug);
     setDraft(cloneHub(hub));
     setPicksDraft("");
+    setInsertTarget("latest");
     setNewHubSlug("");
     setNewHubTitle("");
     setStatus("New coverage hub draft created. Save it when you're ready.");
@@ -247,6 +292,9 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
         ),
       };
     });
+    if (insertTarget === "hero") {
+      setInsertTarget(draft?.sections[0] ? `section:${draft.sections[0].id}` : "latest");
+    }
     setStatus("");
   }
 
@@ -254,6 +302,22 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
     if (!draft) return;
     if (!draft.slug.trim() || !draft.title.trim()) {
       setError("Coverage hub must have a slug and title.");
+      return;
+    }
+
+    const electionOverrideValues = [
+      draft.electionOverrides?.houseDemocrat,
+      draft.electionOverrides?.houseRepublican,
+      draft.electionOverrides?.senateDemocrat,
+      draft.electionOverrides?.senateRepublican,
+      ...(draft.electionOverrides?.senateRaces ?? []).map((race) => race.probability),
+    ].filter((value): value is number => typeof value === "number");
+    if (electionOverrideValues.some((value) => !Number.isFinite(value) || value < 0 || value > 100)) {
+      setError("Election odds must be percentages from 0 to 100.");
+      return;
+    }
+    if ((draft.electionOverrides?.senateRaces ?? []).some((race) => !race.race.trim() || !race.outcome.trim())) {
+      setError("Each manual Senate race needs a race name and a leader.");
       return;
     }
 
@@ -321,14 +385,11 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
             <div className="text-sm font-semibold uppercase tracking-[0.22em] text-neutral-500">Admin</div>
             <h1 className="mt-2 text-3xl font-bold">Coverage Editor</h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-400">
-              Mini editor for special coverage hubs like the NFL Draft, Super Bowl, or election night. This first version is optimized for quick setup and manual updates.
+              Build event-specific story hubs with a lead story and related coverage. Add a pick tracker only when the event calls for one.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Link href="/admin" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
-              Control center
-            </Link>
             <Link href={`/coverage/${draft.slug}`} className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
               View hub
             </Link>
@@ -442,7 +503,7 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
                 />
               </div>
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Hero Story Id</label>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Lead Story Id</label>
                 <input
                   value={draft.heroStoryId ?? ""}
                   onChange={(event) => updateDraft({ heroStoryId: event.target.value })}
@@ -469,10 +530,134 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
               </div>
             </div>
 
+            {draft.slug === "midterm-elections-2026" ? (
+              <section className={`${ADMIN_PANEL} mt-6 p-6`}>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-300">Election odds overrides</div>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-500">
+                      Leave a value blank to use its live Polymarket price. Enter a percentage from 0 to 100 to override it. Adding Senate races here replaces the automatically selected race list.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateDraft({ electionOverrides: {} })}
+                    disabled={!draft.electionOverrides || Object.keys(draft.electionOverrides).length === 0}
+                    className="rounded-full border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    Clear overrides
+                  </button>
+                </div>
+
+                <div className="mt-5 grid gap-5 lg:grid-cols-2">
+                  {([
+                    { chamber: "House", democratKey: "houseDemocrat", republicanKey: "houseRepublican" },
+                    { chamber: "Senate", democratKey: "senateDemocrat", republicanKey: "senateRepublican" },
+                  ] as const).map(({ chamber, democratKey, republicanKey }) => {
+                    return (
+                      <div key={chamber} className={`${ADMIN_INSET} p-4`}>
+                        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400">{chamber} control</div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <label className="text-xs text-neutral-500">
+                            Democratic Party (%)
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={1}
+                              value={draft.electionOverrides?.[democratKey] ?? ""}
+                              onChange={(event) => updateElectionOdd(democratKey, event.target.value)}
+                              className="mt-2 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-100"
+                              placeholder="Live"
+                            />
+                          </label>
+                          <label className="text-xs text-neutral-500">
+                            Republican Party (%)
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={1}
+                              value={draft.electionOverrides?.[republicanKey] ?? ""}
+                              onChange={(event) => updateElectionOdd(republicanKey, event.target.value)}
+                              className="mt-2 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-100"
+                              placeholder="Live"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className={`${ADMIN_INSET} mt-5 p-4`}>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400">Senate races to watch</div>
+                      <p className="mt-1 text-xs leading-5 text-neutral-600">Add a race to replace the live list. Set the displayed leading candidate or party and their odds.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addElectionRace}
+                      className="rounded-full border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800"
+                    >
+                      Add race
+                    </button>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {(draft.electionOverrides?.senateRaces ?? []).map((race, index) => (
+                      <div key={`election-race-${index}`} className="grid gap-3 rounded-xl border border-neutral-800 bg-neutral-950/60 p-3 md:grid-cols-[1fr_1fr_8rem_auto] md:items-end">
+                        <label className="text-xs text-neutral-500">
+                          Race
+                          <input
+                            value={race.race}
+                            onChange={(event) => updateElectionRace(index, { race: event.target.value })}
+                            className="mt-2 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-100"
+                            placeholder="Georgia Senate"
+                          />
+                        </label>
+                        <label className="text-xs text-neutral-500">
+                          Leader
+                          <input
+                            value={race.outcome}
+                            onChange={(event) => updateElectionRace(index, { outcome: event.target.value })}
+                            className="mt-2 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-100"
+                            placeholder="Democratic Party"
+                          />
+                        </label>
+                        <label className="text-xs text-neutral-500">
+                          Odds (%)
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={race.probability}
+                            onChange={(event) => updateElectionRace(index, { probability: Number(event.target.value) })}
+                            className="mt-2 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-100"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => removeElectionRace(index)}
+                          className="rounded-full border border-red-400/40 px-3 py-2 text-xs text-red-200 transition hover:bg-red-950/30"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    {(draft.electionOverrides?.senateRaces ?? []).length === 0 ? (
+                      <div className="text-sm text-neutral-600">No manual race list; live race markets will be shown.</div>
+                    ) : null}
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
             <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
               <div className="space-y-6">
                 <div className={`${ADMIN_INSET} p-5`}>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Latest Story Ids</div>
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Latest Story IDs</div>
                   <textarea
                     value={formatLines(draft.latestStoryIds)}
                     onChange={(event) => updateDraft({ latestStoryIds: parseLines(event.target.value) })}
@@ -533,34 +718,57 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
                   </div>
                 </div>
 
-                <div className={`${ADMIN_INSET} p-5`}>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Picks Title</div>
-                      <input
-                        value={draft.picksTitle ?? ""}
-                        onChange={(event) => updateDraft({ picksTitle: event.target.value })}
-                        className="mt-3 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100"
-                      />
+                {draft.picksTitle || draft.picks.length > 0 ? (
+                  <div className={`${ADMIN_INSET} p-5`}>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Optional Pick Tracker</div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateDraft({ picksTitle: "", picksDescription: "", picks: [] });
+                          setPicksDraft("");
+                        }}
+                        className="rounded-full border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800"
+                      >
+                        Remove tracker
+                      </button>
                     </div>
-                    <div>
-                      <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Picks Description</div>
-                      <input
-                        value={draft.picksDescription ?? ""}
-                        onChange={(event) => updateDraft({ picksDescription: event.target.value })}
-                        className="mt-3 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100"
-                      />
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracker Title</label>
+                        <input
+                          value={draft.picksTitle ?? ""}
+                          onChange={(event) => updateDraft({ picksTitle: event.target.value })}
+                          className="mt-3 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Tracker Description</label>
+                        <input
+                          value={draft.picksDescription ?? ""}
+                          onChange={(event) => updateDraft({ picksDescription: event.target.value })}
+                          className="mt-3 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100"
+                        />
+                      </div>
                     </div>
+                    <div className="mt-4 text-xs leading-5 text-neutral-500">Use one pick per line: `Pick | Team | Player | School | Note`</div>
+                    <textarea
+                      value={picksDraft}
+                      onChange={(event) => setPicksDraft(event.target.value)}
+                      rows={8}
+                      className="mt-3 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-neutral-100"
+                      placeholder={"1 | Tennessee Titans | Cam Ward | Miami | Franchise QB swing"}
+                    />
                   </div>
-                  <div className="mt-4 text-xs leading-5 text-neutral-500">Use one pick per line: `Pick | Team | Player | School | Note`</div>
-                  <textarea
-                    value={picksDraft}
-                    onChange={(event) => setPicksDraft(event.target.value)}
-                    rows={8}
-                    className="mt-3 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-neutral-100"
-                    placeholder={"1 | Tennessee Titans | Cam Ward | Miami | Franchise QB swing"}
-                  />
-                </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => updateDraft({ picksTitle: "Pick Tracker", picksDescription: "", picks: [] })}
+                    className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white"
+                  >
+                    Add pick tracker
+                  </button>
+                )}
 
                 <div className={`${ADMIN_INSET} p-5`}>
                   <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Notes</div>
@@ -569,13 +777,16 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
                     onChange={(event) => updateDraft({ notes: parseLines(event.target.value) })}
                     rows={5}
                     className="mt-4 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-neutral-100"
-                    placeholder={"Keep this page manual for tonight.\nUpdate latest stories after each major pick."}
+                    placeholder={"Add a short guide to help readers navigate this coverage."}
                   />
                 </div>
               </div>
 
               <div className={`${ADMIN_INSET} p-5`}>
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Story Picker</div>
+                <p className="mt-2 text-xs leading-5 text-neutral-500">
+                  Add the lead story first. Then choose a related story section and insert the smaller supporting stories.
+                </p>
                 <div className="mt-4">
                   <label className="mb-2 block text-xs uppercase tracking-[0.18em] text-neutral-500">Insert Into</label>
                   <select
@@ -583,7 +794,7 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
                     onChange={(event) => setInsertTarget(event.target.value as InsertTarget)}
                     className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100"
                   >
-                    <option value="hero">Hero story</option>
+                    <option value="hero">Lead story</option>
                     <option value="latest">Latest stories</option>
                     {draft.sections.map((section) => (
                       <option key={section.id} value={`section:${section.id}`}>

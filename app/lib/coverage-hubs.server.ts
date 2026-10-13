@@ -5,6 +5,7 @@ import {
   listDefaultCoverageHubDefinitions,
   mergeCoverageHubDefinition,
   type CoverageHubDefinition,
+  type CoverageHubElectionOverrides,
   type CoverageHubPick,
   type CoverageHubStored,
   type CoverageHubStorySection,
@@ -24,6 +25,7 @@ type CoverageHubRow = {
   picks_description?: string | null;
   picks?: unknown;
   notes?: unknown;
+  election_snapshot?: unknown;
   updated_at?: string | null;
   updated_by?: string | null;
 };
@@ -76,6 +78,39 @@ function toCoverageHubPicks(value: unknown): CoverageHubPick[] {
   return picks;
 }
 
+function toCoverageHubElectionOverrides(value: unknown): CoverageHubElectionOverrides | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const row = value as Record<string, unknown>;
+  const percent = (key: string) => {
+    const candidate = row[key];
+    return typeof candidate === "number" && Number.isFinite(candidate) && candidate >= 0 && candidate <= 100
+      ? candidate
+      : undefined;
+  };
+  const races = Array.isArray(row.senateRaces)
+    ? row.senateRaces.flatMap((item) => {
+        if (typeof item !== "object" || item === null) return [];
+        const race = (item as Record<string, unknown>).race;
+        const outcome = (item as Record<string, unknown>).outcome;
+        const probability = (item as Record<string, unknown>).probability;
+        if (
+          typeof race !== "string" || !race.trim() ||
+          typeof outcome !== "string" || !outcome.trim() ||
+          typeof probability !== "number" || !Number.isFinite(probability) || probability < 0 || probability > 100
+        ) return [];
+        return [{ race: race.trim(), outcome: outcome.trim(), probability }];
+      })
+    : [];
+
+  const overrides: CoverageHubElectionOverrides = {};
+  for (const key of ["houseDemocrat", "houseRepublican", "senateDemocrat", "senateRepublican"] as const) {
+    const value = percent(key);
+    if (value !== undefined) overrides[key] = value;
+  }
+  if (races.length > 0) overrides.senateRaces = races;
+  return Object.keys(overrides).length > 0 ? overrides : undefined;
+}
+
 function normalizeCoverageHub(input: Partial<CoverageHubStored> & { slug: string }): CoverageHubStored {
   return {
     slug: input.slug.trim(),
@@ -87,10 +122,11 @@ function normalizeCoverageHub(input: Partial<CoverageHubStored> & { slug: string
     heroStoryId: typeof input.heroStoryId === "string" ? input.heroStoryId.trim() || undefined : undefined,
     latestStoryIds: Array.from(new Set((input.latestStoryIds ?? []).map((id) => id.trim()).filter(Boolean))),
     sections: toCoverageHubSections(input.sections ?? []),
-    picksTitle: typeof input.picksTitle === "string" ? input.picksTitle.trim() || undefined : undefined,
+    picksTitle: typeof input.picksTitle === "string" ? input.picksTitle.trim() : undefined,
     picksDescription: typeof input.picksDescription === "string" ? input.picksDescription.trim() || undefined : undefined,
     picks: toCoverageHubPicks(input.picks ?? []),
     notes: Array.from(new Set((input.notes ?? []).map((note) => note.trim()).filter(Boolean))),
+    electionOverrides: toCoverageHubElectionOverrides(input.electionOverrides),
     updatedAt: input.updatedAt ?? null,
     updatedBy: input.updatedBy ?? null,
   };
@@ -107,10 +143,11 @@ function fromCoverageHubRow(row: CoverageHubRow): CoverageHubStored {
     heroStoryId: toNullableString(row.hero_story_id) ?? undefined,
     latestStoryIds: toStringArray(row.latest_story_ids),
     sections: toCoverageHubSections(row.sections),
-    picksTitle: toNullableString(row.picks_title) ?? undefined,
+    picksTitle: row.picks_title ?? "",
     picksDescription: toNullableString(row.picks_description) ?? undefined,
     picks: toCoverageHubPicks(row.picks),
     notes: toStringArray(row.notes),
+    electionOverrides: toCoverageHubElectionOverrides(row.election_snapshot),
     updatedAt: row.updated_at ?? null,
     updatedBy: row.updated_by ?? null,
   });
@@ -120,7 +157,7 @@ async function loadCoverageHubOverrides() {
   const supabase = supabaseServer();
   const { data, error } = await supabase
     .from("coverage_hubs")
-    .select("slug, eyebrow, title, dek, date_label, description, hero_story_id, latest_story_ids, sections, picks_title, picks_description, picks, notes, updated_at, updated_by")
+    .select("slug, eyebrow, title, dek, date_label, description, hero_story_id, latest_story_ids, sections, picks_title, picks_description, picks, notes, election_snapshot, updated_at, updated_by")
     .order("slug", { ascending: true });
 
   if (error) {
@@ -168,6 +205,7 @@ export async function upsertCoverageHub(input: Partial<CoverageHubDefinition> & 
     picks_description: merged.picksDescription ?? null,
     picks: merged.picks,
     notes: merged.notes ?? [],
+    election_snapshot: merged.electionOverrides ?? {},
     updated_at: new Date().toISOString(),
     updated_by: updatedBy,
   };
@@ -175,7 +213,7 @@ export async function upsertCoverageHub(input: Partial<CoverageHubDefinition> & 
   const { data, error } = await supabase
     .from("coverage_hubs")
     .upsert(payload, { onConflict: "slug" })
-    .select("slug, eyebrow, title, dek, date_label, description, hero_story_id, latest_story_ids, sections, picks_title, picks_description, picks, notes, updated_at, updated_by")
+    .select("slug, eyebrow, title, dek, date_label, description, hero_story_id, latest_story_ids, sections, picks_title, picks_description, picks, notes, election_snapshot, updated_at, updated_by")
     .single();
 
   if (error) {

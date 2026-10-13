@@ -223,17 +223,6 @@ export default function AdminModerationPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Link href="/admin" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
-              Control center
-            </Link>
-            <Link href="/admin/editor" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
-              Story editor
-            </Link>
-            <Link href="/admin/briefing" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
-              Briefing manager
-            </Link>
-          </div>
         </div>
 
         <div className={`mt-8 ${ADMIN_PANEL} p-6`}>

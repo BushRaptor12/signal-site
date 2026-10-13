@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import BackLink from "@/app/back-link";
 import { formatUpdatedAt } from "@/app/lib/dates";
 import type { AdminRssCluster, AdminRssDiscoveryData, AdminRssFeed } from "@/app/lib/rss-discovery";
 import { ADMIN_INSET, ADMIN_INSET_INTERACTIVE, ADMIN_PANEL } from "@/app/lib/surfaces";
@@ -397,8 +396,6 @@ export default function RssDiscoveryClient({ initialData }: RssDiscoveryClientPr
   return (
     <main className="min-h-screen bg-[#05080d] px-4 py-8 text-neutral-100 sm:px-6">
       <div className="mx-auto max-w-7xl">
-        <BackLink href="/admin" label="Admin" />
-
         <header className="mt-6 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="text-sm font-semibold uppercase tracking-[0.22em] text-neutral-500">Admin</div>
@@ -408,9 +405,6 @@ export default function RssDiscoveryClient({ initialData }: RssDiscoveryClientPr
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link href="/admin/editor" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
-              Story editor
-            </Link>
             <button
               type="button"
               onClick={() => void runScan()}

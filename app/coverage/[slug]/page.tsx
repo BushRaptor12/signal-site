@@ -1,14 +1,16 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import BackLink from "@/app/back-link";
 import AdaptiveBriefingImage from "@/app/briefing/adaptive-briefing-image";
+import ElectionSnapshotPanel from "@/app/coverage/election-snapshot-panel";
 import {
   buildCoverageHubData,
   listCoverageHubSlugs,
   type CoverageHubData,
 } from "@/app/lib/coverage-hubs";
 import { getCoverageHub as getStoredCoverageHub } from "@/app/lib/coverage-hubs.server";
+import { getElectionSnapshot } from "@/app/lib/election-snapshot.server";
 import { formatStoryDate } from "@/app/lib/dates";
 import { DEFAULT_OG_IMAGE, SITE_NAME, absoluteUrl, breadcrumbJsonLd, trimDescription } from "@/app/lib/seo";
 import {
@@ -129,6 +131,12 @@ export default async function CoverageHubPage({
   if (!hub) {
     notFound();
   }
+  const isMidtermHub = hub.slug === "midterm-elections-2026";
+  const electionSnapshot = isMidtermHub ? await getElectionSnapshot(hub.electionOverrides) : null;
+  const notes = hub.notes ?? [];
+  const hasTracker = Boolean(hub.picksTitle || hub.picks.length > 0);
+  const hasGuide = !isMidtermHub && notes.length > 0;
+  const hasSidebar = isMidtermHub || hasTracker || hasGuide;
   const breadcrumb = breadcrumbJsonLd([
     { name: SITE_NAME, item: "/" },
     { name: hub.title, item: `/coverage/${hub.slug}` },
@@ -141,17 +149,20 @@ export default async function CoverageHubPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
       />
       <div className="mx-auto max-w-6xl">
-        <div className="flex items-center justify-between gap-4">
-          <BackLink href="/" />
-          <Link
-            href="/briefing"
-            className="rounded-full border border-[#1c3953]/70 bg-[#081724] px-4 py-2 text-xs font-semibold text-neutral-200 transition hover:border-[#28445d] hover:bg-[#0a1926]"
-          >
-            View briefing
+        <div className="flex justify-center">
+          <Link href="/" aria-label="Go to The Beacon home page" className="inline-block">
+            <Image
+              src="/psbeacon.png?v=20260707"
+              alt="The Beacon"
+              width={1920}
+              height={1080}
+              priority
+              className="h-auto w-[138px] sm:w-[158px]"
+            />
           </Link>
         </div>
 
-        <section className={`${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING} mt-8 overflow-hidden`}>
+        <section className={`${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING} mt-6 overflow-hidden border-t-2 border-t-[#8f7740]/70`}>
           <div className="max-w-4xl">
             <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d7c08d]">{hub.eyebrow}</div>
             <div className="mt-3 text-sm uppercase tracking-[0.18em] text-neutral-500">{hub.dateLabel}</div>
@@ -161,11 +172,11 @@ export default async function CoverageHubPage({
 
         </section>
 
-        <section className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,1.5fr)_minmax(18rem,0.9fr)]">
+        <section className={`mt-8 grid gap-8 ${hasSidebar ? "xl:grid-cols-[minmax(0,1.5fr)_minmax(18rem,0.9fr)]" : "grid-cols-1"}`}>
           <div className="space-y-8">
             {hub.heroStory ? (
               <article className={`${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
-                <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">Featured Story</div>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">Lead Story</div>
                 <Link href={`/story/${hub.heroStory.id}`} className="mt-4 block">
                   <h2 className="text-[1.8rem] font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d] sm:text-3xl md:text-5xl">
                     {hub.heroStory.title}
@@ -183,9 +194,9 @@ export default async function CoverageHubPage({
               </article>
             ) : (
               <div className={`${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
-                <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">Featured Story</div>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">Lead Story</div>
                 <p className="mt-4 text-sm leading-6 text-neutral-400">
-                  A featured story will appear here as this coverage develops.
+                  A lead story will appear here as this coverage develops.
                 </p>
               </div>
             )}
@@ -221,37 +232,52 @@ export default async function CoverageHubPage({
             )}
           </div>
 
-          <aside className="space-y-6">
-            <section className={`${PUBLIC_PANEL} p-6`}>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#d7c08d]">
-                {hub.picksTitle ?? "Pick Tracker"}
-              </div>
-              {hub.picks.length > 0 ? (
-                <div className="mt-4 space-y-3">
-                  {hub.picks.map((pick) => (
-                    <div key={`${pick.pick}-${pick.team}-${pick.player}`} className={`${PUBLIC_INSET_ELEVATED} px-4 py-4`}>
-                      <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">{pick.pick} • {pick.team}</div>
-                      <div className="mt-2 text-base font-semibold text-neutral-100">{pick.player}</div>
-                      {pick.school ? <div className="mt-1 text-sm text-neutral-400">{pick.school}</div> : null}
-                      {pick.note ? <div className="mt-2 text-sm leading-6 text-neutral-300">{pick.note}</div> : null}
+          {hasSidebar ? (
+            <aside className="space-y-6">
+              {electionSnapshot ? <ElectionSnapshotPanel snapshot={electionSnapshot} /> : null}
+              {hasTracker ? (
+                <>
+                  <section className={`${PUBLIC_PANEL} p-6`}>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#d7c08d]">
+                      {hub.picksTitle ?? "Pick Tracker"}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className={`${PUBLIC_INSET_ELEVATED} mt-4 px-4 py-4 text-sm leading-6 text-neutral-400`}>
-                  Pick-by-pick updates will appear here as the board takes shape.
-                </div>
-              )}
-            </section>
+                    {hub.picks.length > 0 ? (
+                      <div className="mt-4 space-y-3">
+                        {hub.picks.map((pick) => (
+                          <div key={`${pick.pick}-${pick.team}-${pick.player}`} className={`${PUBLIC_INSET_ELEVATED} px-4 py-4`}>
+                            <div className="text-[11px] uppercase tracking-[0.16em] text-neutral-500">{pick.pick} • {pick.team}</div>
+                            <div className="mt-2 text-base font-semibold text-neutral-100">{pick.player}</div>
+                            {pick.school ? <div className="mt-1 text-sm text-neutral-400">{pick.school}</div> : null}
+                            {pick.note ? <div className="mt-2 text-sm leading-6 text-neutral-300">{pick.note}</div> : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={`${PUBLIC_INSET_ELEVATED} mt-4 px-4 py-4 text-sm leading-6 text-neutral-400`}>
+                        Pick-by-pick updates will appear here as the board takes shape.
+                      </div>
+                    )}
+                  </section>
 
-            <section className={`${PUBLIC_PANEL} p-6`}>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#d7c08d]">What To Watch</div>
-              <div className="mt-4 space-y-3 text-sm leading-6 text-neutral-300">
-                <p>Track the biggest selections, the fastest risers, and the teams reshaping their plans in real time.</p>
-                <p>Follow the latest reporting as the board changes and the ripple effects reach schools, front offices, and fan bases across the league.</p>
-              </div>
-            </section>
-          </aside>
+                  <section className={`${PUBLIC_PANEL} p-6`}>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#d7c08d]">What To Watch</div>
+                    <div className="mt-4 space-y-3 text-sm leading-6 text-neutral-300">
+                      <p>Track the biggest selections, the fastest risers, and the teams reshaping their plans in real time.</p>
+                      <p>Follow the latest reporting as the board changes and the ripple effects reach schools, front offices, and fan bases across the league.</p>
+                    </div>
+                  </section>
+                </>
+              ) : null}
+              {hasGuide ? (
+                <section className={`${PUBLIC_PANEL} p-6`}>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#d7c08d]">Coverage Guide</div>
+                  <ul className="mt-4 space-y-3 text-sm leading-6 text-neutral-300">
+                    {notes.map((note) => <li key={note}>{note}</li>)}
+                  </ul>
+                </section>
+              ) : null}
+            </aside>
+          ) : null}
         </section>
       </div>
     </main>

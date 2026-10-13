@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import BackLink from "@/app/back-link";
 import { getAccountProfile } from "@/app/lib/account.server";
 import { getAdminAnalyticsData, type AdminAnalyticsWindow } from "@/app/lib/admin-analytics";
 import { formatUpdatedAt } from "@/app/lib/dates";
@@ -84,7 +83,6 @@ export default async function AdminAnalyticsPage({ searchParams }: AnalyticsPage
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <BackLink href="/admin" />
             {WINDOW_OPTIONS.map((option) => (
               <Link
                 key={option}

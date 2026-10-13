@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { listBriefingArchives } from "@/app/lib/briefing-archive";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import { absoluteUrl } from "@/app/lib/seo";
+import { listCoverageHubSlugs } from "@/app/lib/coverage-hubs";
 import { supabaseServer } from "@/app/lib/supabase.server";
 
 function lastModifiedForStory(story: StoryDbRow) {
@@ -53,6 +54,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.3,
     },
   ];
+
+  for (const slug of listCoverageHubSlugs()) {
+    routes.push({
+      url: absoluteUrl(`/coverage/${slug}`),
+      lastModified: new Date(),
+      changeFrequency: "daily",
+      priority: 0.65,
+    });
+  }
 
   try {
     const supabase = supabaseServer();

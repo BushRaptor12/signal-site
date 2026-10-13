@@ -773,23 +773,6 @@ export default function AdminBriefingPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link href="/admin" onClick={guardNavigation} className="text-xs text-neutral-400 hover:text-neutral-200">
-              Control center
-            </Link>
-            <Link
-              href="/admin/editor"
-              onClick={guardNavigation}
-              className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white"
-            >
-              Story editor
-            </Link>
-            <Link
-              href="/admin/moderation"
-              onClick={guardNavigation}
-              className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white"
-            >
-              Moderation
-            </Link>
             <Link
               href="/briefing"
               onClick={guardNavigation}

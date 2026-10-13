@@ -8,6 +8,18 @@ export type CoverageHubPick = {
   note?: string;
 };
 
+export type CoverageHubElectionOverrides = {
+  houseDemocrat?: number;
+  houseRepublican?: number;
+  senateDemocrat?: number;
+  senateRepublican?: number;
+  senateRaces?: Array<{
+    race: string;
+    outcome: string;
+    probability: number;
+  }>;
+};
+
 export type CoverageHubStorySection = {
   id: string;
   title: string;
@@ -29,6 +41,7 @@ export type CoverageHubDefinition = {
   picksDescription?: string;
   picks: CoverageHubPick[];
   notes?: string[];
+  electionOverrides?: CoverageHubElectionOverrides;
 };
 
 export type CoverageHubData = Omit<CoverageHubDefinition, "sections"> & {
@@ -77,6 +90,29 @@ const DEFAULT_COVERAGE_HUBS: CoverageHubDefinition[] = [
     picks: [],
     notes: [],
   },
+  {
+    slug: "midterm-elections-2026",
+    eyebrow: "Election Coverage",
+    title: "2026 Midterm Elections",
+    dek: "The races, issues, and political shifts shaping control of Congress and state governments.",
+    dateLabel: "The 2026 Election Cycle",
+    description: "The Beacon's coverage of the candidates, campaigns, key races, and voters shaping the 2026 midterm elections.",
+    heroStoryId: "",
+    latestStoryIds: [],
+    sections: [
+      {
+        id: "related",
+        title: "More Midterm Stories",
+        description: "Reporting that adds context to the lead story and follows the races, issues, and voters shaping the midterms.",
+        storyIds: [],
+      },
+    ],
+    picks: [],
+    notes: [
+      "Start with the lead story for the biggest development in the 2026 midterms.",
+      "The related stories add reporting on key races, campaign issues, voter concerns, and the balance of power.",
+    ],
+  },
 ];
 
 function byId(stories: StoryWithViews[]) {
@@ -119,6 +155,7 @@ export function mergeCoverageHubDefinition(
     picksDescription: override.picksDescription ?? base.picksDescription,
     picks: override.picks ?? base.picks,
     notes: override.notes ?? base.notes,
+    electionOverrides: override.electionOverrides ?? base.electionOverrides,
     updatedAt: override.updatedAt ?? null,
     updatedBy: override.updatedBy ?? null,
   };

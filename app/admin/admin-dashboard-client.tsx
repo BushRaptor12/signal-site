@@ -202,30 +202,6 @@ export default function AdminDashboardClient({ initialData, initialUsers }: Admi
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Link href="/admin/editor" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
-              Story editor
-            </Link>
-            <Link href="/admin/facebook" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
-              Facebook publisher
-            </Link>
-            <Link href="/admin/entities" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
-              Entities
-            </Link>
-            <Link href="/admin/moderation" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
-              Moderation
-            </Link>
-            <Link href="/admin/analytics" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
-              Analytics
-            </Link>
-            <Link href="/admin/briefing" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
-              Briefing manager
-            </Link>
-            <Link href="/admin/coverage" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
-              Coverage editor
-            </Link>
-            <Link href="/admin/discovery" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
-              RSS discovery
-            </Link>
             <Link href="#reader-interests" className="rounded-full border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-white">
               Reader interests
             </Link>
