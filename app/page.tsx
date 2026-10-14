@@ -230,6 +230,17 @@ export default async function HomePage() {
     return (
       <>
         <NewsSectionNav />
+        <Link
+          href="/coverage/midterm-elections-2026"
+          className="group flex min-h-10 w-full items-center justify-center gap-2 border-y border-[#8f7740]/35 bg-gradient-to-r from-[#0a1722] via-[#172833] to-[#0a1722] px-3 text-center text-xs font-semibold tracking-[0.04em] text-neutral-100 transition-colors hover:from-[#10202d] hover:via-[#20333d] hover:to-[#10202d] sm:min-h-11 sm:text-sm"
+        >
+          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-[#d7c08d] motion-safe:animate-pulse" />
+          <span className="text-[#e3cca0]">SPECIAL COVERAGE:</span>
+          <span>Midterm Elections</span>
+          <svg aria-hidden="true" viewBox="0 0 20 20" className="ml-0.5 size-3.5 shrink-0 fill-none stroke-current stroke-[1.8] text-[#d7c08d] transition-transform group-hover:translate-x-0.5">
+            <path d="M3.5 10h12m-5-5 5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </Link>
         <main className="min-h-screen bg-transparent px-3 pb-3 pt-1 text-neutral-100 sm:px-5 sm:pb-7 sm:pt-3 lg:px-8 lg:pb-8 lg:pt-4">
         <script
           type="application/ld+json"
@@ -255,21 +266,14 @@ export default async function HomePage() {
 
           <header className="mb-3 sm:mb-7">
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-x-4">
-              <div className="min-w-0 whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.05em] text-neutral-500 sm:text-[11px] sm:tracking-[0.16em]">
+              <div className="col-start-1 row-start-1 min-w-0 whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.05em] text-neutral-500 sm:text-[11px] sm:tracking-[0.16em]">
                 <span className="text-neutral-600">Updated</span>
                 <span className="ml-1 normal-case tracking-normal text-neutral-400">
                   <LocalBriefingUpdated value={latestUpdatedAt} />
                 </span>
               </div>
-              <Link
-                href="/coverage/midterm-elections-2026"
-                className="col-start-2 row-start-1 inline-flex shrink-0 items-center gap-1.5 justify-self-end whitespace-nowrap text-[9px] font-semibold uppercase leading-[14px] tracking-[0.05em] text-[#d7c08d] underline decoration-[#8f7740]/50 underline-offset-[5px] transition hover:text-white hover:decoration-[#d7c08d] sm:text-[13px] sm:tracking-[0.14em]"
-              >
-                <span aria-hidden="true" className="size-1.5 rounded-full bg-[#d7c08d] motion-safe:animate-pulse" />
-                <span>Midterm Elections</span>
-              </Link>
               {isAdmin ? (
-                <div className="col-span-2 row-start-2 flex flex-wrap items-center gap-2 sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:justify-self-end">
+                <div className="col-start-2 row-start-1 flex flex-wrap items-center gap-2 justify-self-end sm:col-start-2 sm:row-start-1">
                   <ManualArchiveButton />
                 </div>
               ) : null}

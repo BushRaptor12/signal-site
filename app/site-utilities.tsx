@@ -201,6 +201,7 @@ export default function SiteUtilities() {
                 key={item.href}
                 href={item.href}
                 aria-label={item.label}
+                aria-current={active ? "page" : undefined}
                 onClick={() =>
                   trackFunnelEvent("mobile_nav_clicked", {
                     href: item.href,

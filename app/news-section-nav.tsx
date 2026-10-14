@@ -127,7 +127,7 @@ export default function NewsSectionNav({ activeTab }: { activeTab?: string }) {
               key={tab}
               href={newsSectionHref(tab)}
               aria-current={activeTab === tab ? "page" : undefined}
-              className={`shrink-0 border-b-[3px] px-1 pb-2 pt-1 text-sm font-semibold transition ${
+              className={`inline-flex min-h-11 shrink-0 items-center border-b-[3px] px-1 text-sm font-semibold transition ${
                 activeTab === tab
                   ? "border-[#e3cca0] text-neutral-100"
                   : "border-transparent text-[#c5d3e1] hover:border-[#30516d] hover:text-white"

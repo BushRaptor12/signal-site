@@ -35,7 +35,28 @@ body {
 }
 
 @media (max-width: 767px) {
+  html {
+    scroll-padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
+  }
+
   body {
+    padding-top: env(safe-area-inset-top);
     padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
+    min-height: 100dvh;
+  }
+
+  .min-h-screen {
+    min-height: 100svh;
+    min-height: 100dvh;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+
+  .mobile-dynamic-dialog {
+    max-height: min(90dvh, 900px);
   }
 }

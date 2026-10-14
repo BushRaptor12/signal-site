@@ -155,7 +155,7 @@ export default function StoryHistoryTimeline({ image, latestSummary, latestUpdat
           role="dialog"
           aria-modal="true"
           aria-labelledby="story-timeline-title"
-          className="flex max-h-[min(90vh,900px)] w-full max-w-3xl flex-col overflow-hidden rounded-[24px] border border-[#25445d] bg-[#07131e] shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
+          className="mobile-dynamic-dialog flex max-h-[min(90vh,900px)] w-full max-w-3xl flex-col overflow-hidden rounded-[24px] border border-[#25445d] bg-[#07131e] shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
         >
           <header className="relative shrink-0 overflow-hidden border-b border-[#1a3349] px-6 py-5 sm:px-9 sm:py-6">
             <div className="pointer-events-none absolute -right-10 -top-24 h-56 w-56 rounded-full bg-[#b89a55]/[0.08] blur-3xl" />
@@ -176,7 +176,7 @@ export default function StoryHistoryTimeline({ image, latestSummary, latestUpdat
               </button>
             </div>
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 sm:px-9 sm:py-6">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5 sm:px-9 sm:py-6">
             <ol className="relative space-y-3 before:absolute before:bottom-5 before:left-[13px] before:top-5 before:w-px before:bg-gradient-to-b before:from-[#b89a55]/70 before:via-[#34536b] before:to-transparent">
               {days.map(({ day, revision }, index) => {
                 const isSelected = selectedId === day;
