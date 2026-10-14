@@ -48,6 +48,11 @@ export type ElectionSnapshot = {
   updatedAt: string;
 };
 
+export type PolymarketOddsLookup = {
+  label: string;
+  probability: number;
+};
+
 const POLYMARKET_API = "https://gamma-api.polymarket.com";
 const CONTROL_EVENTS = [
   { chamber: "House" as const, slug: "which-party-will-win-the-house-in-2026" },
@@ -94,6 +99,40 @@ async function fetchEvent(slug: string): Promise<PolymarketEvent | null> {
   }
 }
 
+export async function lookupPolymarketOdds(rawUrl: string): Promise<PolymarketOddsLookup | null> {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || (url.hostname !== "polymarket.com" && !url.hostname.endsWith(".polymarket.com"))) {
+    return null;
+  }
+
+  const path = url.pathname.split("/").filter(Boolean);
+  if (path[0] !== "event" || !path[1]) return null;
+  const event = await fetchEvent(path[1]);
+  if (!event) return null;
+
+  const markets = (event.markets ?? [])
+    .filter((market) => market.active !== false && market.closed !== true)
+    .filter((market) => !path[2] || market.slug === path[2])
+    .flatMap((market) => {
+      const outcomes = parseJsonArray(market.outcomes);
+      const prices = parseJsonArray(market.outcomePrices).map(Number);
+      const yesIndex = outcomes.findIndex((outcome) => outcome.toLowerCase() === "yes");
+      const probability = prices[yesIndex >= 0 ? yesIndex : 0];
+      const label = market.groupItemTitle?.trim() || market.question?.trim();
+      if (!label || !Number.isFinite(probability) || probability < 0 || probability > 1) return [];
+      return [{ label, probability, volume: market.volumeNum ?? 0 }];
+    })
+    .sort((a, b) => b.probability - a.probability || b.volume - a.volume);
+
+  const market = markets[0];
+  return market ? { label: market.label, probability: market.probability } : null;
+}
+
 async function fetchSenateRaceMarkets(): Promise<ElectionRaceMarket[]> {
   try {
     const search = await fetch(`${POLYMARKET_API}/public-search?q=${encodeURIComponent("2026 Senate race")}&limit_per_type=30`, {
@@ -122,7 +161,7 @@ async function fetchSenateRaceMarkets(): Promise<ElectionRaceMarket[]> {
           if (!label || !Number.isFinite(probability) || probability <= 0 || probability >= 1) return [];
           return [{ label, probability, volume: market.volumeNum ?? 0, slug: market.slug }];
         })
-        .sort((a, b) => b.volume - a.volume);
+        .sort((a, b) => b.probability - a.probability || b.volume - a.volume);
       const market = markets[0];
       if (!market) return [];
       return [{
@@ -184,6 +223,7 @@ export async function getElectionSnapshot(overrides?: CoverageHubElectionOverrid
   const displayedRaces = manualRaces.length > 0
     ? manualRaces.map((race) => ({
         title: race.race,
+        url: race.url,
         leader: { label: race.outcome, probability: race.probability / 100, manual: true },
         volume: 0,
       }))

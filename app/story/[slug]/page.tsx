@@ -3,8 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import BackLink from "@/app/back-link";
 import FollowInterestButton from "@/app/follow-interest-button";
-import { FunnelView, TrackedLink } from "@/app/funnel-analytics";
-import InstallAppPrompt from "@/app/install-app-prompt";
+import { FunnelView } from "@/app/funnel-analytics";
 import { getAccountProfile, getAccountStoryState, getFollowedInterests, getSeenStoryIds } from "@/app/lib/account.server";
 import { formatStoryDate } from "@/app/lib/dates";
 import { imageObjectPosition } from "@/app/lib/image-focus";
@@ -157,7 +156,7 @@ export default async function StoryPage({
 
   const backHref =
     from === "beacon"
-      ? "/beacon"
+      ? "/"
       : from === "briefing"
       ? "/briefing"
       : from === "account"
@@ -304,7 +303,7 @@ export default async function StoryPage({
                 className="h-auto w-[122px] sm:w-[156px] md:w-[184px]"
               />
             </Link>
-            <p className="mt-1 hidden text-[11px] text-neutral-500 sm:block md:text-xs">One Story, Multiple Perspectives.</p>
+            <p className="mt-1 text-[10px] text-neutral-500 sm:text-[11px] md:text-xs">One Story, Multiple Perspectives.</p>
           </div>
           <div className="justify-self-end">
             {isAdmin ? (
@@ -318,34 +317,6 @@ export default async function StoryPage({
           </div>
         </div>
 
-        <div className="mt-4 space-y-3 md:hidden">
-          <div className="rounded-[14px] border border-[#183149]/70 bg-[#07131e] p-3 shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
-            <div className="mb-3 flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
-              <span>{from === "beacon" ? "Beacon app" : "Story actions"}</span>
-              <span>{formatStoryDate(story.date)}</span>
-            </div>
-            <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
-              <TrackedLink
-                href="/briefing"
-                eventName="briefing_opened_from_story_top"
-                properties={{ from: from ?? "direct", storyId: story.id }}
-                className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
-              >
-                Read Briefing
-              </TrackedLink>
-              <StoryReaderActions
-                authenticated={Boolean(accountProfile)}
-                className="min-h-10 rounded-full px-4 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-70"
-                disableMarkSeen
-                initialFollowing={Boolean(storyState?.following)}
-                storyId={story.id}
-                trackingContext="story_top_mobile"
-              />
-              <ShareButton title={story.title} path={`/story/${story.id}`} trackingContext="story_top_mobile" variant="soft" />
-            </div>
-          </div>
-          <InstallAppPrompt compact />
-        </div>
       </div>
 
       <div
@@ -368,33 +339,10 @@ export default async function StoryPage({
               latestUpdatedAt={updatedAt}
               revisions={storyTimeline}
               storyTitle={story.title}
+              authenticated={Boolean(accountProfile)}
+              initialFollowing={Boolean(storyState?.following)}
+              storyId={story.id}
             />
-
-            <section className="mt-6 rounded-[14px] border border-[#28445d]/70 bg-[#07131e] p-4 md:hidden">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Want the full picture?</div>
-              <p className="mt-2 text-sm leading-6 text-neutral-300">
-                Open the ranked briefing, track this story, or share it from your phone.
-              </p>
-              <div className="mt-4 grid grid-cols-[1fr_auto_auto] items-center gap-2">
-                <TrackedLink
-                  href="/briefing"
-                  eventName="briefing_opened_from_story_landing"
-                  properties={{ from: from ?? "direct", storyId: story.id }}
-                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#8f7740]/70 bg-[#07101a] px-4 py-2 text-xs font-semibold text-neutral-100 transition hover:border-[#b89a55] hover:bg-[#0a1724]"
-                >
-                  Briefing
-                </TrackedLink>
-                <StoryReaderActions
-                  authenticated={Boolean(accountProfile)}
-                  className="min-h-10 rounded-full px-4 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-70"
-                  disableMarkSeen
-                  initialFollowing={Boolean(storyState?.following)}
-                  storyId={story.id}
-                  trackingContext="story_landing_module"
-                />
-                <ShareButton title={story.title} path={`/story/${story.id}`} trackingContext="story_landing_module" variant="soft" />
-              </div>
-            </section>
 
             <StorySources latestSources={story.sources} />
 
@@ -424,7 +372,7 @@ export default async function StoryPage({
                 storyId={story.id}
                 views={story.views}
               />
-              <div className="hidden flex-wrap items-center gap-3 sm:flex">
+              <div className="hidden flex-wrap items-center gap-3 md:flex">
                 <StoryReaderActions
                   authenticated={Boolean(accountProfile)}
                   initialFollowing={Boolean(storyState?.following)}

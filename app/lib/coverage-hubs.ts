@@ -17,6 +17,7 @@ export type CoverageHubElectionOverrides = {
     race: string;
     outcome: string;
     probability: number;
+    url?: string;
   }>;
 };
 

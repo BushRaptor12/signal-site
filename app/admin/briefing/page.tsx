@@ -116,9 +116,11 @@ function StoryMetaRow({ story }: { story: StoryWithViews }) {
 function PublicLeadCard({
   story,
   registerNode,
+  onRemove,
 }: {
   story: StoryWithViews;
   registerNode?: (node: HTMLDivElement | null) => void;
+  onRemove: () => void;
 }) {
   const summaryPoints = displayLeadBriefingSummaryPoints(story);
   const usesAlertStyle = story.beacon_lead_style === "alert";
@@ -127,10 +129,19 @@ function PublicLeadCard({
     <article
       ref={registerNode}
       data-story-id={story.id}
-      className={`relative block overflow-hidden rounded-[14px] border bg-[#07131e] p-8 shadow-[0_20px_46px_rgba(0,0,0,0.22)] ${
+      className={`group relative block overflow-hidden rounded-[14px] border bg-[#07131e] p-8 shadow-[0_20px_46px_rgba(0,0,0,0.22)] ${
         usesAlertStyle ? "border-red-500/55" : "border-[#183149]/70"
       }`}
     >
+      <button
+        type="button"
+        aria-label={`Remove ${displayHeadline(story)} from briefing`}
+        title="Remove from briefing"
+        onClick={onRemove}
+        className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-400/45 bg-[#07131e]/90 text-lg leading-none text-red-200 shadow-sm transition hover:bg-red-950/70"
+      >
+        ×
+      </button>
       <div className="relative text-center">
         <div
           className={`font-semibold leading-[0.95] md:text-6xl ${
@@ -156,12 +167,14 @@ function PublicLeadCard({
 function PublicCard({
   story,
   registerNode,
+  onRemove,
   onHandlePointerDown,
   onHandlePointerMove,
   onHandlePointerUp,
 }: {
   story: StoryWithViews;
   registerNode?: (node: HTMLDivElement | null) => void;
+  onRemove: () => void;
   onHandlePointerDown: PointerEventHandler<HTMLButtonElement>;
   onHandlePointerMove: PointerEventHandler<HTMLButtonElement>;
   onHandlePointerUp: PointerEventHandler<HTMLButtonElement>;
@@ -170,8 +183,17 @@ function PublicCard({
     <div
       ref={registerNode}
       data-story-id={story.id}
-      className="relative"
+      className="group relative"
     >
+      <button
+        type="button"
+        aria-label={`Remove ${displayHeadline(story)} from briefing`}
+        title="Remove from briefing"
+        onClick={onRemove}
+        className="absolute right-14 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-400/45 bg-[#07131e]/90 text-lg leading-none text-red-200 shadow-sm transition hover:bg-red-950/70"
+      >
+        ×
+      </button>
       <button
         type="button"
         aria-label={`Drag ${displayHeadline(story)} to reposition it`}
@@ -858,7 +880,11 @@ export default function AdminBriefingPage() {
                     }}
                     className={sameDropTarget(dragTarget, { kind: "lead" }) ? "rounded-[18px] p-2 ring-2 ring-[#d7c08d]/60" : undefined}
                   >
-                    <PublicLeadCard story={briefingLayout.lead} registerNode={registerCanvasNode(briefingLayout.lead.id)} />
+                    <PublicLeadCard
+                      story={briefingLayout.lead}
+                      registerNode={registerCanvasNode(briefingLayout.lead.id)}
+                      onRemove={() => removeStoryFromBriefing(briefingLayout.lead!.id)}
+                    />
                   </div>
                 ) : null}
 
@@ -892,6 +918,7 @@ export default function AdminBriefingPage() {
                             <PublicCard
                               story={story}
                               registerNode={registerCanvasNode(story.id)}
+                              onRemove={() => removeStoryFromBriefing(story.id)}
                               onHandlePointerDown={(event) => beginPointerDrag({ storyId: story.id, column: column.key, index: rowIndex }, event)}
                               onHandlePointerMove={updatePointerDrag}
                               onHandlePointerUp={finishPointerDrag}

@@ -93,12 +93,24 @@ function toCoverageHubElectionOverrides(value: unknown): CoverageHubElectionOver
         const race = (item as Record<string, unknown>).race;
         const outcome = (item as Record<string, unknown>).outcome;
         const probability = (item as Record<string, unknown>).probability;
+        const rawUrl = (item as Record<string, unknown>).url;
         if (
           typeof race !== "string" || !race.trim() ||
           typeof outcome !== "string" || !outcome.trim() ||
           typeof probability !== "number" || !Number.isFinite(probability) || probability < 0 || probability > 100
         ) return [];
-        return [{ race: race.trim(), outcome: outcome.trim(), probability }];
+        let url: string | undefined;
+        if (typeof rawUrl === "string" && rawUrl.trim()) {
+          try {
+            const parsed = new URL(rawUrl.trim());
+            if (parsed.protocol === "https:" && (parsed.hostname === "polymarket.com" || parsed.hostname.endsWith(".polymarket.com"))) {
+              url = parsed.toString();
+            }
+          } catch {
+            // Ignore malformed market links from stored hub data.
+          }
+        }
+        return [{ race: race.trim(), outcome: outcome.trim(), probability, url }];
       })
     : [];
 

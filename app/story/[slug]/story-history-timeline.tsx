@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatStoryDate, formatUpdatedAt } from "@/app/lib/dates";
 import type { PublicStoryTimelineEntry } from "@/app/lib/story-revisions";
 import type { StoryImageDisplay } from "@/app/lib/types";
+import ShareButton from "@/app/share-button";
 import StoryImageSummaryLayout from "./story-image-summary-layout";
+import StoryReaderActions from "./story-reader-actions";
 
 type StoryHistoryTimelineProps = {
   image: { alt: string; credit?: string | null; creditUrl?: string | null; display: StoryImageDisplay | null | undefined; objectPosition?: string; src: string } | null;
@@ -12,6 +14,9 @@ type StoryHistoryTimelineProps = {
   latestUpdatedAt: string | null;
   revisions: PublicStoryTimelineEntry[];
   storyTitle: string;
+  authenticated: boolean;
+  initialFollowing: boolean;
+  storyId: string;
 };
 
 function timelineDay(value: string) {
@@ -43,7 +48,7 @@ function endOfTimelineDay(day: string) {
   return new Date(Date.UTC(year, month - 1, date, 23, 59, 59, 999) - offsetMs).toISOString();
 }
 
-export default function StoryHistoryTimeline({ image, latestSummary, latestUpdatedAt, revisions, storyTitle }: StoryHistoryTimelineProps) {
+export default function StoryHistoryTimeline({ image, latestSummary, latestUpdatedAt, revisions, storyTitle, authenticated, initialFollowing, storyId }: StoryHistoryTimelineProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [summary, setSummary] = useState(latestSummary);
   const [updatedAt, setUpdatedAt] = useState(latestUpdatedAt);
@@ -102,6 +107,19 @@ export default function StoryHistoryTimeline({ image, latestSummary, latestUpdat
       summary={summary}
       updatedAtLabel={selectedId ? null : updatedAt ? formatUpdatedAt(updatedAt) : null}
       statusLabel={selectedId ? `Viewing story as of ${formatStoryDate(selectedId)}` : null}
+      updatedActions={(
+        <>
+          <StoryReaderActions
+            authenticated={authenticated}
+            className="inline-flex min-h-10 items-center justify-center rounded-full px-4 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-70"
+            disableMarkSeen
+            initialFollowing={initialFollowing}
+            storyId={storyId}
+            trackingContext="story_updated_actions"
+          />
+          <ShareButton title={storyTitle} path={`/story/${storyId}`} trackingContext="story_updated_actions" variant="soft" />
+        </>
+      )}
       historyAction={days.length >= 2 ? (
         <div className="flex items-center gap-3">
           {selectedId ? (

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import AdaptiveBriefingImage from "@/app/briefing/adaptive-briefing-image";
+import BackLink from "@/app/back-link";
 import ElectionSnapshotPanel from "@/app/coverage/election-snapshot-panel";
 import {
   buildCoverageHubData,
@@ -149,17 +150,22 @@ export default async function CoverageHubPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
       />
       <div className="mx-auto max-w-6xl">
-        <div className="flex justify-center">
-          <Link href="/" aria-label="Go to The Beacon home page" className="inline-block">
-            <Image
-              src="/psbeacon.png?v=20260707"
-              alt="The Beacon"
-              width={1920}
-              height={1080}
-              priority
-              className="h-auto w-[138px] sm:w-[158px]"
-            />
-          </Link>
+        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 sm:grid-cols-[1fr_auto_1fr] sm:gap-4">
+          <BackLink href="/" className="justify-self-start" />
+          <div className="justify-self-center text-center">
+            <Link href="/" aria-label="Go to The Beacon home page" className="inline-block">
+              <Image
+                src="/psbeacon.png?v=20260707"
+                alt={SITE_NAME}
+                width={1920}
+                height={1080}
+                priority
+                className="h-auto w-[122px] sm:w-[156px] md:w-[184px]"
+              />
+            </Link>
+            <p className="mt-1 hidden text-[11px] text-neutral-500 sm:block md:text-xs">One Story, Multiple Perspectives.</p>
+          </div>
+          <div />
         </div>
 
         <section className={`${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING} mt-6 overflow-hidden border-t-2 border-t-[#8f7740]/70`}>

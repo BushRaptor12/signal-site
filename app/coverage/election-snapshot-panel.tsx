@@ -59,15 +59,7 @@ export default function ElectionSnapshotPanel({ snapshot }: { snapshot: Election
 
       <div className="mt-6 border-t border-[#163754]/60 pt-5">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Senate races to watch</div>
-          <a
-            href="https://www.cookpolitical.com/races"
-            target="_blank"
-            rel="noreferrer"
-            className="text-[10px] uppercase tracking-[0.12em] text-neutral-500 underline decoration-[#8f7740]/50 underline-offset-4 transition hover:text-neutral-300"
-          >
-            Race ratings
-          </a>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d7c08d]">Races to watch</div>
         </div>
         {snapshot.senateRaces.length > 0 ? (
           <div className="mt-3 space-y-2">
@@ -77,7 +69,6 @@ export default function ElectionSnapshotPanel({ snapshot }: { snapshot: Election
                   <span className="text-xs leading-5 text-neutral-400">{race.title}</span>
                   <span className="shrink-0 text-right text-xs font-semibold text-neutral-100">
                     {race.leader.label}
-                    {race.leader.manual ? <span className="ml-1.5 text-[9px] uppercase tracking-[0.1em] text-[#d7c08d]">Manual</span> : null}
                     {" "}<span className="text-[#d7c08d]">{percent(race.leader.probability)}</span>
                   </span>
                 </>

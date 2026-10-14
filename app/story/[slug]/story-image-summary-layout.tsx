@@ -18,11 +18,12 @@ type StoryImageSummaryLayoutProps = {
   updatedAtLabel?: string | null;
   statusLabel?: string | null;
   historyAction?: ReactNode;
+  updatedActions?: ReactNode;
 };
 
 const DESKTOP_SIDE_BY_SIDE_QUERY = "(min-width: 1280px)";
 
-export default function StoryImageSummaryLayout({ image, summary, updatedAtLabel, statusLabel, historyAction }: StoryImageSummaryLayoutProps) {
+export default function StoryImageSummaryLayout({ image, summary, updatedAtLabel, statusLabel, historyAction, updatedActions }: StoryImageSummaryLayoutProps) {
   const containedImage = Boolean(image && image.display === "contain");
   const imageWrapRef = useRef<HTMLDivElement | null>(null);
   const measureWrapRef = useRef<HTMLDivElement | null>(null);
@@ -146,6 +147,7 @@ export default function StoryImageSummaryLayout({ image, summary, updatedAtLabel
             {historyAction}
           </div>
         ) : null}
+        {updatedActions ? <div className="flex items-center gap-2 pt-1 md:hidden">{updatedActions}</div> : null}
       </div>
     </div>
   );

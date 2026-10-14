@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "The Beacon",
     short_name: "Beacon",
     description: "Multi-source news with clear perspective, concise summaries, and source-by-source coverage.",
-    start_url: "/beacon",
+    start_url: "/",
     scope: "/",
     display: "standalone",
     background_color: "#05111D",
@@ -76,16 +76,22 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       {
-        name: "The Briefing",
-        short_name: "Briefing",
-        description: "Open the ranked Beacon briefing.",
-        url: "/briefing",
+        name: "Home",
+        short_name: "Home",
+        description: "Open The Beacon home page.",
+        url: "/",
       },
       {
-        name: "Following",
-        short_name: "Following",
+        name: "Your Feed",
+        short_name: "Your Feed",
         description: "Open stories tied to followed interests.",
-        url: "/?tab=following",
+        url: "/feed?tab=following",
+      },
+      {
+        name: "Popular",
+        short_name: "Popular",
+        description: "Open popular stories.",
+        url: "/section/popular",
       },
       {
         name: "Notifications",

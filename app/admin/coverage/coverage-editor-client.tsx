@@ -158,11 +158,46 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
     });
   }
 
-  function updateElectionRace(index: number, patch: Partial<{ race: string; outcome: string; probability: number }>) {
+  function updateElectionRace(index: number, patch: Partial<{ race: string; outcome: string; probability: number; url?: string }>) {
     const races = [...(draft?.electionOverrides?.senateRaces ?? [])];
     const currentRace = races[index] ?? { race: "", outcome: "", probability: 50 };
     races[index] = { ...currentRace, ...patch };
     updateDraft({ electionOverrides: { ...draft?.electionOverrides, senateRaces: races } });
+  }
+
+  async function loadElectionRaceOdds(index: number, rawUrl: string) {
+    const url = rawUrl.trim();
+    if (!url) return;
+
+    setError("");
+    setStatus("Loading odds from Polymarket...");
+    try {
+      const response = await fetch("/api/admin/coverage/polymarket-odds", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string; label?: string; probability?: number };
+      if (!response.ok || !data.label || typeof data.probability !== "number") {
+        throw new Error(data.error ?? "We couldn't load odds from that Polymarket link.");
+      }
+
+      setDraft((current) => {
+        if (!current) return current;
+        const races = [...(current.electionOverrides?.senateRaces ?? [])];
+        if (races[index]?.url?.trim() !== url) return current;
+        races[index] = {
+          ...races[index],
+          outcome: data.label!,
+          probability: Math.round(data.probability! * 100),
+        };
+        return { ...current, electionOverrides: { ...current.electionOverrides, senateRaces: races } };
+      });
+      setStatus("Loaded the current leader and odds from Polymarket.");
+    } catch (lookupError) {
+      setError(lookupError instanceof Error ? lookupError.message : "We couldn't load odds from that Polymarket link.");
+      setStatus("");
+    }
   }
 
   function addElectionRace() {
@@ -181,6 +216,14 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
         senateRaces: (draft?.electionOverrides?.senateRaces ?? []).filter((_, raceIndex) => raceIndex !== index),
       },
     });
+  }
+
+  function moveElectionRace(index: number, direction: -1 | 1) {
+    const races = [...(draft?.electionOverrides?.senateRaces ?? [])];
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= races.length) return;
+    [races[index], races[nextIndex]] = [races[nextIndex], races[index]];
+    updateDraft({ electionOverrides: { ...draft?.electionOverrides, senateRaces: races } });
   }
 
   function confirmNavigation() {
@@ -317,7 +360,19 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
       return;
     }
     if ((draft.electionOverrides?.senateRaces ?? []).some((race) => !race.race.trim() || !race.outcome.trim())) {
-      setError("Each manual Senate race needs a race name and a leader.");
+      setError("Each race needs a race name and a leader.");
+      return;
+    }
+    if ((draft.electionOverrides?.senateRaces ?? []).some((race) => {
+      if (!race.url?.trim()) return false;
+      try {
+        const url = new URL(race.url.trim());
+        return url.protocol !== "https:" || !(url.hostname === "polymarket.com" || url.hostname.endsWith(".polymarket.com"));
+      } catch {
+        return true;
+      }
+    })) {
+      setError("Race links must be valid HTTPS Polymarket URLs.");
       return;
     }
 
@@ -536,7 +591,7 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
                   <div>
                     <div className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-300">Election odds overrides</div>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-500">
-                      Leave a value blank to use its live Polymarket price. Enter a percentage from 0 to 100 to override it. Adding Senate races here replaces the automatically selected race list.
+                      Leave a value blank to use its live Polymarket price. Enter a percentage from 0 to 100 to override it. Adding races here replaces the automatically selected race list.
                     </p>
                   </div>
                   <button
@@ -593,8 +648,8 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
                 <div className={`${ADMIN_INSET} mt-5 p-4`}>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400">Senate races to watch</div>
-                      <p className="mt-1 text-xs leading-5 text-neutral-600">Add a race to replace the live list. Set the displayed leading candidate or party and their odds.</p>
+                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400">Races to watch</div>
+                      <p className="mt-1 text-xs leading-5 text-neutral-600">Add a race to replace the live list. Paste a Polymarket link and leave the field to load its current leader and odds.</p>
                     </div>
                     <button
                       type="button"
@@ -606,7 +661,7 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
                   </div>
                   <div className="mt-4 space-y-3">
                     {(draft.electionOverrides?.senateRaces ?? []).map((race, index) => (
-                      <div key={`election-race-${index}`} className="grid gap-3 rounded-xl border border-neutral-800 bg-neutral-950/60 p-3 md:grid-cols-[1fr_1fr_8rem_auto] md:items-end">
+                      <div key={`election-race-${index}`} className="grid gap-3 rounded-xl border border-neutral-800 bg-neutral-950/60 p-3 md:grid-cols-[1fr_1fr_8rem_1.5fr_auto] md:items-end">
                         <label className="text-xs text-neutral-500">
                           Race
                           <input
@@ -637,13 +692,44 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
                             className="mt-2 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-100"
                           />
                         </label>
-                        <button
-                          type="button"
-                          onClick={() => removeElectionRace(index)}
-                          className="rounded-full border border-red-400/40 px-3 py-2 text-xs text-red-200 transition hover:bg-red-950/30"
-                        >
-                          Remove
-                        </button>
+                        <label className="text-xs text-neutral-500">
+                          Polymarket link (optional)
+                          <input
+                            type="url"
+                            value={race.url ?? ""}
+                            onChange={(event) => updateElectionRace(index, { url: event.target.value })}
+                            onBlur={(event) => void loadElectionRaceOdds(index, event.target.value)}
+                            className="mt-2 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-100"
+                            placeholder="https://polymarket.com/event/..."
+                          />
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => moveElectionRace(index, -1)}
+                            disabled={index === 0}
+                            aria-label={`Move ${race.race || "race"} up`}
+                            className="rounded-full border border-neutral-700 px-2.5 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveElectionRace(index, 1)}
+                            disabled={index === (draft.electionOverrides?.senateRaces?.length ?? 0) - 1}
+                            aria-label={`Move ${race.race || "race"} down`}
+                            className="rounded-full border border-neutral-700 px-2.5 py-2 text-xs text-neutral-300 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeElectionRace(index)}
+                            className="rounded-full border border-red-400/40 px-3 py-2 text-xs text-red-200 transition hover:bg-red-950/30"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </div>
                     ))}
                     {(draft.electionOverrides?.senateRaces ?? []).length === 0 ? (

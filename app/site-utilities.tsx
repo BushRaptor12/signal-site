@@ -26,7 +26,7 @@ function AccountIcon() {
   );
 }
 
-function BriefingIcon() {
+function FeedIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-none stroke-current stroke-[1.8]">
       <path d="M5 5.5h14M5 11.5h14M5 17.5h9" strokeLinecap="round" />
@@ -55,22 +55,22 @@ function HomeIcon() {
 
 const mobileNavItems = [
   {
-    href: "/beacon",
+    href: "/",
     label: "Home",
     icon: HomeIcon,
-    match: (pathname: string) => pathname === "/beacon",
+    match: (pathname: string) => pathname === "/",
   },
   {
-    href: "/briefing",
-    label: "Briefing",
-    icon: BriefingIcon,
-    match: (pathname: string) => pathname.startsWith("/briefing"),
+    href: "/feed?tab=following",
+    label: "Your Feed",
+    icon: FeedIcon,
+    match: (pathname: string) => pathname.startsWith("/feed"),
   },
   {
-    href: "/",
+    href: "/section/popular",
     label: "Popular",
     icon: LatestIcon,
-    match: (pathname: string) => pathname === "/",
+    match: (pathname: string) => pathname === "/section/popular",
   },
   {
     href: "/notifications",
