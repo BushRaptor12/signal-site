@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { imageObjectPosition } from "@/app/lib/image-focus";
 import type { StoryWithViews } from "@/app/lib/types";
 
@@ -15,6 +15,11 @@ const SIDE_RAIL_UNITS = 6;
 const SIDE_IMAGE_UNITS = 2;
 const SIDE_RAIL_TALL_IMAGE_MAX_RATIO = 0.95;
 const SIDE_RAIL_SECOND_SUMMARY_MAX_CHARS = 90;
+const SectionTabContext = createContext("latest");
+
+function sectionStoryHref(storyId: string, tab: string) {
+  return `/story/${storyId}?from=section-${encodeURIComponent(tab)}`;
+}
 
 type SideRailItem = {
   kind: "image" | "text";
@@ -124,12 +129,13 @@ function LeadStory({
   registerNode: (node: HTMLAnchorElement | null) => void;
   fillHeight?: boolean;
 }) {
+  const tab = useContext(SectionTabContext);
   const date = storyDateLabel(story);
   const hasImage = hasHomepageImage(story);
   const summaryPoints = story.summary.filter(Boolean).slice(0, hasImage ? 1 : 3);
 
   return (
-    <Link ref={registerNode} href={`/story/${story.id}?from=section`} className={`group flex w-full self-start flex-col rounded-[14px] border border-[#183149]/70 bg-[#07131e] p-4 shadow-[0_16px_36px_rgba(0,0,0,0.18)] transition hover:border-[#8f7740]/45 hover:bg-[#071622] sm:p-6 ${fillHeight ? "lg:h-full" : ""}`}>
+    <Link ref={registerNode} href={sectionStoryHref(story.id, tab)} className={`group flex w-full self-start flex-col rounded-[14px] border border-[#183149]/70 bg-[#07131e] p-4 shadow-[0_16px_36px_rgba(0,0,0,0.18)] transition hover:border-[#8f7740]/45 hover:bg-[#071622] sm:p-6 ${fillHeight ? "lg:h-full" : ""}`}>
       <div>
         <StoryImage priority story={story} />
         <h1 className={hasImage ? "mt-5 text-3xl font-semibold leading-tight text-neutral-100 transition group-hover:text-[#d7c08d] sm:text-4xl" : "text-3xl font-semibold leading-tight text-neutral-100 transition group-hover:text-[#d7c08d] sm:text-4xl"}>
@@ -147,10 +153,11 @@ function LeadStory({
 }
 
 function SideTextStoryCard({ story }: { story: StoryWithViews }) {
+  const tab = useContext(SectionTabContext);
   const date = storyDateLabel(story);
 
   return (
-    <Link href={`/story/${story.id}?from=section`} className="group flex min-h-0 flex-col justify-between overflow-hidden rounded-[12px] border border-[#183149]/65 bg-[#07131e] px-4 py-4 shadow-[0_10px_22px_rgba(0,0,0,0.12)] transition hover:border-[#8f7740]/45 hover:bg-[#071622] sm:px-5 lg:h-full">
+    <Link href={sectionStoryHref(story.id, tab)} className="group flex min-h-0 flex-col justify-between overflow-hidden rounded-[12px] border border-[#183149]/65 bg-[#07131e] px-4 py-4 shadow-[0_10px_22px_rgba(0,0,0,0.12)] transition hover:border-[#8f7740]/45 hover:bg-[#071622] sm:px-5 lg:h-full">
       <div className="min-w-0">
         <h2 className="line-clamp-3 text-base font-semibold leading-snug text-neutral-100 transition group-hover:text-[#d7c08d]">
           {story.title}
@@ -163,6 +170,7 @@ function SideTextStoryCard({ story }: { story: StoryWithViews }) {
 }
 
 function SideImageStoryCard({ story }: { story: StoryWithViews }) {
+  const tab = useContext(SectionTabContext);
   const date = storyDateLabel(story);
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
   const useHorizontalRailLayout =
@@ -180,7 +188,7 @@ function SideImageStoryCard({ story }: { story: StoryWithViews }) {
 
   if (useHorizontalRailLayout) {
     return (
-      <Link href={`/story/${story.id}?from=section`} className="group grid min-h-0 grid-cols-[minmax(0,1fr)_6.75rem] gap-3 overflow-hidden rounded-[12px] border border-[#183149]/65 bg-[#07131e] p-4 shadow-[0_10px_22px_rgba(0,0,0,0.14)] transition hover:border-[#8f7740]/45 hover:bg-[#071622] sm:grid-cols-[minmax(0,1fr)_7.5rem] lg:h-full">
+      <Link href={sectionStoryHref(story.id, tab)} className="group grid min-h-0 grid-cols-[minmax(0,1fr)_6.75rem] gap-3 overflow-hidden rounded-[12px] border border-[#183149]/65 bg-[#07131e] p-4 shadow-[0_10px_22px_rgba(0,0,0,0.14)] transition hover:border-[#8f7740]/45 hover:bg-[#071622] sm:grid-cols-[minmax(0,1fr)_7.5rem] lg:h-full">
         <div className="flex min-w-0 flex-col justify-between">
           <div>
             <h2 className="line-clamp-3 text-base font-semibold leading-tight text-neutral-100 transition group-hover:text-[#d7c08d]">
@@ -217,7 +225,7 @@ function SideImageStoryCard({ story }: { story: StoryWithViews }) {
   }
 
   return (
-    <Link href={`/story/${story.id}?from=section`} className="group flex min-h-0 flex-col justify-between overflow-hidden rounded-[12px] border border-[#183149]/65 bg-[#07131e] p-4 shadow-[0_10px_22px_rgba(0,0,0,0.14)] transition hover:border-[#8f7740]/45 hover:bg-[#071622] lg:h-full">
+    <Link href={sectionStoryHref(story.id, tab)} className="group flex min-h-0 flex-col justify-between overflow-hidden rounded-[12px] border border-[#183149]/65 bg-[#07131e] p-4 shadow-[0_10px_22px_rgba(0,0,0,0.14)] transition hover:border-[#8f7740]/45 hover:bg-[#071622] lg:h-full">
       <div className="min-w-0">
         <StoryImage compact fixedFrame onImageLoad={updateAspectRatio} story={story} />
         <h2 className="mt-3 line-clamp-2 text-base font-semibold leading-tight text-neutral-100 transition group-hover:text-[#d7c08d]">
@@ -287,13 +295,14 @@ function SideRail({ items }: { items: SideRailItem[] }) {
 }
 
 function SecondaryStoryItem({ story }: { story: StoryWithViews }) {
+  const tab = useContext(SectionTabContext);
   const showImage = hasHomepageImage(story);
   const date = storyDateLabel(story);
   const summaryPoints = story.summary.filter(Boolean).slice(0, showImage ? 1 : 2);
 
   return (
     <Link
-      href={`/story/${story.id}?from=section`}
+      href={sectionStoryHref(story.id, tab)}
       className={`group h-full rounded-[12px] border border-[#183149]/65 bg-[#07131e] p-4 shadow-[0_10px_22px_rgba(0,0,0,0.12)] transition hover:border-[#8f7740]/45 hover:bg-[#071622] ${
         showImage ? "grid gap-3 sm:grid-cols-[7.5rem_1fr] sm:grid-rows-[1fr_auto]" : "flex flex-col sm:p-5"
       }`}
@@ -360,13 +369,14 @@ function SecondaryStoryList({ stories, singleColumn = false }: { stories: StoryW
 }
 
 function TextStoryGroup({ stories }: { stories: StoryWithViews[] }) {
+  const tab = useContext(SectionTabContext);
   if (stories.length === 0) return null;
 
   return (
     <section className="self-start rounded-[12px] border border-[#183149]/65 bg-[#07131e] shadow-[0_10px_22px_rgba(0,0,0,0.12)]">
       <div className="divide-y divide-[#163754]/60">
         {stories.map((story) => (
-          <Link key={story.id} href={`/story/${story.id}?from=section`} className="group block px-4 py-4 transition hover:bg-[#0a1926] sm:px-5">
+          <Link key={story.id} href={sectionStoryHref(story.id, tab)} className="group block px-4 py-4 transition hover:bg-[#0a1926] sm:px-5">
             <h2 className="text-base font-semibold leading-snug text-neutral-100 transition group-hover:text-[#d7c08d] sm:text-lg">
               {story.title}
             </h2>
@@ -382,10 +392,12 @@ function TextStoryGroup({ stories }: { stories: StoryWithViews[] }) {
 
 export default function SectionStories({
   stories,
+  tab,
   preferRecentLeadImage = false,
   referenceNowMs,
 }: {
   stories: StoryWithViews[];
+  tab: string;
   preferRecentLeadImage?: boolean;
   referenceNowMs: number;
 }) {
@@ -444,6 +456,7 @@ export default function SectionStories({
   if (!visualLead) return null;
 
   return (
+    <SectionTabContext.Provider value={tab}>
       <div className="grid gap-6">
         <div className={`grid items-start gap-6 ${hasSideRail ? "lg:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.85fr)]" : ""}`}>
           {leadColumnStories.length > 0 ? (
@@ -475,5 +488,6 @@ export default function SectionStories({
         </div>
       ) : null}
     </div>
+    </SectionTabContext.Provider>
   );
 }

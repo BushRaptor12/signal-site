@@ -7,6 +7,7 @@ import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, STORY_CARD_SELECT, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
 import NewsSectionNav from "@/app/news-section-nav";
+import SpecialCoverageBanners from "@/app/special-coverage-banners";
 import HomePageClient from "../home-page-client";
 
 export const dynamic = "force-dynamic";
@@ -83,6 +84,7 @@ export default async function FeedPage() {
     return (
       <>
         <NewsSectionNav activeTab="feed" />
+        <SpecialCoverageBanners />
         <main className="min-h-screen bg-transparent px-4 pb-6 pt-2 text-neutral-100 sm:px-6 sm:pb-10 sm:pt-4">
           <div className="mx-auto max-w-2xl">
             <div className="flex justify-center">
@@ -134,6 +136,7 @@ export default async function FeedPage() {
   return (
     <>
       <NewsSectionNav activeTab="feed" />
+      <SpecialCoverageBanners />
       <HomePageClient
         initialStories={initialStories}
         initialAccountAuthenticated={Boolean(userId)}

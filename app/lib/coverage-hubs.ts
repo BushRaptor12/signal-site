@@ -30,6 +30,7 @@ export type CoverageHubStorySection = {
 
 export type CoverageHubDefinition = {
   slug: string;
+  activeCoverage?: boolean;
   eyebrow: string;
   title: string;
   dek: string;
@@ -93,6 +94,7 @@ const DEFAULT_COVERAGE_HUBS: CoverageHubDefinition[] = [
   },
   {
     slug: "midterm-elections-2026",
+    activeCoverage: true,
     eyebrow: "Election Coverage",
     title: "2026 Midterm Elections",
     dek: "The races, issues, and political shifts shaping control of Congress and state governments.",

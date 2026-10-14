@@ -13,6 +13,7 @@ import {
 
 type CoverageHubRow = {
   slug: string;
+  active_coverage?: boolean | null;
   eyebrow?: string | null;
   title?: string | null;
   dek?: string | null;
@@ -126,6 +127,7 @@ function toCoverageHubElectionOverrides(value: unknown): CoverageHubElectionOver
 function normalizeCoverageHub(input: Partial<CoverageHubStored> & { slug: string }): CoverageHubStored {
   return {
     slug: input.slug.trim(),
+    activeCoverage: input.activeCoverage === true,
     eyebrow: typeof input.eyebrow === "string" ? input.eyebrow.trim() : "",
     title: typeof input.title === "string" ? input.title.trim() : "",
     dek: typeof input.dek === "string" ? input.dek.trim() : "",
@@ -147,6 +149,7 @@ function normalizeCoverageHub(input: Partial<CoverageHubStored> & { slug: string
 function fromCoverageHubRow(row: CoverageHubRow): CoverageHubStored {
   return normalizeCoverageHub({
     slug: row.slug,
+    activeCoverage: row.active_coverage === true,
     eyebrow: row.eyebrow ?? "",
     title: row.title ?? "",
     dek: row.dek ?? "",
@@ -169,7 +172,7 @@ async function loadCoverageHubOverrides() {
   const supabase = supabaseServer();
   const { data, error } = await supabase
     .from("coverage_hubs")
-    .select("slug, eyebrow, title, dek, date_label, description, hero_story_id, latest_story_ids, sections, picks_title, picks_description, picks, notes, election_snapshot, updated_at, updated_by")
+    .select("slug, active_coverage, eyebrow, title, dek, date_label, description, hero_story_id, latest_story_ids, sections, picks_title, picks_description, picks, notes, election_snapshot, updated_at, updated_by")
     .order("slug", { ascending: true });
 
   if (error) {
@@ -205,6 +208,7 @@ export async function upsertCoverageHub(input: Partial<CoverageHubDefinition> & 
 
   const payload = {
     slug: merged.slug,
+    active_coverage: merged.activeCoverage === true,
     eyebrow: merged.eyebrow,
     title: merged.title,
     dek: merged.dek,
@@ -225,7 +229,7 @@ export async function upsertCoverageHub(input: Partial<CoverageHubDefinition> & 
   const { data, error } = await supabase
     .from("coverage_hubs")
     .upsert(payload, { onConflict: "slug" })
-    .select("slug, eyebrow, title, dek, date_label, description, hero_story_id, latest_story_ids, sections, picks_title, picks_description, picks, notes, election_snapshot, updated_at, updated_by")
+    .select("slug, active_coverage, eyebrow, title, dek, date_label, description, hero_story_id, latest_story_ids, sections, picks_title, picks_description, picks, notes, election_snapshot, updated_at, updated_by")
     .single();
 
   if (error) {

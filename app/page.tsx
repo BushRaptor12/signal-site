@@ -13,6 +13,7 @@ import { supabaseServer } from "@/app/lib/supabase.server";
 import { coerceStory, type StoryDbRow } from "@/app/lib/stories";
 import type { StoryWithViews } from "@/app/lib/types";
 import NewsSectionNav from "./news-section-nav";
+import SpecialCoverageBanners from "./special-coverage-banners";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -230,17 +231,7 @@ export default async function HomePage() {
     return (
       <>
         <NewsSectionNav />
-        <Link
-          href="/coverage/midterm-elections-2026"
-          className="group flex min-h-10 w-full items-center justify-center gap-2 border-y border-[#8f7740]/35 bg-gradient-to-r from-[#0a1722] via-[#172833] to-[#0a1722] px-3 text-center text-xs font-semibold tracking-[0.04em] text-neutral-100 transition-colors hover:from-[#10202d] hover:via-[#20333d] hover:to-[#10202d] sm:min-h-11 sm:text-sm"
-        >
-          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-[#d7c08d] motion-safe:animate-pulse" />
-          <span className="text-[#e3cca0]">SPECIAL COVERAGE:</span>
-          <span>Midterm Elections</span>
-          <svg aria-hidden="true" viewBox="0 0 20 20" className="ml-0.5 size-3.5 shrink-0 fill-none stroke-current stroke-[1.8] text-[#d7c08d] transition-transform group-hover:translate-x-0.5">
-            <path d="M3.5 10h12m-5-5 5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </Link>
+        <SpecialCoverageBanners />
         <main className="min-h-screen bg-transparent px-3 pb-3 pt-1 text-neutral-100 sm:px-5 sm:pb-7 sm:pt-3 lg:px-8 lg:pb-8 lg:pt-4">
         <script
           type="application/ld+json"

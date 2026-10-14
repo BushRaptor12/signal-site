@@ -9,6 +9,7 @@ import { coerceStory, STORY_CARD_SELECT, type StoryDbRow } from "@/app/lib/stori
 import type { StoryWithViews } from "@/app/lib/types";
 import { normalize } from "@/app/lib/vocab";
 import NewsSectionNav from "@/app/news-section-nav";
+import SpecialCoverageBanners from "@/app/special-coverage-banners";
 import SectionStories from "./section-stories";
 
 type SectionPageProps = {
@@ -143,6 +144,7 @@ export default async function SectionPage({ params }: SectionPageProps) {
   return (
     <>
       <NewsSectionNav activeTab={normalizedTab} />
+      <SpecialCoverageBanners />
       <main className="min-h-screen bg-transparent px-3 pb-3 pt-1 text-neutral-100 sm:px-5 sm:pb-7 sm:pt-3 lg:px-8 lg:pb-8 lg:pt-4">
         <div className="mx-auto max-w-6xl">
           <div className="mb-4 flex justify-center sm:mb-7">
@@ -174,6 +176,7 @@ export default async function SectionPage({ params }: SectionPageProps) {
           ) : (
             <SectionStories
               stories={stories}
+              tab={normalizedTab}
               preferRecentLeadImage={isTopicSection}
               referenceNowMs={referenceNowMs}
             />

@@ -155,7 +155,11 @@ export default async function StoryPage({
   const from = Array.isArray(rawFrom) ? rawFrom[0] : rawFrom;
 
   const backHref =
-    from === "beacon"
+    from?.startsWith("coverage-")
+      ? `/coverage/${encodeURIComponent(from.slice("coverage-".length))}`
+      : from?.startsWith("section-")
+      ? `/section/${encodeURIComponent(from.slice("section-".length))}`
+      : from === "beacon"
       ? "/"
       : from === "briefing"
       ? "/briefing"

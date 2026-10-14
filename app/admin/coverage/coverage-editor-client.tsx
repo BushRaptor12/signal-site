@@ -82,6 +82,7 @@ function cloneHub(hub: CoverageHubStored): CoverageHubStored {
 function createBlankHub(slug: string, title: string): CoverageHubStored {
   return {
     slug,
+    activeCoverage: false,
     eyebrow: "Special Coverage",
     title,
     dek: "",
@@ -493,6 +494,7 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
                   >
                     <div className="text-xs uppercase tracking-[0.18em] text-neutral-500">{hub.slug}</div>
                     <div className="mt-2 text-base font-semibold text-neutral-100">{hub.title}</div>
+                    {hub.activeCoverage ? <div className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#e3cca0]">Active coverage</div> : null}
                     <div className="mt-2 text-sm leading-6 text-neutral-400">{hub.dek || "No dek set yet."}</div>
                   </button>
                 );
@@ -525,6 +527,18 @@ export default function CoverageEditorClient({ initialHubs, initialStories }: Co
 
           <section className={`${ADMIN_PANEL} p-6`}>
             <div className="grid gap-4 md:grid-cols-2">
+              <label className="flex items-start gap-3 rounded-xl border border-[#8f7740]/40 bg-[#0b1722] p-4 md:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={draft.activeCoverage === true}
+                  onChange={(event) => updateDraft({ activeCoverage: event.target.checked })}
+                  className="mt-0.5 size-4 accent-[#d7c08d]"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-neutral-100">Active coverage</span>
+                  <span className="mt-1 block text-sm leading-5 text-neutral-400">Show this hub in the special coverage banner on the home page and topic tabs.</span>
+                </span>
+              </label>
               <div>
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Slug</label>
                 <input

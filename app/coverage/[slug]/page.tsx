@@ -54,10 +54,10 @@ function storyCardSummary(story: StoryWithViews) {
   return story.summary[0] || "";
 }
 
-function StoryChip({ story }: { story: StoryWithViews }) {
+function StoryChip({ story, coverageSlug }: { story: StoryWithViews; coverageSlug: string }) {
   return (
     <Link
-      href={`/story/${story.id}`}
+      href={`/story/${story.id}?from=coverage-${encodeURIComponent(coverageSlug)}`}
       className={`${PUBLIC_INSET_ELEVATED_INTERACTIVE} flex flex-col gap-3 p-5`}
     >
       <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">{formatStoryDate(story.date)}</div>
@@ -183,7 +183,7 @@ export default async function CoverageHubPage({
             {hub.heroStory ? (
               <article className={`${PUBLIC_PANEL} ${PUBLIC_PANEL_PADDING}`}>
                 <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">Lead Story</div>
-                <Link href={`/story/${hub.heroStory.id}`} className="mt-4 block">
+                <Link href={`/story/${hub.heroStory.id}?from=coverage-${encodeURIComponent(hub.slug)}`} className="mt-4 block">
                   <h2 className="text-[1.8rem] font-semibold leading-tight text-neutral-100 transition hover:text-[#d7c08d] sm:text-3xl md:text-5xl">
                     {hub.heroStory.title}
                   </h2>
@@ -215,7 +215,7 @@ export default async function CoverageHubPage({
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   {hub.latestStories.map((story) => (
-                    <StoryChip key={story.id} story={story} />
+                    <StoryChip key={story.id} story={story} coverageSlug={hub.slug} />
                   ))}
                 </div>
               </section>
@@ -230,7 +230,7 @@ export default async function CoverageHubPage({
                   </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     {section.stories.map((story) => (
-                      <StoryChip key={story.id} story={story} />
+                    <StoryChip key={story.id} story={story} coverageSlug={hub.slug} />
                     ))}
                   </div>
                 </section>
