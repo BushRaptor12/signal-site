@@ -57,7 +57,8 @@ export default function NewsSectionNav({ activeTab }: { activeTab?: string }) {
   }, []);
 
   return (
-    <nav className="relative border-b border-[#163754]/70 bg-[#05111D]/95 px-3 py-1 text-neutral-100 sm:px-5 lg:px-8">
+    <>
+    <nav aria-label="Site navigation" className="relative hidden border-b border-[#163754]/70 bg-[#05111D]/95 px-3 py-1 text-neutral-100 md:block md:px-5 lg:px-8">
       <div className="relative mx-auto max-w-6xl">
         <div className="-mx-2 flex items-center gap-4 overflow-x-auto px-2 pr-32 [scrollbar-width:none] sm:justify-center sm:gap-5 sm:px-32 [&::-webkit-scrollbar]:hidden">
           <Link
@@ -118,5 +119,26 @@ export default function NewsSectionNav({ activeTab }: { activeTab?: string }) {
         </Link>
       </div>
     </nav>
+    {activeTab && NEWS_SECTION_TABS.includes(activeTab) ? (
+      <nav aria-label="Explore topics" className="border-b border-[#163754]/70 bg-[#05111D]/95 px-3 py-1 text-neutral-100 md:hidden">
+        <div className="-mx-1 flex items-center gap-4 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {NEWS_SECTION_TABS.map((tab) => (
+            <Link
+              key={tab}
+              href={newsSectionHref(tab)}
+              aria-current={activeTab === tab ? "page" : undefined}
+              className={`shrink-0 border-b-[3px] px-1 pb-2 pt-1 text-sm font-semibold transition ${
+                activeTab === tab
+                  ? "border-[#e3cca0] text-neutral-100"
+                  : "border-transparent text-[#c5d3e1] hover:border-[#30516d] hover:text-white"
+              }`}
+            >
+              {newsSectionLabel(tab)}
+            </Link>
+          ))}
+        </div>
+      </nav>
+    ) : null}
+    </>
   );
 }

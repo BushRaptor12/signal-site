@@ -254,8 +254,8 @@ export default async function HomePage() {
           </div>
 
           <header className="mb-3 sm:mb-7">
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 gap-y-3 sm:gap-x-4">
-              <div className="col-start-1 row-start-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-x-4">
+              <div className="min-w-0 whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.05em] text-neutral-500 sm:text-[11px] sm:tracking-[0.16em]">
                 <span className="text-neutral-600">Updated</span>
                 <span className="ml-1 normal-case tracking-normal text-neutral-400">
                   <LocalBriefingUpdated value={latestUpdatedAt} />
@@ -263,13 +263,13 @@ export default async function HomePage() {
               </div>
               <Link
                 href="/coverage/midterm-elections-2026"
-                className="col-start-2 row-start-1 inline-flex items-center gap-1.5 justify-self-center text-[12px] font-semibold uppercase leading-[14px] tracking-[0.14em] text-[#d7c08d] underline decoration-[#8f7740]/50 underline-offset-[5px] transition hover:text-white hover:decoration-[#d7c08d] sm:text-[13px]"
+                className="col-start-2 row-start-1 inline-flex shrink-0 items-center gap-1.5 justify-self-end whitespace-nowrap text-[9px] font-semibold uppercase leading-[14px] tracking-[0.05em] text-[#d7c08d] underline decoration-[#8f7740]/50 underline-offset-[5px] transition hover:text-white hover:decoration-[#d7c08d] sm:text-[13px] sm:tracking-[0.14em]"
               >
                 <span aria-hidden="true" className="size-1.5 rounded-full bg-[#d7c08d] motion-safe:animate-pulse" />
                 <span>Midterm Elections</span>
               </Link>
               {isAdmin ? (
-                <div className="col-span-3 row-start-2 flex flex-wrap items-center gap-2 sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:justify-self-end">
+                <div className="col-span-2 row-start-2 flex flex-wrap items-center gap-2 sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:justify-self-end">
                   <ManualArchiveButton />
                 </div>
               ) : null}
